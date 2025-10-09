@@ -1,0 +1,7 @@
+{
+  "require": ["./out/test/suite/index.js"],
+  "timeout": 10000,
+  "ui": "tdd",
+  "recursive": true,
+  "spec": "./out/test/suite/*.test.js"
+}

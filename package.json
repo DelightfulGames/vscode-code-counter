@@ -1,0 +1,200 @@
+{
+  "name": "vscode-code-counter",
+  "displayName": "Code Counter",
+  "description": "Count lines of code in your project with XML/HTML reports",
+  "version": "0.3.0",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:codeCounter.countLines",
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codeCounter.countLines",
+        "title": "Count Lines of Code"
+      },
+      {
+        "command": "codeCounter.toggleExplorerLineCounts",
+        "title": "Toggle Line Counts in Explorer"
+      },
+      {
+        "command": "codeCounter.toggleTabLineCounts", 
+        "title": "Toggle Line Counts in Tabs"
+      },
+      {
+        "command": "codeCounter.toggleColorThresholds",
+        "title": "Toggle Color Coding for Line Counts"
+      },
+      {
+        "command": "codeCounter.resetColors",
+        "title": "Reset Colors to Defaults"
+      },
+      {
+        "command": "codeCounter.openColorSettings",
+        "title": "Customize Line Count Colors"
+      }
+    ],
+    "configuration": {
+      "title": "Code Counter",
+      "properties": {
+        "codeCounter.excludePatterns": {
+          "type": "array",
+          "default": [
+            "**/node_modules/**",
+            "**/out/**",
+            "**/dist/**",
+            "**/.git/**"
+          ],
+          "description": "Glob patterns for files to exclude from counting"
+        },
+        "codeCounter.outputDirectory": {
+          "type": "string",
+          "default": "./reports",
+          "description": "Directory where reports will be generated"
+        },
+        "codeCounter.autoGenerate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically generate reports when files are saved"
+        },
+        "codeCounter.showLineCountsInExplorer": {
+          "type": "string",
+          "enum": ["always", "hover", "off"],
+          "default": "hover",
+          "description": "Show line counts in file explorer"
+        },
+        "codeCounter.showLineCountsInTabs": {
+          "type": "string",
+          "enum": ["always", "hover", "off"],
+          "default": "hover",
+          "description": "Show line counts in editor tabs"
+        },
+        "codeCounter.cacheLineCounts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Cache line counts for better performance"
+        },
+        "codeCounter.colorThresholds.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable color coding for line counts based on thresholds"
+        },
+        "codeCounter.colorThresholds.yellowThreshold": {
+          "type": "number",
+          "default": 300,
+          "minimum": 1,
+          "description": "Line count threshold for yellow color (warning)"
+        },
+        "codeCounter.colorThresholds.redThreshold": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 1,
+          "description": "Line count threshold for red color (danger)"
+        },
+        "codeCounter.colors.normal": {
+          "type": "string",
+          "format": "color-hex",
+          "default": "#4CAF50",
+          "description": "Color for line counts below warning threshold (green)"
+        },
+        "codeCounter.colors.warning": {
+          "type": "string", 
+          "format": "color-hex",
+          "default": "#FFC107",
+          "description": "Color for line counts above warning threshold (yellow)"
+        },
+        "codeCounter.colors.danger": {
+          "type": "string",
+          "format": "color-hex", 
+          "default": "#F44336",
+          "description": "Color for line counts above danger threshold (red)"
+        }
+      }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "codeCounter.countLines"
+        },
+        {
+          "command": "codeCounter.toggleExplorerLineCounts"
+        },
+        {
+          "command": "codeCounter.toggleTabLineCounts"
+        },
+        {
+          "command": "codeCounter.toggleColorThresholds"
+        },
+        {
+          "command": "codeCounter.resetColors"
+        },
+        {
+          "command": "codeCounter.openColorSettings"
+        }
+      ]
+    },
+    "colors": [
+      {
+        "id": "codeCounter.lineCount.normal",
+        "description": "Color for line counts below all thresholds",
+        "defaults": {
+          "dark": "#4CAF50",
+          "light": "#2E7D32",
+          "highContrast": "#00FF00"
+        }
+      },
+      {
+        "id": "codeCounter.lineCount.warning",
+        "description": "Color for line counts above warning threshold",
+        "defaults": {
+          "dark": "#FFC107",
+          "light": "#F57F17",
+          "highContrast": "#FFFF00"
+        }
+      },
+      {
+        "id": "codeCounter.lineCount.danger",
+        "description": "Color for line counts above danger threshold", 
+        "defaults": {
+          "dark": "#F44336",
+          "light": "#C62828",
+          "highContrast": "#FF0000"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/mocha": "^10.0.3",
+    "@types/node": "18.x",
+    "@types/chai": "^4.3.6",
+    "@typescript-eslint/eslint-plugin": "^6.7.3",
+    "@typescript-eslint/parser": "^6.7.3",
+    "@vscode/test-electron": "^2.3.6",
+    "@vscode/vsce": "^2.21.1",
+    "chai": "^4.3.10",
+    "eslint": "^8.50.0",
+    "mocha": "^10.2.0",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "glob": "^10.3.10",
+    "fast-xml-parser": "^4.3.2"
+  }
+}

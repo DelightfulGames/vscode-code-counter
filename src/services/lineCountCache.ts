@@ -1,0 +1,98 @@
+import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
+import { LineCounterService } from './lineCounter';
+
+export interface CachedLineCount {
+    lines: number;
+    codeLines: number;
+    commentLines: number;
+    blankLines: number;
+    lastModified: number;
+    size: number;
+}
+
+export class LineCountCacheService {
+    private cache = new Map<string, CachedLineCount>();
+    private lineCounter: LineCounterService;
+    private disposables: vscode.Disposable[] = [];
+
+    constructor() {
+        this.lineCounter = new LineCounterService();
+        this.setupFileWatcher();
+    }
+
+    private setupFileWatcher(): void {
+        // Watch for file changes to invalidate cache
+        const watcher = vscode.workspace.createFileSystemWatcher('**/*');
+        
+        watcher.onDidChange((uri) => this.invalidateCache(uri.fsPath));
+        watcher.onDidDelete((uri) => this.invalidateCache(uri.fsPath));
+        
+        this.disposables.push(watcher);
+    }
+
+    private invalidateCache(filePath: string): void {
+        this.cache.delete(filePath);
+    }
+
+    async getLineCount(filePath: string): Promise<CachedLineCount | null> {
+        try {
+            const stats = await fs.promises.stat(filePath);
+            
+            // Check if we have a valid cached entry
+            const cached = this.cache.get(filePath);
+            if (cached && cached.lastModified === stats.mtimeMs && cached.size === stats.size) {
+                return cached;
+            }
+
+            // Count lines and cache the result
+            const fileInfo = await this.lineCounter.countFileLines(filePath);
+            const lineCount: CachedLineCount = {
+                lines: fileInfo.lines,
+                codeLines: fileInfo.codeLines,
+                commentLines: fileInfo.commentLines,
+                blankLines: fileInfo.blankLines,
+                lastModified: stats.mtimeMs,
+                size: stats.size
+            };
+
+            this.cache.set(filePath, lineCount);
+            return lineCount;
+            
+        } catch (error) {
+            console.warn(`Failed to get line count for ${filePath}:`, error);
+            return null;
+        }
+    }
+
+    async getLineCountForDocument(document: vscode.TextDocument): Promise<CachedLineCount | null> {
+        if (document.uri.scheme !== 'file') {
+            // For non-file documents, count directly from content
+            try {
+                const lines = document.getText().split('\n');
+                return {
+                    lines: lines.length,
+                    codeLines: lines.filter(line => line.trim() !== '').length,
+                    commentLines: 0, // Would need language-specific logic
+                    blankLines: lines.filter(line => line.trim() === '').length,
+                    lastModified: Date.now(),
+                    size: document.getText().length
+                };
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return this.getLineCount(document.uri.fsPath);
+    }
+
+    clearCache(): void {
+        this.cache.clear();
+    }
+
+    dispose(): void {
+        this.disposables.forEach(d => d.dispose());
+        this.clearCache();
+    }
+}
