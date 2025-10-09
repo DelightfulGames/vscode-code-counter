@@ -1,0 +1,38 @@
+{
+  "name": "vscode-code-counter",
+  "displayName": "VSCode Code Counter",
+  "description": "A VSCode extension that counts lines of code in a project with glob exclusion options.",
+  "version": "0.1.0",
+  "publisher": "your-name",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "activationEvents": [
+    "onCommand:extension.countLines"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "webpack --mode production",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "postinstall": "node ./node_modules/vscode/bin/install"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.countLines",
+        "title": "Count Lines of Code"
+      }
+    ]
+  },
+  "devDependencies": {
+    "typescript": "^4.4.0",
+    "webpack": "^5.0.0",
+    "webpack-cli": "^4.0.0",
+    "vscode": "^1.1.37"
+  },
+  "dependencies": {
+    "glob": "^7.1.6",
+    "xmlbuilder": "^15.1.1"
+  }
+}
