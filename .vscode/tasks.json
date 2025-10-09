@@ -5,6 +5,7 @@
             "type": "npm",
             "script": "compile",
             "group": "build",
+            "label": "npm: compile",
             "presentation": {
                 "panel": "shared"
             },
@@ -25,7 +26,21 @@
             "script": "test",
             "group": "test",
             "presentation": {
-                "panel": "shared"
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "label": "Run Extension Tests"
+        },
+        {
+            "type": "shell",
+            "command": "npm run compile && npm test",
+            "group": "test",
+            "label": "Compile and Test",
+            "presentation": {
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true
             }
         }
     ]

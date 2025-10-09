@@ -2,7 +2,7 @@
   "name": "vscode-code-counter",
   "displayName": "Code Counter",
   "description": "Count lines of code in your project with XML/HTML reports",
-  "version": "0.3.0",
+  "version": "0.4.1",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -177,6 +177,8 @@
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js",
+    "test:mocha": "mocha --config .mocharc.json",
+    "test:unit": "mocha out/test/suite/*.test.js --ui tdd --timeout 10000",
     "package": "vsce package"
   },
   "devDependencies": {

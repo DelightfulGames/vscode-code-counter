@@ -35,15 +35,14 @@ export class EditorTabDecorationProvider {
             this.updateStatusBar();
         });
 
-        // Listen for document changes to update counts
-        const documentWatcher = vscode.workspace.onDidChangeTextDocument(event => {
-            if (event.document === this.currentDocument) {
-                // Debounce updates to avoid too frequent recalculation
-                this.debounceUpdateStatusBar();
+        // Listen for document saves to update counts (much more efficient)
+        const documentSaveWatcher = vscode.workspace.onDidSaveTextDocument(document => {
+            if (document === this.currentDocument) {
+                this.updateStatusBar();
             }
         });
 
-        this.disposables.push(configWatcher, editorWatcher, documentWatcher);
+        this.disposables.push(configWatcher, editorWatcher, documentSaveWatcher);
 
         // Initialize with current editor
         if (vscode.window.activeTextEditor) {
@@ -57,16 +56,7 @@ export class EditorTabDecorationProvider {
         this.displayMode = config.get('showLineCountsInTabs', 'hover');
     }
 
-    private updateTimeout?: NodeJS.Timeout;
-
-    private debounceUpdateStatusBar(): void {
-        if (this.updateTimeout) {
-            clearTimeout(this.updateTimeout);
-        }
-        this.updateTimeout = setTimeout(() => {
-            this.updateStatusBar();
-        }, 500);
-    }
+    // Removed debounce since we now only update on save, not on every keystroke
 
     private async updateStatusBar(): Promise<void> {
         if (this.displayMode === 'off' || !this.currentDocument) {
@@ -104,18 +94,11 @@ export class EditorTabDecorationProvider {
     }
 
     private createTooltip(fileName: string, lineCount: CachedLineCount): string {
-        return `${fileName}: ${lineCount.lines.toLocaleString()} lines`;
+        return `Lines: ${lineCount.lines}`;
     }
 
     private createDetailedTooltip(fileName: string, lineCount: CachedLineCount): string {
-        return ColorThresholdService.createColoredTooltip(
-            fileName,
-            lineCount.lines,
-            lineCount.codeLines,
-            lineCount.commentLines,
-            lineCount.blankLines,
-            lineCount.size
-        );
+        return `Lines: ${lineCount.lines}`;
     }
 
     // Command handlers
@@ -143,9 +126,6 @@ export class EditorTabDecorationProvider {
     }
 
     dispose(): void {
-        if (this.updateTimeout) {
-            clearTimeout(this.updateTimeout);
-        }
         this.disposables.forEach(d => d.dispose());
         this.statusBarItem.dispose();
         this.lineCountCache.dispose();

@@ -60,18 +60,36 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                 return undefined;
             }
 
-            const { text: suffix, color } = ColorThresholdService.formatLineCountWithColor(lineCount.lines);
+            // Get the color classification for this line count
+            const threshold = ColorThresholdService.getColorThreshold(lineCount.lines);
+            const coloredTooltip = this.createColoredTooltip(lineCount);
             
-            // For file decorations, we need to use ThemeColor, not hex strings
-            // If custom color is used, we'll fall back to a generic theme color
-            const themeColor = typeof color === 'string' 
-                ? this.getThemeColorFromHex(color)
-                : color;
+            // Use different colored icons based on line count thresholds
+            let badge = '●';
+            let themeColor: vscode.ThemeColor;
+            
+            switch (threshold) {
+                case 'normal':
+                    badge = '🟢'; // Green circle
+                    themeColor = new vscode.ThemeColor('terminal.ansiGreen');
+                    break;
+                case 'warning':
+                    badge = '🟡'; // Yellow circle  
+                    themeColor = new vscode.ThemeColor('warningForeground');
+                    break;
+                case 'danger':
+                    badge = '🔴'; // Red circle
+                    themeColor = new vscode.ThemeColor('errorForeground');
+                    break;
+                default:
+                    badge = '⚪'; // White circle for unknown
+                    themeColor = new vscode.ThemeColor('foreground');
+            }
             
             return {
-                badge: this.displayMode === 'always' ? suffix : undefined,
-                tooltip: this.createTooltip(uri.fsPath, lineCount),
-                color: themeColor
+                badge: badge,
+                tooltip: coloredTooltip,
+                color: themeColor,
             };
 
         } catch (error) {
@@ -92,32 +110,14 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                filePath.includes('.git');
     }
 
-    private getThemeColorFromHex(hexColor: string): vscode.ThemeColor {
-        // Map hex colors to appropriate theme colors based on brightness
-        // This is a simplified approach - for custom colors, we'll use generic theme colors
-        const brightness = this.getColorBrightness(hexColor);
-        
-        if (brightness < 0.4) {
-            return new vscode.ThemeColor('errorForeground'); // Red-ish
-        } else if (brightness < 0.7) {
-            return new vscode.ThemeColor('warningForeground'); // Yellow-ish  
-        } else {
-            return new vscode.ThemeColor('terminal.ansiGreen'); // Green-ish
-        }
+
+
+    private createColoredTooltip(lineCount: CachedLineCount): string {
+        // Simple tooltip: "Lines: X" - VS Code will handle the tooltip styling
+        return `Lines: ${lineCount.lines}`;
     }
 
-    private getColorBrightness(hexColor: string): number {
-        // Remove # if present
-        const hex = hexColor.replace('#', '');
-        
-        // Convert to RGB
-        const r = parseInt(hex.substr(0, 2), 16);
-        const g = parseInt(hex.substr(2, 2), 16);
-        const b = parseInt(hex.substr(4, 2), 16);
-        
-        // Calculate perceived brightness (0-1)
-        return (r * 299 + g * 587 + b * 114) / 1000 / 255;
-    }
+
 
     private createTooltip(filePath: string, lineCount: CachedLineCount): string {
         const fileName = path.basename(filePath);
