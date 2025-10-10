@@ -57,6 +57,11 @@
           "default": true,
           "description": "Automatically generate reports when files are saved"
         },
+        "codeCounter.showNotificationOnAutoGenerate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notification with report summary when auto-generating reports"
+        },
         "codeCounter.showLineCountsInExplorer": {
           "type": "string",
           "enum": ["always", "hover"],

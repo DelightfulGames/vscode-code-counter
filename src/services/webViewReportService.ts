@@ -61,7 +61,7 @@ export class WebViewReportService {
         
         // If panel already exists, reveal it and update data
         if (this.currentPanel) {
-            this.currentPanel.reveal(vscode.ViewColumn.Two);
+            this.currentPanel.reveal(vscode.ViewColumn.One);
             this.updatePanelData(data);
             return;
         }

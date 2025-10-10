@@ -111,6 +111,50 @@ export class CountLinesCommand {
         }
     }
 
+    /**
+     * Execute command with notification-based UI (for auto-generated reports)
+     */
+    public async executeAndShowNotification(): Promise<void> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        
+        if (!workspaceFolders) {
+            return; // Silently ignore if no workspace
+        }
+
+        try {
+            // Get configuration
+            const config = vscode.workspace.getConfiguration('codeCounter');
+            const excludePatterns = config.get<string[]>('excludePatterns', []);
+            const showNotification = config.get<boolean>('showNotificationOnAutoGenerate', true);
+
+            // Count lines for the first workspace folder
+            const folder = workspaceFolders[0];
+            const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
+            const reportData = this.convertToReportData(results, folder.uri.fsPath);
+
+            // Only show notification if enabled in settings
+            if (showNotification) {
+                // Show notification with button to view report
+                const action = await vscode.window.showInformationMessage(
+                    `📊 Code analysis complete: ${reportData.summary.totalFiles} files, ${reportData.summary.totalLines.toLocaleString()} lines`,
+                    {
+                        modal: false
+                    },
+                    'View Report'
+                );
+
+                if (action === 'View Report') {
+                    const webViewService = WebViewReportService.getInstance();
+                    await webViewService.showReport(reportData);
+                }
+            }
+
+        } catch (error) {
+            // Silently log errors for auto-generated reports to avoid spam
+            console.error('Auto line count failed:', error);
+        }
+    }
+
     private convertToReportData(results: any, workspacePath: string): ReportData {
         // Calculate summary statistics
         const summary = {

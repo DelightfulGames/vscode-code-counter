@@ -74,7 +74,7 @@ export class FileWatcherProvider implements vscode.Disposable {
         }
         
         this.regenerateTimeout = setTimeout(() => {
-            this.countLinesCommand.execute();
+            this.countLinesCommand.executeAndShowNotification();
         }, 2000); // 2 second debounce
     }
 
