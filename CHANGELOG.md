@@ -1,0 +1,178 @@
+# Changelog
+
+All notable changes to the VS Code Code Counter extension will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- **Professional Emoji Picker Interface**: Comprehensive emoji selector with categorized tabs and grid layout
+- **Emoji Search Functionality**: Search through 1800+ emojis by name and aliases (e.g., "smile", "heart", "red circle", "thumbs up")
+- **Intelligent Search Engine**: Advanced search with relevance scoring, exact matches prioritized, and partial matching
+- **Searchable Emoji Database**: Comprehensive emoji metadata with names and multiple aliases for each emoji
+- **Multi-Category Emoji Browser**: Organized emoji categories (Smileys, Nature, Food, Activities, Travel, Objects, Symbols, Flags)
+- **Horizontal Scrolling Emoji Grid**: Multi-row listbox with smooth left/right scrolling for browsing large emoji collections
+- **Real-time Visual Selection**: Click-to-select emoji interface with instant preview updates
+- **Universal Emoji Support**: Complete Unicode emoji library including compound emojis, skin tones, and country flags
+- **Interactive Tooltips**: Hover over emojis to see their names and aliases for easy identification
+- **Keyboard Navigation**: Enter key selects first search result, Escape key clears search
+- **Persistent Emoji Settings**: Selected emojis automatically save to VS Code configuration
+
+### Changed
+- **Enhanced User Experience**: Replaced simple text inputs with professional emoji picker modal with search capabilities
+- **Interactive Selection**: Clickable emoji buttons with hover effects and visual feedback
+- **Smart Search Integration**: Search seamlessly integrates with category browsing, auto-focuses on modal open
+- **Debounced Search Input**: Optimized search performance with 200ms debounce to prevent excessive queries
+- **Dynamic Result Display**: Search results show count and helpful messages for empty searches
+- **Categorized Organization**: Tabbed interface for easy emoji discovery and selection
+- **Modal Interface**: Full-screen emoji picker with close button and click-outside-to-close functionality
+- **Visual Grid Layout**: Responsive emoji grid that adapts to different screen sizes
+- **Updated Terminology**: Renamed all "Color Settings" references to "Emoji Settings" for accuracy
+- **Command Titles**: Updated command palette entries to reflect emoji-based functionality
+- **Extension Description**: Improved description to highlight visual indicators and emoji customization
+
+### Fixed
+- Glob pattern management now properly saves and displays user-added patterns
+- WebView refresh logic now uses current configuration instead of stale data
+- Configuration scoping issues in message handlers resolved
+- Duplicate configuration files causing activation events conflicts
+- **File Save Refresh Bug**: File explorer emoji badges now update immediately when files are saved
+- **Real-time Badge Updates**: Added document save listener to refresh file badges automatically
+- **Glob Pattern Exclusion Bug**: File explorer badges now properly respect user-configured exclusion patterns
+- **Configuration Integration**: File badges now use dynamic exclusion patterns instead of hardcoded ones
+
+### Removed
+- Restrictive emoji enum arrays (now accepts any emoji)
+- Complex color-to-emoji mapping logic (direct emoji usage)
+- Dropdown duplicate prevention system (users have full freedom)
+
+## [0.7.0] - 2025-10-09
+
+### Added
+- Complete Settings Management interface with Glob Pattern Manager
+- Visual glob pattern validation with helpful error messages
+- One-click pattern removal with ❌ buttons
+- Pattern examples with expandable documentation
+- Reset functionality for both patterns and colors
+- Enhanced WebView interface for all settings management
+
+### Changed
+- Unified settings interface combining color picker and pattern management
+- Improved VS Code engine target to ^1.80.0 for better compatibility
+- Enhanced activation events (removed auto-generated command activation)
+
+### Fixed
+- Settings persistence issues with glob patterns
+- WebView state management improvements
+
+## [0.6.0] - 2025-10-08
+
+### Added
+- Configurable line count thresholds directly in the color picker
+- Live preview showing dynamic sample line counts based on thresholds
+- Threshold changes save immediately without restart
+
+### Changed
+- Unified color and threshold configuration interface
+- "Less than X lines" labels next to Green and Yellow colors
+- Red color automatically applies to all files ≥ second threshold
+- Preview values update automatically when thresholds change
+
+## [0.5.0] - 2025-10-07
+
+### Changed
+- **PHILOSOPHY CHANGE**: Extension follows "install = want features" principle
+- Removed redundant toggle commands and "off" settings
+- Extension now has only "always" and "hover" modes
+- Color coding is always enabled for consistent user experience
+
+### Removed
+- Toggle commands (users can disable/uninstall extension instead)
+- "Off" settings and unnecessary command palette clutter
+
+## [0.4.1] - 2025-10-06
+
+### Fixed
+- **PERFORMANCE**: Major performance improvements - eliminated infinite loops
+- Extension now only recalculates on file save, not every keystroke
+- Selective file watching - only monitors relevant code files
+- Save-based document updates for better responsiveness
+- Debounced file system events prevent performance issues
+- Significantly reduced CPU usage during editing
+
+## [0.4.0] - 2025-10-05
+
+### Added
+- Colored bullet point indicators (🟢🟡🔴) in file explorer
+- Visual color picker with HTML5 color wheel interface
+- WebView-based color customization with live preview
+- Non-intrusive design that preserves Git status colors
+
+### Changed
+- File explorer now shows colored circles instead of colored text
+- Professional color picker interface with reset functionality
+- Simple "Lines: X" tooltip format for consistency
+
+## [0.3.0] - 2025-10-04
+
+### Added
+- Custom color picker interface using VS Code's built-in color wheel
+- Individual color configuration for normal/warning/danger states
+- "Customize Line Count Colors" command opens settings with color pickers
+- "Reset Colors to Defaults" command for easy color reset
+- Intelligent color mapping for file explorer (hex to theme colors)
+
+### Changed
+- Real-time color updates when configuration changes
+- Better color handling between status bar and file explorer
+- Enhanced color configuration with validation
+
+## [0.2.0] - 2025-10-03
+
+### Added
+- Color coding system for line counts (green/yellow/red)
+- Configurable color thresholds (warning: 300, danger: 1000)
+- VS Code theme integration for consistent colors
+- Toggle command for color coding on/off
+- Enhanced tooltips with threshold indicators
+
+### Changed
+- Automatic threshold validation (danger > warning)
+- Better visual feedback in both explorer and status bar
+
+## [0.1.0] - 2025-10-02
+
+### Added
+- File Explorer integration - line counts next to filenames
+- Editor tab integration - line counts in status bar
+- Toggle commands for display modes (always/hover/off)
+- Intelligent caching system for improved performance
+- Hover tooltips with detailed file statistics
+
+### Changed
+- Better file type detection and exclusion logic
+- Performance optimizations for large projects
+
+## [0.0.1] - 2025-10-01
+
+### Added
+- Initial release
+- Basic line counting functionality  
+- HTML and XML report generation
+- File watcher for auto-generation
+- Configurable exclusion patterns
+- Multi-language support (25+ programming languages)
+
+<!-- Links -->
+[Unreleased]: https://github.com/DelightfulGames/vscode-code-counter/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/DelightfulGames/vscode-code-counter/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/DelightfulGames/vscode-code-counter/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/DelightfulGames/vscode-code-counter/compare/v0.4.1...v0.5.0
+[0.4.1]: https://github.com/DelightfulGames/vscode-code-counter/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/DelightfulGames/vscode-code-counter/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/DelightfulGames/vscode-code-counter/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/DelightfulGames/vscode-code-counter/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/DelightfulGames/vscode-code-counter/compare/v0.0.1...v0.1.0
+[0.0.1]: https://github.com/DelightfulGames/vscode-code-counter/releases/tag/v0.0.1

@@ -1,16 +1,15 @@
 {
   "name": "vscode-code-counter",
   "displayName": "Code Counter",
-  "description": "Count lines of code in your project with XML/HTML reports",
-  "version": "0.4.1",
+  "description": "Visual line counting with customizable emoji indicators and comprehensive project reports",
+  "version": "0.7.0",
   "engines": {
-    "vscode": "^1.74.0"
+    "vscode": "^1.80.0"
   },
   "categories": [
     "Other"
   ],
   "activationEvents": [
-    "onCommand:codeCounter.countLines",
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
@@ -21,24 +20,12 @@
         "title": "Count Lines of Code"
       },
       {
-        "command": "codeCounter.toggleExplorerLineCounts",
-        "title": "Toggle Line Counts in Explorer"
-      },
-      {
-        "command": "codeCounter.toggleTabLineCounts", 
-        "title": "Toggle Line Counts in Tabs"
-      },
-      {
-        "command": "codeCounter.toggleColorThresholds",
-        "title": "Toggle Color Coding for Line Counts"
-      },
-      {
         "command": "codeCounter.resetColors",
-        "title": "Reset Colors to Defaults"
+        "title": "CodeCounter: Reset Emoji Indicators to Defaults"
       },
       {
         "command": "codeCounter.openColorSettings",
-        "title": "Customize Line Count Colors"
+        "title": "CodeCounter: Customize Emoji Indicators"
       }
     ],
     "configuration": {
@@ -66,55 +53,48 @@
         },
         "codeCounter.showLineCountsInExplorer": {
           "type": "string",
-          "enum": ["always", "hover", "off"],
+          "enum": ["always", "hover"],
           "default": "hover",
-          "description": "Show line counts in file explorer"
+          "description": "Show line counts in file explorer - always visible or on hover"
         },
         "codeCounter.showLineCountsInTabs": {
           "type": "string",
-          "enum": ["always", "hover", "off"],
+          "enum": ["always", "hover"],
           "default": "hover",
-          "description": "Show line counts in editor tabs"
+          "description": "Show line counts in status bar - always visible or on hover"
         },
         "codeCounter.cacheLineCounts": {
           "type": "boolean",
           "default": true,
           "description": "Cache line counts for better performance"
         },
-        "codeCounter.colorThresholds.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable color coding for line counts based on thresholds"
-        },
-        "codeCounter.colorThresholds.yellowThreshold": {
+
+        "codeCounter.lineThresholds.midThreshold": {
           "type": "number",
           "default": 300,
           "minimum": 1,
-          "description": "Line count threshold for yellow color (warning)"
+          "description": "Line count threshold for warning indicator (medium file size)"
         },
-        "codeCounter.colorThresholds.redThreshold": {
+        "codeCounter.lineThresholds.highThreshold": {
           "type": "number",
           "default": 1000,
           "minimum": 1,
-          "description": "Line count threshold for red color (danger)"
+          "description": "Line count threshold for danger indicator (large file size)"
         },
-        "codeCounter.colors.normal": {
+        "codeCounter.emojis.normal": {
           "type": "string",
-          "format": "color-hex",
-          "default": "#4CAF50",
-          "description": "Color for line counts below warning threshold (green)"
+          "default": "🟢",
+          "description": "Emoji for line counts below warning threshold (low line count). You can use any emoji!"
         },
-        "codeCounter.colors.warning": {
-          "type": "string", 
-          "format": "color-hex",
-          "default": "#FFC107",
-          "description": "Color for line counts above warning threshold (yellow)"
-        },
-        "codeCounter.colors.danger": {
+        "codeCounter.emojis.warning": {
           "type": "string",
-          "format": "color-hex", 
-          "default": "#F44336",
-          "description": "Color for line counts above danger threshold (red)"
+          "default": "🟡",
+          "description": "Emoji for line counts above warning threshold (medium line count). You can use any emoji!"
+        },
+        "codeCounter.emojis.danger": {
+          "type": "string",
+          "default": "🔴",
+          "description": "Emoji for line counts above danger threshold (high line count). You can use any emoji!"
         }
       }
     },
@@ -124,51 +104,13 @@
           "command": "codeCounter.countLines"
         },
         {
-          "command": "codeCounter.toggleExplorerLineCounts"
-        },
-        {
-          "command": "codeCounter.toggleTabLineCounts"
-        },
-        {
-          "command": "codeCounter.toggleColorThresholds"
-        },
-        {
           "command": "codeCounter.resetColors"
         },
         {
           "command": "codeCounter.openColorSettings"
         }
       ]
-    },
-    "colors": [
-      {
-        "id": "codeCounter.lineCount.normal",
-        "description": "Color for line counts below all thresholds",
-        "defaults": {
-          "dark": "#4CAF50",
-          "light": "#2E7D32",
-          "highContrast": "#00FF00"
-        }
-      },
-      {
-        "id": "codeCounter.lineCount.warning",
-        "description": "Color for line counts above warning threshold",
-        "defaults": {
-          "dark": "#FFC107",
-          "light": "#F57F17",
-          "highContrast": "#FFFF00"
-        }
-      },
-      {
-        "id": "codeCounter.lineCount.danger",
-        "description": "Color for line counts above danger threshold", 
-        "defaults": {
-          "dark": "#F44336",
-          "light": "#C62828",
-          "highContrast": "#FF0000"
-        }
-      }
-    ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

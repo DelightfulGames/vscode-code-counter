@@ -4,90 +4,79 @@ export type ColorThreshold = 'normal' | 'warning' | 'danger';
 
 export interface ColorThresholdConfig {
     enabled: boolean;
-    yellowThreshold: number;
-    redThreshold: number;
+    midThreshold: number;
+    highThreshold: number;
 }
 
-export interface CustomColors {
+export interface CustomEmojis {
     normal: string;
     warning: string;
     danger: string;
 }
 
-export class ColorThresholdService {
+export class lineThresholdservice {
     
-    static getCustomColors(): CustomColors {
-        const config = vscode.workspace.getConfiguration('codeCounter.colors');
+    static getCustomEmojis(): CustomEmojis {
+        const config = vscode.workspace.getConfiguration('codeCounter.emojis');
         return {
-            normal: config.get<string>('normal', '#4CAF50'),
-            warning: config.get<string>('warning', '#FFC107'),
-            danger: config.get<string>('danger', '#F44336')
+            normal: config.get<string>('normal', '🟢'),
+            warning: config.get<string>('warning', '🟡'),
+            danger: config.get<string>('danger', '🔴')
         };
     }
     
     static getThresholdConfig(): ColorThresholdConfig {
-        const config = vscode.workspace.getConfiguration('codeCounter.colorThresholds');
+        const config = vscode.workspace.getConfiguration('codeCounter.lineThresholds');
         
-        let yellowThreshold = config.get<number>('yellowThreshold', 300);
-        let redThreshold = config.get<number>('redThreshold', 1000);
+        let midThreshold = config.get<number>('midThreshold', 300);
+        let highThreshold = config.get<number>('highThreshold', 1000);
         
-        // Ensure red threshold is higher than yellow threshold
-        if (redThreshold <= yellowThreshold) {
-            redThreshold = yellowThreshold + 100;
-            console.warn(`Red threshold (${config.get('redThreshold')}) must be higher than yellow threshold (${yellowThreshold}). Using ${redThreshold} instead.`);
+        // Ensure High threshold is higher than mid threshold
+        if (highThreshold <= midThreshold) {
+            highThreshold = midThreshold + 100;
+            console.warn(`High threshold (${config.get('highThreshold')}) must be higher than mid threshold (${midThreshold}). Using ${highThreshold} instead.`);
         }
         
         return {
-            enabled: config.get<boolean>('enabled', true),
-            yellowThreshold,
-            redThreshold
+            enabled: true, // Always enabled - users can disable extension if they don't want badges
+            midThreshold: midThreshold,
+            highThreshold: highThreshold
         };
     }
     
     static getColorThreshold(lineCount: number): ColorThreshold {
         const config = this.getThresholdConfig();
         
-        if (!config.enabled) {
+        // Badges are always enabled - users disable extension if they don't want them
+        if (false) { // Keep the structure but never disable
             return 'normal';
         }
         
-        if (lineCount >= config.redThreshold) {
+        if (lineCount >= config.highThreshold) {
             return 'danger';
-        } else if (lineCount >= config.yellowThreshold) {
+        } else if (lineCount >= config.midThreshold) {
             return 'warning';
         } else {
             return 'normal';
         }
     }
     
-    static getThemeColor(threshold: ColorThreshold): vscode.ThemeColor | string {
-        const customColors = this.getCustomColors();
-        
-        // Check if custom colors are set (not defaults), if so use them directly
-        const isCustomColor = (color: string, defaultColor: string) => color !== defaultColor;
+    static getThemeEmoji(threshold: ColorThreshold): string {
+        const customEmojis = this.getCustomEmojis();
         
         switch (threshold) {
             case 'normal':
-                if (isCustomColor(customColors.normal, '#4CAF50')) {
-                    return customColors.normal;
-                }
-                return new vscode.ThemeColor('codeCounter.lineCount.normal');
+                return customEmojis.normal;
             case 'warning':
-                if (isCustomColor(customColors.warning, '#FFC107')) {
-                    return customColors.warning;
-                }
-                return new vscode.ThemeColor('codeCounter.lineCount.warning');
+                return customEmojis.warning;
             case 'danger':
-                if (isCustomColor(customColors.danger, '#F44336')) {
-                    return customColors.danger;
-                }
-                return new vscode.ThemeColor('codeCounter.lineCount.danger');
+                return customEmojis.danger;
         }
     }
     
-    static formatLineCountWithColor(lineCount: number): { text: string; color: vscode.ThemeColor | string } {
+    static formatLineCountWithEmoji(lineCount: number): { text: string; emoji: string } {
         const threshold = this.getColorThreshold(lineCount);
-        const color = this.getThemeColor(threshold);
+        const emoji = this.getThemeEmoji(threshold);
         
         let text: string;
         if (lineCount < 1000) {
@@ -98,12 +87,12 @@ export class ColorThresholdService {
             text = `${(lineCount / 1000000).toFixed(1)}ML`;
         }
         
-        return { text, color };
+        return { text, emoji };
     }
     
-    static getStatusBarText(lineCount: number): { text: string; color: vscode.ThemeColor | string } {
+    static getStatusBarText(lineCount: number): { text: string; emoji: string } {
         const threshold = this.getColorThreshold(lineCount);
-        const color = this.getThemeColor(threshold);
+        const emoji = this.getThemeEmoji(threshold);
         
         let text: string;
         if (lineCount < 1000) {
@@ -114,24 +103,25 @@ export class ColorThresholdService {
             text = `${(lineCount / 1000000).toFixed(1)}M lines`;
         }
         
-        return { text, color };
+        return { text, emoji };
     }
     
     static createColoredTooltip(fileName: string, lineCount: number, codeLines: number, commentLines: number, blankLines: number, size: number): string {
         const threshold = this.getColorThreshold(lineCount);
         const config = this.getThresholdConfig();
+        const emoji = this.getThemeEmoji(threshold);
         
         let thresholdInfo = '';
         if (config.enabled) {
             switch (threshold) {
                 case 'normal':
-                    thresholdInfo = ` (✅ Below ${config.yellowThreshold} lines)`;
+                    thresholdInfo = ` (${emoji} Below ${config.midThreshold} lines)`;
                     break;
                 case 'warning':
-                    thresholdInfo = ` (⚠️ Above ${config.yellowThreshold} lines)`;
+                    thresholdInfo = ` (${emoji} Above ${config.midThreshold} lines)`;
                     break;
                 case 'danger':
-                    thresholdInfo = ` (🚨 Above ${config.redThreshold} lines)`;
+                    thresholdInfo = ` (${emoji} Above ${config.highThreshold} lines)`;
                     break;
             }
         }

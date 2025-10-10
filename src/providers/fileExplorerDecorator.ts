@@ -1,43 +1,41 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { LineCountCacheService, CachedLineCount } from '../services/lineCountCache';
-import { ColorThresholdService } from '../services/colorThresholdService';
+import { lineThresholdservice } from '../services/lineThresholdservice';
 
 export class FileExplorerDecorationProvider implements vscode.FileDecorationProvider {
     private _onDidChangeFileDecorations: vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined> = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
     readonly onDidChangeFileDecorations: vscode.Event<vscode.Uri | vscode.Uri[] | undefined> = this._onDidChangeFileDecorations.event;
 
     private lineCountCache: LineCountCacheService;
-    private displayMode: 'always' | 'hover' | 'off' = 'hover';
     private disposables: vscode.Disposable[] = [];
 
     constructor() {
         this.lineCountCache = new LineCountCacheService();
-        this.updateDisplayMode();
         this.setupConfigurationWatcher();
     }
 
     private setupConfigurationWatcher(): void {
         const configWatcher = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('codeCounter.showLineCountsInExplorer') ||
-                event.affectsConfiguration('codeCounter.colorThresholds') ||
-                event.affectsConfiguration('codeCounter.colors')) {
-                this.updateDisplayMode();
+                event.affectsConfiguration('codeCounter.lineThresholds') ||
+                event.affectsConfiguration('codeCounter.emojis')) {
                 this._onDidChangeFileDecorations.fire(undefined);
             }
         });
         this.disposables.push(configWatcher);
-    }
 
-    private updateDisplayMode(): void {
-        const config = vscode.workspace.getConfiguration('codeCounter');
-        this.displayMode = config.get('showLineCountsInExplorer', 'hover');
+        // Listen for file saves to refresh decorations
+        const saveWatcher = vscode.workspace.onDidSaveTextDocument(document => {
+            // Fire change event for the specific file to refresh its decoration
+            // The cache will be automatically invalidated when the decoration is re-rendered
+            this._onDidChangeFileDecorations.fire(document.uri);
+        });
+        this.disposables.push(saveWatcher);
     }
 
     async provideFileDecoration(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {
-        if (this.displayMode === 'off') {
-            return undefined;
-        }
+        // Extension is enabled, so always show decorations based on mode
 
         // Only decorate files, not directories
         try {
@@ -61,24 +59,27 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             }
 
             // Get the color classification for this line count
-            const threshold = ColorThresholdService.getColorThreshold(lineCount.lines);
-            const coloredTooltip = this.createColoredTooltip(lineCount);
+            const threshold = lineThresholdservice.getColorThreshold(lineCount.lines);
+            const coloredTooltip = this.createColoredTooltip(uri.fsPath, lineCount);
             
             // Use different colored icons based on line count thresholds
             let badge = '●';
             let themeColor: vscode.ThemeColor;
             
+            // Get custom emojis from configuration
+            const emoji = lineThresholdservice.getThemeEmoji(threshold);
+            
             switch (threshold) {
                 case 'normal':
-                    badge = '🟢'; // Green circle
+                    badge = emoji;
                     themeColor = new vscode.ThemeColor('terminal.ansiGreen');
                     break;
                 case 'warning':
-                    badge = '🟡'; // Yellow circle  
+                    badge = emoji;
                     themeColor = new vscode.ThemeColor('warningForeground');
                     break;
                 case 'danger':
-                    badge = '🔴'; // Red circle
+                    badge = emoji;
                     themeColor = new vscode.ThemeColor('errorForeground');
                     break;
                 default:
@@ -100,28 +101,44 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
     private shouldSkipFile(filePath: string): boolean {
         const ext = path.extname(filePath).toLowerCase();
+        
+        // Skip binary files that don't make sense to count
         const skipExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg', 
                                '.mp4', '.avi', '.mov', '.mp3', '.wav', '.pdf', '.zip', 
                                '.tar', '.gz', '.exe', '.dll', '.so', '.dylib'];
         
-        return skipExtensions.includes(ext) || 
-               path.basename(filePath).startsWith('.') ||
-               filePath.includes('node_modules') ||
-               filePath.includes('.git');
+        if (skipExtensions.includes(ext)) {
+            return true;
+        }
+
+        // Check against user-configured exclusion patterns
+        const config = vscode.workspace.getConfiguration('codeCounter');
+        const excludePatterns = config.get<string[]>('excludePatterns', []);
+        const relativePath = vscode.workspace.asRelativePath(filePath);
+        
+        for (const pattern of excludePatterns) {
+            if (this.matchesPattern(relativePath, pattern)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-
-
-    private createColoredTooltip(lineCount: CachedLineCount): string {
-        // Simple tooltip: "Lines: X" - VS Code will handle the tooltip styling
-        return `Lines: ${lineCount.lines}`;
+    private matchesPattern(filePath: string, pattern: string): boolean {
+        // Simple glob pattern matching (could be enhanced with a proper glob library)
+        const regexPattern = pattern
+            .replace(/\*\*/g, '.*')
+            .replace(/\*/g, '[^/]*')
+            .replace(/\?/g, '[^/]');
+        
+        const regex = new RegExp(`^${regexPattern}$`);
+        return regex.test(filePath);
     }
 
-
-
-    private createTooltip(filePath: string, lineCount: CachedLineCount): string {
+    private createColoredTooltip(filePath: string, lineCount: CachedLineCount): string {
         const fileName = path.basename(filePath);
-        return ColorThresholdService.createColoredTooltip(
+        return lineThresholdservice.createColoredTooltip(
             fileName,
             lineCount.lines,
             lineCount.codeLines,
@@ -135,28 +152,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         this._onDidChangeFileDecorations.fire(undefined);
     }
 
-    toggleExplorerLineCounts(): void {
-        const config = vscode.workspace.getConfiguration('codeCounter');
-        const currentMode = config.get<'always' | 'hover' | 'off'>('showLineCountsInExplorer', 'hover');
-        
-        let newMode: 'always' | 'hover' | 'off';
-        switch (currentMode) {
-            case 'always':
-                newMode = 'hover';
-                break;
-            case 'hover':
-                newMode = 'off';
-                break;
-            case 'off':
-                newMode = 'always';
-                break;
-            default:
-                newMode = 'hover';
-        }
-
-        config.update('showLineCountsInExplorer', newMode, vscode.ConfigurationTarget.Global);
-        vscode.window.showInformationMessage(`Explorer line counts: ${newMode}`);
-    }
+    // Toggle functionality removed - users can disable the extension if they don't want it
 
     dispose(): void {
         this.disposables.forEach(d => d.dispose());

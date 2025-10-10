@@ -1,11 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { LineCountCacheService, CachedLineCount } from '../services/lineCountCache';
-import { ColorThresholdService } from '../services/colorThresholdService';
+import { lineThresholdservice } from '../services/lineThresholdservice';
 
 export class EditorTabDecorationProvider {
     private lineCountCache: LineCountCacheService;
-    private displayMode: 'always' | 'hover' | 'off' = 'hover';
     private disposables: vscode.Disposable[] = [];
     private statusBarItem: vscode.StatusBarItem;
     private currentDocument: vscode.TextDocument | undefined;
@@ -14,7 +13,6 @@ export class EditorTabDecorationProvider {
         this.lineCountCache = new LineCountCacheService();
         this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         
-        this.updateDisplayMode();
         this.setupEventListeners();
     }
 
@@ -22,9 +20,8 @@ export class EditorTabDecorationProvider {
         // Listen for configuration changes
         const configWatcher = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('codeCounter.showLineCountsInTabs') ||
-                event.affectsConfiguration('codeCounter.colorThresholds') ||
-                event.affectsConfiguration('codeCounter.colors')) {
-                this.updateDisplayMode();
+                event.affectsConfiguration('codeCounter.lineThresholds') ||
+                event.affectsConfiguration('codeCounter.emojis')) {
                 this.updateStatusBar();
             }
         });
@@ -51,15 +48,8 @@ export class EditorTabDecorationProvider {
         }
     }
 
-    private updateDisplayMode(): void {
-        const config = vscode.workspace.getConfiguration('codeCounter');
-        this.displayMode = config.get('showLineCountsInTabs', 'hover');
-    }
-
-    // Removed debounce since we now only update on save, not on every keystroke
-
     private async updateStatusBar(): Promise<void> {
-        if (this.displayMode === 'off' || !this.currentDocument) {
+        if (!this.currentDocument) {
             this.statusBarItem.hide();
             return;
         }
@@ -72,20 +62,12 @@ export class EditorTabDecorationProvider {
             }
 
             const fileName = path.basename(this.currentDocument.uri.fsPath);
-            const { text: formattedCount, color } = ColorThresholdService.getStatusBarText(lineCount.lines);
+            const { text: formattedCount, emoji } = lineThresholdservice.getStatusBarText(lineCount.lines);
             
             // Different display based on mode
-            if (this.displayMode === 'always') {
-                this.statusBarItem.text = `$(file-code) ${formattedCount}`;
-                this.statusBarItem.tooltip = this.createTooltip(fileName, lineCount);
-                this.statusBarItem.color = color;
-                this.statusBarItem.show();
-            } else if (this.displayMode === 'hover') {
-                this.statusBarItem.text = `$(file-code) Lines`;
-                this.statusBarItem.tooltip = this.createDetailedTooltip(fileName, lineCount);
-                this.statusBarItem.color = color;
-                this.statusBarItem.show();
-            }
+            this.statusBarItem.text = `${emoji} ${formattedCount}`;
+            this.statusBarItem.tooltip = this.createTooltip(fileName, lineCount);
+            this.statusBarItem.show();
 
         } catch (error) {
             console.warn('Failed to update status bar:', error);
@@ -97,33 +79,7 @@ export class EditorTabDecorationProvider {
         return `Lines: ${lineCount.lines}`;
     }
 
-    private createDetailedTooltip(fileName: string, lineCount: CachedLineCount): string {
-        return `Lines: ${lineCount.lines}`;
-    }
-
-    // Command handlers
-    toggleTabLineCounts(): void {
-        const config = vscode.workspace.getConfiguration('codeCounter');
-        const currentMode = config.get<'always' | 'hover' | 'off'>('showLineCountsInTabs', 'hover');
-        
-        let newMode: 'always' | 'hover' | 'off';
-        switch (currentMode) {
-            case 'always':
-                newMode = 'hover';
-                break;
-            case 'hover':
-                newMode = 'off';
-                break;
-            case 'off':
-                newMode = 'always';
-                break;
-            default:
-                newMode = 'hover';
-        }
-
-        config.update('showLineCountsInTabs', newMode, vscode.ConfigurationTarget.Global);
-        vscode.window.showInformationMessage(`Tab line counts: ${newMode}`);
-    }
+    // Toggle functionality removed - users can disable the extension if they don't want it
 
     dispose(): void {
         this.disposables.forEach(d => d.dispose());
