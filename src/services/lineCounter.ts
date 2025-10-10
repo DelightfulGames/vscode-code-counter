@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { glob } from 'glob';
+import * as vscode from 'vscode';
 import { FileInfo, LineCountResult } from '../types';
 
 export class LineCounterService {
@@ -44,15 +44,14 @@ export class LineCounterService {
     }
 
     private async getFiles(workspacePath: string, excludePatterns: string[]): Promise<string[]> {
-        const includePattern = '**/*';
-        const options = {
-            cwd: workspacePath,
-            ignore: excludePatterns,
-            nodir: true,
-            absolute: true
-        };
-
-        return glob(includePattern, options);
+        // Use VS Code's workspace API instead of glob
+        const includePattern = new vscode.RelativePattern(workspacePath, '**/*');
+        const excludePattern = excludePatterns.length > 0 
+            ? `{${excludePatterns.join(',')}}` 
+            : undefined;
+        
+        const files = await vscode.workspace.findFiles(includePattern, excludePattern);
+        return files.map(file => file.fsPath);
     }
 
     async countFileLines(filePath: string): Promise<FileInfo> {

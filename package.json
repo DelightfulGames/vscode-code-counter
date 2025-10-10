@@ -2,7 +2,7 @@
   "name": "vscode-code-counter",
   "displayName": "Code Counter Pro",
   "description": "Visual line counting with customizable emoji indicators and comprehensive project reports",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "publisher": "DelightfulGames",
   "license": "MIT",
   "engines": {
@@ -22,11 +22,15 @@
         "title": "Count Lines of Code"
       },
       {
-        "command": "codeCounter.resetColors",
+        "command": "codeCounter.showReportPanel",
+        "title": "CodeCounter: Show Report Panel"
+      },
+      {
+        "command": "codeCounter.resetBadgeSettings",
         "title": "CodeCounter: Reset Emoji Indicators to Defaults"
       },
       {
-        "command": "codeCounter.openColorSettings",
+        "command": "codeCounter.openSettings",
         "title": "CodeCounter: Customize Emoji Indicators"
       }
     ],
@@ -106,10 +110,10 @@
           "command": "codeCounter.countLines"
         },
         {
-          "command": "codeCounter.resetColors"
+          "command": "codeCounter.resetBadgeSettings"
         },
         {
-          "command": "codeCounter.openColorSettings"
+          "command": "codeCounter.openSettings"
         }
       ]
     }
@@ -157,7 +161,6 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "glob": "^10.3.10",
     "fast-xml-parser": "^4.3.2"
   }
 }

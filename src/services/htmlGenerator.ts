@@ -12,10 +12,13 @@ export class HtmlGeneratorService {
         const templatePath = path.join(__dirname, '../../templates/report.html');
         let htmlTemplate = await fs.promises.readFile(templatePath, 'utf8');
         
-        // Replace the XML data placeholder in the template
-        htmlTemplate = htmlTemplate.replace('{{XML_DATA}}', xmlData);
+        // Replace template placeholders
         htmlTemplate = htmlTemplate.replace('{{GENERATED_DATE}}', new Date().toLocaleString());
         htmlTemplate = htmlTemplate.replace('{{WORKSPACE_PATH}}', workspacePath);
+        
+        // Provide XML data as fallback for file:// protocol access
+        const escapedXmlData = xmlData.replace(/'/g, "\\'").replace(/\r?\n/g, '\\n');
+        htmlTemplate = htmlTemplate.replace('{{XML_DATA_FALLBACK}}', escapedXmlData);
         
         // Write the HTML file
         const htmlFilePath = path.join(fullOutputPath, 'code-counter-report.html');

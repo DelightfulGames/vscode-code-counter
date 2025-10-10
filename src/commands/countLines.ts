@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { LineCounterService } from '../services/lineCounter';
 import { XmlGeneratorService } from '../services/xmlGenerator';
 import { HtmlGeneratorService } from '../services/htmlGenerator';
+import { WebViewReportService, ReportData } from '../services/webViewReportService';
 
 export class CountLinesCommand {
     private lineCounter: LineCounterService;
@@ -22,29 +23,148 @@ export class CountLinesCommand {
             return;
         }
 
+        // Ask user for output preference
+        const choice = await vscode.window.showQuickPick([
+            {
+                label: '📊 Show Report Panel',
+                description: 'View results in VS Code panel (recommended)',
+                detail: 'Interactive report with real-time updates'
+            },
+            {
+                label: '📄 Export HTML Files',
+                description: 'Generate HTML and XML files',
+                detail: 'Create files for sharing or external viewing'
+            }
+        ], {
+            placeHolder: 'How would you like to view the report?'
+        });
+
+        if (!choice) {
+            return; // User cancelled
+        }
+
         try {
             vscode.window.showInformationMessage('Counting lines of code...');
             
             // Get configuration
             const config = vscode.workspace.getConfiguration('codeCounter');
             const excludePatterns = config.get<string[]>('excludePatterns', []);
-            const outputDirectory = config.get<string>('outputDirectory', './reports');
 
-            // Count lines for each workspace folder
-            for (const folder of workspaceFolders) {
+            if (choice.label.includes('Panel')) {
+                // Show in WebView panel
+                const folder = workspaceFolders[0];
                 const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
+                const reportData = this.convertToReportData(results, folder.uri.fsPath);
                 
-                // Generate XML data source
-                const xmlData = this.xmlGenerator.generateXml(results);
-                
-                // Generate HTML report
-                await this.htmlGenerator.generateHtmlReport(xmlData, folder.uri.fsPath, outputDirectory);
-            }
+                const webViewService = WebViewReportService.getInstance();
+                await webViewService.showReport(reportData);
 
-            vscode.window.showInformationMessage('Line counting completed! Reports generated.');
+                vscode.window.showInformationMessage('Line counting completed! Report opened in panel.');
+            } else {
+                // Generate HTML/XML files
+                const outputDirectory = config.get<string>('outputDirectory', './reports');
+                
+                for (const folder of workspaceFolders) {
+                    const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
+                    const xmlData = this.xmlGenerator.generateXml(results);
+                    await this.htmlGenerator.generateHtmlReport(xmlData, folder.uri.fsPath, outputDirectory);
+                }
+
+                vscode.window.showInformationMessage('Line counting completed! HTML reports generated.');
+            }
             
         } catch (error) {
             vscode.window.showErrorMessage(`Error counting lines: ${error}`);
         }
+    }
+
+    async executeAndShowPanel(): Promise<void> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        
+        if (!workspaceFolders) {
+            vscode.window.showErrorMessage('No workspace folder is open');
+            return;
+        }
+
+        try {
+            vscode.window.showInformationMessage('Counting lines of code...');
+            
+            // Get configuration
+            const config = vscode.workspace.getConfiguration('codeCounter');
+            const excludePatterns = config.get<string[]>('excludePatterns', []);
+
+            // Count lines for the first workspace folder (or combine if multiple)
+            const folder = workspaceFolders[0];
+            const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
+            
+            // Convert to WebView report data format
+            const reportData = this.convertToReportData(results, folder.uri.fsPath);
+            
+            // Show in WebView panel
+            const webViewService = WebViewReportService.getInstance();
+            await webViewService.showReport(reportData);
+
+            vscode.window.showInformationMessage('Line counting completed! Report opened in panel.');
+            
+        } catch (error) {
+            vscode.window.showErrorMessage(`Error counting lines: ${error}`);
+        }
+    }
+
+    private convertToReportData(results: any, workspacePath: string): ReportData {
+        // Calculate summary statistics
+        const summary = {
+            totalFiles: results.files?.length || 0,
+            totalLines: results.files?.reduce((sum: number, file: any) => sum + (file.lines || 0), 0) || 0,
+            totalCodeLines: results.files?.reduce((sum: number, file: any) => sum + (file.codeLines || 0), 0) || 0,
+            totalCommentLines: results.files?.reduce((sum: number, file: any) => sum + (file.commentLines || 0), 0) || 0,
+            totalBlankLines: results.files?.reduce((sum: number, file: any) => sum + (file.blankLines || 0), 0) || 0,
+            languageCount: 0
+        };
+
+        // Group files by language
+        const languageGroups: { [key: string]: any[] } = {};
+        results.files?.forEach((file: any) => {
+            const lang = file.language || 'Unknown';
+            if (!languageGroups[lang]) {
+                languageGroups[lang] = [];
+            }
+            languageGroups[lang].push(file);
+        });
+
+        // Calculate language statistics
+        const languages = Object.keys(languageGroups).map(langName => {
+            const files = languageGroups[langName];
+            return {
+                name: langName,
+                files: files.length,
+                lines: files.reduce((sum, file) => sum + (file.lines || 0), 0),
+                codeLines: files.reduce((sum, file) => sum + (file.codeLines || 0), 0),
+                commentLines: files.reduce((sum, file) => sum + (file.commentLines || 0), 0),
+                blankLines: files.reduce((sum, file) => sum + (file.blankLines || 0), 0)
+            };
+        });
+
+        summary.languageCount = languages.length;
+
+        // Prepare file data
+        const files = results.files?.map((file: any) => ({
+            path: file.path || '',
+            relativePath: file.relativePath || file.path || '',
+            language: file.language || 'Unknown',
+            lines: file.lines || 0,
+            codeLines: file.codeLines || 0,
+            commentLines: file.commentLines || 0,
+            blankLines: file.blankLines || 0,
+            size: file.size || 0
+        })) || [];
+
+        return {
+            summary,
+            languages,
+            files,
+            workspacePath,
+            generatedDate: new Date().toLocaleString()
+        };
     }
 }

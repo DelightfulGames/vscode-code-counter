@@ -6,8 +6,12 @@ src/**
 .gitignore
 .mocharc.json
 tsconfig.json
-node_modules/**
 .copilot-instructions.md
+
+# Exclude dev dependencies but keep runtime dependencies
+node_modules/**
+!node_modules/fast-xml-parser/**
+!node_modules/strnum/**
 
 # Documentation files (exclude all internal docs)
 docs/**
