@@ -3,6 +3,8 @@
   "displayName": "Code Counter",
   "description": "Visual line counting with customizable emoji indicators and comprehensive project reports",
   "version": "0.7.0",
+  "publisher": "DelightfulGames",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -112,6 +114,23 @@
       ]
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DelightfulGames/vscode-code-counter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DelightfulGames/vscode-code-counter/issues"
+  },
+  "homepage": "https://github.com/DelightfulGames/vscode-code-counter#readme",
+  "keywords": [
+    "line counter",
+    "code metrics",
+    "file size",
+    "emoji indicators", 
+    "code organization",
+    "project statistics",
+    "developer tools"
+  ],
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",

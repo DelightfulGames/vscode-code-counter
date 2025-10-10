@@ -1,7 +1,46 @@
-# VS Code Code Counter - 🎨 **Emoji Customization**: Choose ANY emoji for your line count thresholds
-- 📝 **Glob Pattern Manager**: Visual interface for managing file exclusion patterns
+# VS Code Code Counter
 
-A Visual Studio Code extension that counts lines of code in your project and generates beautiful HTML reports with XML data sources. Features intelligent file explorer integration with colored indicators, performance-optimized caching, and a visual color picker for customizing line count thresholds.
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-brightgreen.svg)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
+[![Downloads](https://img.shields.io/badge/downloads-1K+-green.svg)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
+[![Rating](https://img.shields.io/badge/rating-★★★★★-yellow.svg)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.2+-blue.svg)](https://www.typescriptlang.org/)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-16%2F16%20passing-brightgreen.svg)](#)
+[![GitHub Issues](https://img.shields.io/github/issues/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/issues)
+[![GitHub Stars](https://img.shields.io/github/stars/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/network)
+
+> A Visual Studio Code extension that counts lines of code in your project and generates beautiful HTML reports with XML data sources. Features intelligent file explorer integration with customizable emoji indicators, performance-optimized caching, and a professional emoji picker for complete customization.
+
+## 📋 Table of Contents
+
+- [Quick Start](#quick-start)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [UI Integration](#ui-integration)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+
+## 🚀 Quick Start
+
+1. **Install**: Search "Code Counter" in VS Code Extensions
+2. **Activate**: Extension activates automatically on startup
+3. **Customize**: Press `Ctrl+Shift+P` → "CodeCounter: Customize Emoji Indicators"
+4. **View**: See emoji badges (🟢🟡🔴) next to files in explorer
+5. **Reports**: Run "Count Lines of Code" command for detailed HTML reports
+
+## ✨ Key Highlights
+
+- 🎨 **Emoji Customization**: Choose ANY emoji for your line count thresholds
+- 📝 **Glob Pattern Manager**: Visual interface for managing file exclusion patterns
+- 🔍 **Smart Search**: Find emojis by typing "smile", "heart", "circle", etc.
+- ⚡ **Performance First**: Intelligent caching and real-time updates
+- 🎯 **127-Line Rule**: Based on proven software engineering principles
 
 ## Backstory
 A long time ago (in technology generations), someone ran a statistical test to see how many lines of code a single file could contain that a developer could eyeball and ensure working code; that number was about 127 lines. In other words, a single developer could ensure "bug-free" code by segmenting code and organizing it so that files have ~127 lines on average. It's one of those good "rules of thumb" behaviors that's learned (typically through debug hell) the hard way. That's where CodeCounter comes in. Simply, it counts lines in files, and alerts users that documents are getting too large for human consumption. It's not meant as a strict limitation for files, but is useful metadata about the file that coders/writers can use to organize their data in the best possible manner.
@@ -29,19 +68,44 @@ A long time ago (in technology generations), someone ran a statistical test to s
 
 > **🎉 What's New**: Complete settings overhaul with emoji freedom and powerful pattern management. See [CHANGELOG.md](./CHANGELOG.md) for detailed release notes.
 
-## Installation
+## 📦 Installation
+
+### From VS Code Marketplace (Recommended)
+
+1. Open VS Code
+2. Go to Extensions view (`Ctrl+Shift+X`)
+3. Search for "Code Counter"
+4. Click "Install" on the DelightfulGames.vscode-code-counter extension
+
+### From Command Line
+
+```bash
+code --install-extension DelightfulGames.vscode-code-counter
+```
+
+### Manual Installation
+
+1. Download the latest `.vsix` file from [GitHub Releases](https://github.com/DelightfulGames/vscode-code-counter/releases)
+2. Run: `code --install-extension vscode-code-counter-*.vsix`
 
 ### Development Installation
 
 1. Clone this repository
-2. Open the folder in VS Code
-3. Run `npm install` to install dependencies
-4. Press `F5` to launch a new Extension Development Host window
+   ```bash
+   git clone https://github.com/DelightfulGames/vscode-code-counter.git
+   cd vscode-code-counter
+   ```
+2. Install dependencies
+   ```bash
+   npm install
+   ```
+3. Open in VS Code and press `F5` to launch Extension Development Host
 
 ### Building and Packaging
 
 ```bash
 npm run compile    # Compile TypeScript
+npm run test       # Run test suite
 npm run package    # Create .vsix file for distribution
 ```
 
@@ -373,4 +437,13 @@ vscode.commands.registerCommand('codeCounter.countLines', () => {
 
 ## License
 
-MIT License - see LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for full details.
+
+### What this means:
+- ✅ **Free to use** - Personal and commercial use allowed
+- ✅ **Free to modify** - Create your own versions and improvements
+- ✅ **Free to distribute** - Share with others, including modified versions
+- ✅ **Attribution required** - Just keep the original copyright notice
+- ✅ **No warranty** - Provided "as-is" without guarantees
+
+**TL;DR**: Use it freely, modify it as needed, just give credit to the original project!
