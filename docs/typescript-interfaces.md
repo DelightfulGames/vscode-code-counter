@@ -183,7 +183,7 @@ export type ColorThreshold = 'normal' | 'warning' | 'danger';
 ```
 
 **Usage Context**:
-- Badge classification in lineThresholdservice
+- Badge classification in lineThresholdService
 - File decoration provider decisions
 - UI badge coding logic
 - Configuration validation

@@ -265,7 +265,7 @@ The generated HTML report includes:
 │   │   ├── xmlGenerator.ts             # XML data generation
 │   │   ├── htmlGenerator.ts            # HTML report generation  
 │   │   ├── lineCountCache.ts           # Intelligent caching system
-│   │   └── lineThresholdservice.ts    # Color classification and theming
+│   │   └── lineThresholdService.ts    # Color classification and theming
 │   ├── utils/
 │   │   ├── fileUtils.ts                # File system utilities
 │   │   └── globUtils.ts                # Glob pattern matching

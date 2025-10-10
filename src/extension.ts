@@ -432,11 +432,11 @@ function getEmojiPickerWebviewContent(badges: any, thresholds: any, excludePatte
         <h1>🎨 Code Counter Emoji Settings</h1>
         
         <div class="color-section">
-            <h3>${badges'.low} Low Line Count</h3>
+            <h3>${badges.low} Low Line Count</h3>
             <div class="emoji-picker-container">
                 <label>Emoji: </label>
                 <div class="current-emoji-display">
-                    <div class="current-emoji" data-color-key="low" onclick="openEmojiPicker('low')">${badges'.low}</div>
+                    <div class="current-emoji" data-color-key="low" onclick="openEmojiPicker('low')">${badges.low}</div>
                     <small>Click to change emoji</small>
                 </div>
             </div>
@@ -445,15 +445,15 @@ function getEmojiPickerWebviewContent(badges: any, thresholds: any, excludePatte
                 <input type="number" class="threshold-input" id="midThreshold" value="${thresholds.mid}" min="1" max="9999" />
                 <span>lines</span>
             </div>
-            <div class="preview" id="lowPreview">${badges'.low} Lines: ${Math.floor(thresholds.mid / 2)}</div>
+            <div class="preview" id="lowPreview">${badges.low} Lines: ${Math.floor(thresholds.mid / 2)}</div>
         </div>
 
         <div class="color-section">
-            <h3>${badges'.medium} Medium Line Count</h3>
+            <h3>${badges.medium} Medium Line Count</h3>
             <div class="emoji-picker-container">
                 <label>Emoji: </label>
                 <div class="current-emoji-display">
-                    <div class="current-emoji" data-color-key="medium" onclick="openEmojiPicker('medium')">${badges'.medium}</div>
+                    <div class="current-emoji" data-color-key="medium" onclick="openEmojiPicker('medium')">${badges.medium}</div>
                     <small>Click to change emoji</small>
                 </div>
             </div>
@@ -462,22 +462,22 @@ function getEmojiPickerWebviewContent(badges: any, thresholds: any, excludePatte
                 <input type="number" class="threshold-input" id="highThreshold" value="${thresholds.high}" min="1" max="9999" />
                 <span>lines</span>
             </div>
-            <div class="preview" id="mediumPreview">${badges'.medium} Lines: ${Math.floor((thresholds.mid + thresholds.high) / 2)}</div>
+            <div class="preview" id="mediumPreview">${badges.medium} Lines: ${Math.floor((thresholds.mid + thresholds.high) / 2)}</div>
         </div>
 
         <div class="color-section">
-            <h3>${badges'.high} High Line Count</h3>
+            <h3>${badges.high} High Line Count</h3>
             <div class="emoji-picker-container">
                 <label>Emoji: </label>
                 <div class="current-emoji-display">
-                    <div class="current-emoji" data-color-key="high" onclick="openEmojiPicker('high')">${badges'.high}</div>
+                    <div class="current-emoji" data-color-key="high" onclick="openEmojiPicker('high')">${badges.high}</div>
                     <small>Click to change emoji</small>
                 </div>
             </div>
             <div class="threshold-container">
                 <label>Greater than or equal to: <strong>${thresholds.high}</strong> lines</label>
             </div>
-            <div class="preview" id="highPreview">${badges'.high} Lines: ${thresholds.high + 500}</div>
+            <div class="preview" id="highPreview">${badges.high} Lines: ${thresholds.high + 500}</div>
         </div>
 
         <!-- Emoji Picker Modal -->

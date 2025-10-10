@@ -14,7 +14,7 @@ export interface CustomEmojis {
     danger: string;
 }
 
-export class lineThresholdservice {
+export class lineThresholdService {
     
     static getCustomEmojis(): CustomEmojis {
         const config = vscode.workspace.getConfiguration('codeCounter.emojis');

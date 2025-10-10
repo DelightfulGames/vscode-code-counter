@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { LineCountCacheService, CachedLineCount } from '../services/lineCountCache';
-import { lineThresholdservice } from '../services/lineThresholdservice';
+import { lineThresholdService } from '../services/lineThresholdService';
 
 export class FileExplorerDecorationProvider implements vscode.FileDecorationProvider {
     private _onDidChangeFileDecorations: vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined> = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
@@ -59,7 +59,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             }
 
             // Get the color classification for this line count
-            const threshold = lineThresholdservice.getColorThreshold(lineCount.lines);
+            const threshold = lineThresholdService.getColorThreshold(lineCount.lines);
             const coloredTooltip = this.createColoredTooltip(uri.fsPath, lineCount);
             
             // Use different colored icons based on line count thresholds
@@ -67,7 +67,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             let themeColor: vscode.ThemeColor;
             
             // Get custom emojis from configuration
-            const emoji = lineThresholdservice.getThemeEmoji(threshold);
+            const emoji = lineThresholdService.getThemeEmoji(threshold);
             
             switch (threshold) {
                 case 'normal':
@@ -138,7 +138,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
     private createColoredTooltip(filePath: string, lineCount: CachedLineCount): string {
         const fileName = path.basename(filePath);
-        return lineThresholdservice.createColoredTooltip(
+        return lineThresholdService.createColoredTooltip(
             fileName,
             lineCount.lines,
             lineCount.codeLines,

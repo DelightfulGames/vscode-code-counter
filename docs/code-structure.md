@@ -12,7 +12,7 @@ src/
 │   ├── fileExplorerDecorator.ts # File explorer bullet indicators
 │   └── fileWatcher.ts          # File system monitoring
 ├── services/
-│   ├── lineThresholdservice.ts # Color coding and threshold logic
+│   ├── lineThresholdService.ts # Color coding and threshold logic
 │   ├── htmlGenerator.ts        # HTML report generation
 │   ├── lineCountCache.ts       # Caching system
 │   ├── lineCounter.ts          # Core line counting logic
@@ -25,7 +25,7 @@ src/
 └── test/
     ├── runTest.ts             # Test runner configuration
     └── suite/                 # Test suites
-        ├── lineThresholdservice.test.ts
+        ├── lineThresholdService.test.ts
         ├── extension.test.ts
         ├── index.ts
         ├── lineCountCache.test.ts
@@ -120,7 +120,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 }
 ```
 
-**Dependencies**: LineCountCacheService, lineThresholdservice
+**Dependencies**: LineCountCacheService, lineThresholdService
 
 #### `src/providers/editorTabDecorator.ts` (76 lines)
 **Purpose**: Shows line counts in VS Code status bar for active files
@@ -144,7 +144,7 @@ export class EditorTabDecorationProvider {
 }
 ```
 
-**Dependencies**: LineCountCacheService, lineThresholdservice
+**Dependencies**: LineCountCacheService, lineThresholdService
 
 #### `src/providers/fileWatcher.ts` (85 lines)
 **Purpose**: Monitors file system changes for cache invalidation
@@ -205,11 +205,11 @@ export class LineCounterService {
 - Shell scripts, JSON, YAML, Markdown
 - And more...
 
-#### `src/services/lineThresholdservice.ts` (161 lines)
+#### `src/services/lineThresholdService.ts` (161 lines)
 **Purpose**: Manages color coding based on configurable thresholds
 
 **Key Components**:
-- `lineThresholdservice` static class
+- `lineThresholdService` static class
 - Threshold configuration management
 - Color classification logic
 
@@ -221,7 +221,7 @@ export class LineCounterService {
 
 **Key Code Sections**:
 ```typescript
-export class lineThresholdservice {
+export class lineThresholdService {
     static getColorThreshold(lineCount: number): ColorThreshold
     static getCustomColors(): CustomColors
     static createColoredTooltip(): string
@@ -388,7 +388,7 @@ All services and providers are fully typed with strict TypeScript compilation, e
 **Purpose**: Comprehensive test coverage for core functionality
 
 **Test Files**:
-- `lineThresholdservice.test.ts`: Color threshold logic tests
+- `lineThresholdService.test.ts`: Color threshold logic tests
 - `extension.test.ts`: Extension activation and basic functionality
 - `lineCountCache.test.ts`: Cache system validation
 - `lineCounter.test.ts`: Core line counting accuracy
@@ -429,10 +429,10 @@ extension.ts
 │   └── services/xmlGenerator.ts
 ├── providers/fileExplorerDecorator.ts
 │   ├── services/lineCountCache.ts
-│   └── services/lineThresholdservice.ts
+│   └── services/lineThresholdService.ts
 ├── providers/editorTabDecorator.ts
 │   ├── services/lineCountCache.ts
-│   └── services/lineThresholdservice.ts
+│   └── services/lineThresholdService.ts
 └── providers/fileWatcher.ts
     └── services/lineCountCache.ts
 ```

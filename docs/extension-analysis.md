@@ -27,7 +27,7 @@ I've analyzed the VS Code Code Counter extension and created comprehensive techn
 ### 4. **[Services.md](./services.md)** - Business Logic Layer
 - Detailed service catalog with API documentation
 - LineCounterService: Multi-language analysis engine
-- lineThresholdservice: Visual classification system
+- lineThresholdService: Visual classification system
 - CacheService: Performance optimization layer
 - Report generators: HTML/XML output systems
 

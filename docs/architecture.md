@@ -84,7 +84,7 @@ The VS Code Code Counter extension follows a layered architecture with clear sep
   - Calculates aggregate statistics per language
   - Applies glob exclusion patterns
 
-#### lineThresholdservice
+#### lineThresholdService
 - **Purpose**: Manages emoji badge coding based on configurable thresholds
 - **Responsibilities**:
   - Classifies files as normal/warning/danger based on line counts

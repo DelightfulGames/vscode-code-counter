@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { LineCountCacheService, CachedLineCount } from '../services/lineCountCache';
-import { lineThresholdservice } from '../services/lineThresholdservice';
+import { lineThresholdService } from '../services/lineThresholdService';
 
 export class EditorTabDecorationProvider {
     private lineCountCache: LineCountCacheService;
@@ -62,7 +62,7 @@ export class EditorTabDecorationProvider {
             }
 
             const fileName = path.basename(this.currentDocument.uri.fsPath);
-            const { text: formattedCount, emoji } = lineThresholdservice.getStatusBarText(lineCount.lines);
+            const { text: formattedCount, emoji } = lineThresholdService.getStatusBarText(lineCount.lines);
             
             // Different display based on mode
             this.statusBarItem.text = `${emoji} ${formattedCount}`;

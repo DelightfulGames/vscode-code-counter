@@ -17,7 +17,7 @@ The services layer contains the core business logic of the VS Code Code Counter 
 ```
 services/
 ├── lineCounter.ts          # Core line counting and language detection
-├── lineThresholdservice.ts # Color coding and threshold management
+├── lineThresholdService.ts # Color coding and threshold management
 ├── lineCountCache.ts       # Performance caching system
 ├── htmlGenerator.ts        # Interactive HTML report generation
 └── xmlGenerator.ts         # XML data export for external tools
@@ -104,7 +104,7 @@ private countLinesInContent(content: string, language: string): LineCount {
 
 ---
 
-## 🎨 lineThresholdservice
+## 🎨 lineThresholdService
 
 ### Purpose
 Manages the emoji badge system that provides visual indicators based on configurable line count thresholds.
@@ -118,7 +118,7 @@ Manages the emoji badge system that provides visual indicators based on configur
 
 ### API Interface
 ```typescript
-class lineThresholdservice {
+class lineThresholdService {
     static getColorThreshold(lineCount: number): ColorThreshold
     static getCustomEmojis(): CustomEmojis
     static getThresholdConfig(): ColorThresholdConfig
@@ -388,7 +388,7 @@ LineCounterService (Core)
     ↓
 LineCountCacheService (Performance)
     ↓  
-lineThresholdservice (Classification)
+lineThresholdService (Classification)
     ↓
 HtmlGeneratorService + XmlGeneratorService (Output)
 ```
@@ -396,7 +396,7 @@ HtmlGeneratorService + XmlGeneratorService (Output)
 ### Data Flow Between Services
 1. **LineCounterService** analyzes files and produces raw counts
 2. **LineCountCacheService** caches results for performance
-3. **lineThresholdservice** classifies results based on thresholds
+3. **lineThresholdService** classifies results based on thresholds
 4. **Generator Services** create formatted output reports
 
 ### Event-Driven Updates

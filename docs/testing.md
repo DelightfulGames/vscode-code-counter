@@ -37,7 +37,7 @@ src/test/
 ├── runTest.ts              # Test runner configuration and bootstrap
 └── suite/
     ├── index.ts            # Test suite configuration and setup
-    ├── lineThresholdservice.test.ts    # Color threshold logic tests (6 tests)
+    ├── lineThresholdService.test.ts    # Color threshold logic tests (6 tests)
     ├── extension.test.ts               # Extension lifecycle tests (3 tests)
     ├── lineCountCache.test.ts          # Cache system tests (3 tests)
     └── lineCounter.test.ts             # Core line counting tests (4 tests)
@@ -59,7 +59,7 @@ src/test/
 | Line Counter Service | `lineCounter.test.ts` | 4 | Core counting, language detection, exclusions |
 | Cache Service | `lineCountCache.test.ts` | 3 | Caching, invalidation, error handling |
 | Extension Core | `extension.test.ts` | 3 | Activation, VS Code API, basic functionality |
-| Color Threshold Service | `lineThresholdservice.test.ts` | 6 | Classification, formatting, configuration |
+| Color Threshold Service | `lineThresholdService.test.ts` | 6 | Classification, formatting, configuration |
 | **Total** | | **16** | **Complete core functionality** |
 
 ### Functional Coverage
@@ -252,15 +252,15 @@ it('should handle non-existent files gracefully', async () => {
 
 ---
 
-### lineThresholdservice Tests (`lineThresholdservice.test.ts`)
+### lineThresholdService Tests (`lineThresholdService.test.ts`)
 
 #### Test: "should classify line counts correctly"
 ```typescript
 it('should classify line counts correctly', () => {
     // Test threshold classification
-    expect(lineThresholdservice.getColorThreshold(100)).to.equal('normal');
-    expect(lineThresholdservice.getColorThreshold(500)).to.equal('warning');
-    expect(lineThresholdservice.getColorThreshold(1500)).to.equal('danger');
+    expect(lineThresholdService.getColorThreshold(100)).to.equal('normal');
+    expect(lineThresholdService.getColorThreshold(500)).to.equal('warning');
+    expect(lineThresholdService.getColorThreshold(1500)).to.equal('danger');
 });
 ```
 
@@ -272,7 +272,7 @@ it('should classify line counts correctly', () => {
 #### Test: "should format line counts with appropriate text"
 ```typescript
 it('should format line counts with appropriate text', () => {
-    const formatted = lineThresholdservice.formatLineCount(1250);
+    const formatted = lineThresholdService.formatLineCount(1250);
     expect(formatted).to.include('1250');
     expect(formatted).to.include('lines');
 });
@@ -285,7 +285,7 @@ it('should format line counts with appropriate text', () => {
 #### Test: "should handle custom colors configuration"
 ```typescript
 it('should handle custom colors configuration', () => {
-    const colors = lineThresholdservice.getCustomColors();
+    const colors = lineThresholdService.getCustomColors();
     
     expect(colors).to.have.property('normal');
     expect(colors).to.have.property('warning'); 
@@ -415,7 +415,7 @@ Extension Test Suite
   ✔ Chai assertion test
   ✔ VS Code API test
 
-lineThresholdservice Tests
+lineThresholdService Tests
   ✔ should classify line counts correctly
   ✔ should format line counts with appropriate text
   ✔ should format status bar text correctly
