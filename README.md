@@ -1,4 +1,4 @@
-# VS Code Code Counte- 🎨 **Emoji Customization**: Choose ANY emoji for your line count thresholds
+# VS Code Code Counter - 🎨 **Emoji Customization**: Choose ANY emoji for your line count thresholds
 - 📝 **Glob Pattern Manager**: Visual interface for managing file exclusion patterns
 
 A Visual Studio Code extension that counts lines of code in your project and generates beautiful HTML reports with XML data sources. Features intelligent file explorer integration with colored indicators, performance-optimized caching, and a visual color picker for customizing line count thresholds.
