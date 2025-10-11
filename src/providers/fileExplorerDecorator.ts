@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { LineCountCacheService, CachedLineCount } from '../services/lineCountCache';
 import { lineThresholdService } from '../services/lineThresholdService';
+import { GlobUtils } from '../utils/globUtils';
 
 export class FileExplorerDecorationProvider implements vscode.FileDecorationProvider {
     private _onDidChangeFileDecorations: vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined> = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
@@ -356,14 +357,8 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     }
 
     private matchesPattern(filePath: string, pattern: string): boolean {
-        // Simple glob pattern matching (could be enhanced with a proper glob library)
-        const regexPattern = pattern
-            .replace(/\*\*/g, '.*')
-            .replace(/\*/g, '[^/\\\\]*')
-            .replace(/\?/g, '[^/\\\\]');
-        
-        const regex = new RegExp(`^${regexPattern}$`);
-        return regex.test(filePath.replace(/\\/g, '/'));
+        // Use robust glob matching from GlobUtils
+        return GlobUtils.matchesPattern(filePath.replace(/\\/g, '/'), pattern);
     }
 
     private createColoredTooltip(filePath: string, lineCount: CachedLineCount): string {

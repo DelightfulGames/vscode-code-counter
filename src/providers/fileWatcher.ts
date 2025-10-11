@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { CountLinesCommand } from '../commands/countLines';
+import { GlobUtils } from '../utils/globUtils';
 
 export class FileWatcherProvider implements vscode.Disposable {
     private fileWatcher: vscode.FileSystemWatcher;
@@ -56,14 +57,8 @@ export class FileWatcherProvider implements vscode.Disposable {
     }
 
     private matchesPattern(filePath: string, pattern: string): boolean {
-        // Simple glob pattern matching (could be enhanced with a proper glob library)
-        const regexPattern = pattern
-            .replace(/\*\*/g, '.*')
-            .replace(/\*/g, '[^/]*')
-            .replace(/\?/g, '[^/]');
-        
-        const regex = new RegExp(`^${regexPattern}$`);
-        return regex.test(filePath);
+        // Use robust glob matching from GlobUtils
+        return GlobUtils.matchesPattern(filePath, pattern);
     }
 
     private regenerateTimeout?: NodeJS.Timeout;
