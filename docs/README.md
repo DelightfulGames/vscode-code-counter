@@ -2,6 +2,23 @@
 
 This directory contains comprehensive technical documentation for the VS Code Code Counter extension.
 
+## 🆕 Recent Updates
+
+### Template System Implementation
+- **Modular HTML Templates**: Moved WebView HTML content to separate template files in `/templates`
+- **Dynamic Placeholder System**: Implemented `{{variable}}` syntax for runtime content injection
+- **Improved Maintainability**: Separated concerns between logic and presentation
+
+### Enhanced Badge System
+- **Folder Badges**: Added dedicated emoji configuration for folder indicators
+- **Real-time Updates**: File system watchers now trigger immediate badge refresh
+- **Cache Optimization**: Folder-level cache invalidation for better performance
+
+### Code Organization
+- **Cleaner Extension Entry**: Reduced `extension.ts` from ~500 to ~300 lines
+- **Template Loading**: Robust error handling with fallback content
+- **Configuration Enhancement**: Support for both file and folder badge management
+
 ## 📚 Documentation Index
 
 ### Architecture & Design

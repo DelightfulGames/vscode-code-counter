@@ -37,7 +37,9 @@ The VS Code Code Counter extension follows a layered architecture with clear sep
 ### Extension Entry Point (`extension.ts`)
 - **Activation/Deactivation**: Manages extension lifecycle
 - **Dependency Injection**: Initializes and wires up all services and providers
-- **WebView Management**: Handles the settings interface for colors and glob patterns
+- **WebView Management**: Handles the settings interface using template-based system
+- **Template Loading**: Loads HTML templates from `/templates` directory with dynamic placeholder replacement
+- **Configuration Management**: Manages both file and folder badge configurations
 - **Command Registration**: Registers all extension commands with VS Code
 
 ### Commands Layer
@@ -152,12 +154,26 @@ The VS Code Code Counter extension follows a layered architecture with clear sep
 5. **UI Refresh**: File decorations and status bar update with new settings
 
 ### WebView Communication Flow
-1. **WebView Load**: Extension creates WebView with current configuration
-2. **User Interaction**: User modifies colors, thresholds, or glob patterns
-3. **Message Passing**: WebView sends structured messages to extension
-4. **Configuration Update**: Extension updates VS Code configuration
-5. **WebView Refresh**: Interface updates to reflect new settings
-6. **Provider Notification**: All providers receive configuration change events
+1. **Template Loading**: Extension loads HTML template from `/templates/emoji-picker.html`
+2. **Placeholder Replacement**: Dynamic content injection using `{{placeholder}}` syntax
+3. **WebView Creation**: Extension creates WebView with processed template content
+4. **User Interaction**: User modifies colors, thresholds, or glob patterns
+5. **Message Passing**: WebView sends structured messages to extension
+6. **Configuration Update**: Extension updates VS Code configuration
+7. **Template Refresh**: Template is reprocessed with updated configuration
+8. **Provider Notification**: All providers receive configuration change events
+
+### Template System Architecture
+- **Template Files**: HTML templates stored in `/templates` directory
+- **Placeholder Syntax**: `{{variableName}}` for dynamic content injection
+- **Supported Placeholders**:
+  - `{{badges.low}}`, `{{badges.medium}}`, `{{badges.high}}` - File emoji badges
+  - `{{folderBadges.low}}`, `{{folderBadges.medium}}`, `{{folderBadges.high}}` - Folder emoji badges
+  - `{{thresholds.mid}}`, `{{thresholds.high}}` - Threshold values
+  - `{{excludePatterns}}` - Dynamic HTML for glob patterns
+  - `{{scriptContent}}` - JavaScript functionality
+- **Error Handling**: Fallback HTML content when template loading fails
+- **Benefits**: Separation of concerns, easier maintenance, cleaner code organization
 
 ## 🎯 Design Patterns
 

@@ -106,6 +106,21 @@
           "type": "string",
           "default": "🔴",
           "description": "Emoji for line counts above danger threshold (high line count). You can use any emoji!"
+        },
+        "codeCounter.emojis.folders.normal": {
+          "type": "string",
+          "default": "🟩",
+          "description": "Emoji for folders with low average line count (appears on left side of folder name)"
+        },
+        "codeCounter.emojis.folders.warning": {
+          "type": "string",
+          "default": "🟨",
+          "description": "Emoji for folders with medium average line count (appears on left side of folder name)"
+        },
+        "codeCounter.emojis.folders.danger": {
+          "type": "string",
+          "default": "🟥",
+          "description": "Emoji for folders with high average line count (appears on left side of folder name)"
         }
       }
     },

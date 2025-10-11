@@ -4,18 +4,19 @@
 
 ```
 src/
-├── extension.ts                 # Extension entry point and WebView management
+├── extension.ts                 # Extension entry point and template-based WebView management
 ├── commands/
 │   └── countLines.ts           # Line counting command implementation
 ├── providers/
 │   ├── editorTabDecorator.ts   # Status bar integration
-│   ├── fileExplorerDecorator.ts # File explorer bullet indicators
+│   ├── fileExplorerDecorator.ts # File explorer bullet indicators (with file watchers)
 │   └── fileWatcher.ts          # File system monitoring
 ├── services/
 │   ├── lineThresholdService.ts # Color coding and threshold logic
 │   ├── htmlGenerator.ts        # HTML report generation
-│   ├── lineCountCache.ts       # Caching system
+│   ├── lineCountCache.ts       # Caching system (with folder invalidation)
 │   ├── lineCounter.ts          # Core line counting logic
+│   ├── webViewReportService.ts # WebView-based report display
 │   └── xmlGenerator.ts         # XML report generation
 ├── types/
 │   └── index.ts                # TypeScript type definitions
@@ -30,24 +31,32 @@ src/
         ├── index.ts
         ├── lineCountCache.test.ts
         └── lineCounter.test.ts
+
+templates/
+├── emoji-picker.html           # Settings WebView template with placeholder system
+└── report.html                 # Report display template
 ```
 
 ## 🎯 File-by-File Analysis
 
 ### Extension Entry Point
 
-#### `src/extension.ts` (503 lines)
-**Purpose**: Main extension activation, WebView management, and command orchestration
+#### `src/extension.ts` (~300 lines)
+**Purpose**: Main extension activation, template-based WebView management, and command orchestration
 
 **Key Components**:
 - `activate()`: Extension lifecycle entry point
-- `showColorPicker()`: WebView interface for settings management
-- `getColorPickerWebviewContent()`: HTML generation for settings UI
+- `getCurrentConfiguration()`: Configuration aggregation with file and folder badge support
+- `showEmojiPicker()`: Template-based WebView interface for settings management
+- `getEmojiPickerWebviewContent()`: Template loading and placeholder replacement system
 
 **Responsibilities**:
 - Extension activation and deactivation
 - Service and provider initialization
+- Template loading from `/templates` directory
+- Dynamic placeholder replacement (`{{variable}}` syntax)
 - WebView creation and message handling
+- Configuration management for both file and folder badges
 - Command registration
 - Settings interface management (colors, thresholds, glob patterns)
 
@@ -439,10 +448,49 @@ extension.ts
 
 ## 🎯 Code Quality Standards
 
+## 🎨 Template System
+
+### `templates/emoji-picker.html` (~560 lines)
+**Purpose**: HTML template for the settings WebView with dynamic placeholder system
+
+**Key Features**:
+- **Placeholder System**: Uses `{{variable}}` syntax for dynamic content injection
+- **CSS Variables**: Integrates with VS Code theme system using CSS variables
+- **Responsive Design**: Adapts to different WebView sizes
+- **Interactive Elements**: Buttons, inputs, and dynamic pattern lists
+
+**Supported Placeholders**:
+- `{{badges.low}}`, `{{badges.medium}}`, `{{badges.high}}` - File emoji indicators
+- `{{folderBadges.low}}`, `{{folderBadges.medium}}`, `{{folderBadges.high}}` - Folder emoji indicators
+- `{{thresholds.mid}}`, `{{thresholds.high}}` - Threshold configuration values
+- `{{lowPreviewLines}}`, `{{mediumPreviewLines}}`, `{{highPreviewLines}}` - Calculated preview values
+- `{{excludePatterns}}` - Dynamic HTML for glob pattern management
+- `{{scriptContent}}` - JavaScript functionality injection
+
+**Template Structure**:
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- CSS with VS Code theme integration -->
+</head>
+<body>
+    <!-- File Badge Configuration Section -->
+    <!-- Folder Badge Configuration Section -->  
+    <!-- Exclude Patterns Management -->
+    <!-- Dynamic Script Content: {{scriptContent}} -->
+</body>
+</html>
+```
+
+### `templates/report.html`
+**Purpose**: Template for code analysis reports (future enhancement)
+
 ### TypeScript Usage
 - **Strict Mode**: Enabled for maximum type safety
 - **No Any Types**: Explicit typing throughout codebase
 - **Interface-Based Design**: Clear contracts between components
+- **Template Loading**: File system integration with `fs.readFileSync()` and `path.join()`
 
 ### Error Handling
 - **Graceful Degradation**: Extension continues working with partial failures

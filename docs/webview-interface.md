@@ -2,25 +2,40 @@
 
 ## 🖥️ Overview
 
-The WebView interface provides a comprehensive settings management system within VS Code, allowing users to customize colors, thresholds, and glob exclusion patterns through an intuitive graphical interface.
+The WebView interface provides a comprehensive settings management system within VS Code, using a modern template-based architecture. Users can customize file badges, folder badges, thresholds, and glob exclusion patterns through an intuitive graphical interface powered by dynamic HTML templates.
 
 ## 🏗️ Architecture
 
-### WebView Communication Pattern
+### Template-Based WebView System
 ```
-┌─────────────────┐    Messages    ┌─────────────────────┐
-│   WebView UI    │ ←──────────────→ │  Extension Host     │
-│  (HTML/CSS/JS)  │                 │  (TypeScript)       │
-└─────────────────┘                 └─────────────────────┘
-        │                                     │
-        │ User Interactions                   │ Configuration Updates
-        ▼                                     ▼
-┌─────────────────┐                 ┌─────────────────────┐
-│   DOM Events    │                 │  VS Code Settings   │
-│  Color Changes  │                 │   JSON Storage      │
-│ Pattern Updates │                 └─────────────────────┘
-└─────────────────┘
+┌─────────────────────┐   Template Load    ┌─────────────────────┐
+│  HTML Template      │ ───────────────────→ │  Extension Host     │
+│  (emoji-picker.html)│                     │  (TypeScript)       │
+└─────────────────────┘                     └─────────────────────┘
+         │                                            │
+         │ {{placeholder}} Processing                 │ Configuration Injection
+         ▼                                            ▼
+┌─────────────────────┐    Messages    ┌─────────────────────┐
+│   WebView UI        │ ←──────────────→ │  Processed Content  │
+│  (Rendered HTML)    │                 │  (Dynamic Values)   │
+└─────────────────────┘                 └─────────────────────┘
+         │                                            │
+         │ User Interactions                          │ Configuration Updates
+         ▼                                            ▼
+┌─────────────────────┐                 ┌─────────────────────┐
+│   DOM Events        │                 │  VS Code Settings   │
+│  Badge Changes      │                 │   JSON Storage      │
+│  Pattern Updates    │                 └─────────────────────┘
+└─────────────────────┘
 ```
+
+### Template Processing Flow
+1. **Template Loading**: Extension loads `/templates/emoji-picker.html` using `fs.readFileSync()`
+2. **Configuration Gathering**: Current settings retrieved from VS Code configuration
+3. **Placeholder Replacement**: `{{variable}}` patterns replaced with dynamic content
+4. **Content Injection**: JavaScript and HTML content dynamically inserted
+5. **WebView Creation**: Processed template creates the interactive interface
+6. **Real-time Updates**: Configuration changes trigger template reprocessing
 
 ### Message Protocol
 The WebView uses a structured message protocol for bi-directional communication:
@@ -28,12 +43,40 @@ The WebView uses a structured message protocol for bi-directional communication:
 ```typescript
 // Messages from WebView to Extension
 interface WebViewMessage {
-    command: 'updateColor' | 'updateThreshold' | 'addGlobPattern' | 'removeGlobPattern' | 'resetColors' | 'resetGlobPatterns';
-    colorKey?: string;
-    color?: string;
-    thresholdKey?: string;
-    value?: number;
-    pattern?: string;
+    command: 'updateEmoji' | 'updateThreshold' | 'addGlobPattern' | 'removeGlobPattern' | 'resetColors' | 'resetGlobPatterns';
+    colorKey?: string;           // 'low' | 'medium' | 'high'
+    emoji?: string;              // Emoji character to set
+    emojiType?: string;          // 'file' | 'folder'
+    thresholdKey?: string;       // 'mid' | 'high'
+    value?: number;              // Threshold value
+    pattern?: string;            // Glob pattern string
+}
+
+// Template Placeholder System
+interface TemplatePlaceholders {
+    badges: {
+        low: string;             // File badge emoji (e.g., '🟢')
+        medium: string;          // File badge emoji (e.g., '🟡')
+        high: string;            // File badge emoji (e.g., '🔴')
+    };
+    folderBadges: {
+        low: string;             // Folder badge emoji (e.g., '🟩')
+        medium: string;          // Folder badge emoji (e.g., '🟨')
+        high: string;            // Folder badge emoji (e.g., '🟥')
+    };
+    thresholds: {
+        mid: number;             // Mid threshold value
+        high: number;            // High threshold value
+    };
+    excludePatterns: string[];   // Array of glob patterns
+    // Calculated display values
+    lowPreviewLines: number;
+    mediumPreviewLines: number;
+    highPreviewLines: number;
+    lowFolderAvg: number;
+    mediumFolderAvg: number;
+    highFolderAvg: number;
+    highFolderMax: number;
 }
 
 // Extension Response Pattern

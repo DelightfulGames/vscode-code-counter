@@ -36,6 +36,33 @@ export class LineCountCacheService {
         this.cache.delete(filePath);
     }
 
+    public invalidateFolderCache(filePath: string): void {
+        // Invalidate all cached entries that are parent directories of this file
+        const normalizedPath = path.normalize(filePath);
+        const keysToDelete: string[] = [];
+        
+        for (const [cachedPath] of this.cache) {
+            // Check if the cached path is a parent directory of the changed file
+            const normalizedCachedPath = path.normalize(cachedPath);
+            if (normalizedPath.startsWith(normalizedCachedPath + path.sep) || 
+                normalizedPath === normalizedCachedPath) {
+                keysToDelete.push(cachedPath);
+            }
+        }
+        
+        // Also invalidate parent directories
+        let currentDir = path.dirname(normalizedPath);
+        const rootDir = path.parse(normalizedPath).root;
+        
+        while (currentDir !== rootDir && currentDir !== currentDir + path.sep) {
+            keysToDelete.push(currentDir);
+            currentDir = path.dirname(currentDir);
+        }
+        
+        keysToDelete.forEach(key => this.cache.delete(key));
+        console.log('Invalidated folder cache for:', keysToDelete);
+    }
+
     async getLineCount(filePath: string): Promise<CachedLineCount | null> {
         try {
             const stats = await fs.promises.stat(filePath);

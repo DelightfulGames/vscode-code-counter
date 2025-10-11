@@ -18,9 +18,10 @@ The services layer contains the core business logic of the VS Code Code Counter 
 services/
 ├── lineCounter.ts          # Core line counting and language detection
 ├── lineThresholdService.ts # Color coding and threshold management
-├── lineCountCache.ts       # Performance caching system
+├── lineCountCache.ts       # Performance caching with folder invalidation
 ├── htmlGenerator.ts        # Interactive HTML report generation
-└── xmlGenerator.ts         # XML data export for external tools
+├── xmlGenerator.ts         # XML data export for external tools
+└── webViewReportService.ts # WebView-based report display service
 ```
 
 ---
@@ -174,6 +175,7 @@ Provides intelligent caching to optimize performance for large codebases by avoi
 
 ### Key Responsibilities
 - **File-Level Caching**: Individual file results cached with metadata
+- **Folder-Level Invalidation**: Parent directory cache clearing when files are added/removed
 - **Modification Time Validation**: Automatic cache invalidation when files change
 - **Memory Management**: Efficient storage and cleanup
 - **Cache Statistics**: Hit/miss tracking for performance monitoring
@@ -184,6 +186,7 @@ Provides intelligent caching to optimize performance for large codebases by avoi
 class LineCountCacheService {
     async getLineCount(filePath: string): Promise<CachedLineCount>
     invalidateFile(filePath: string): void
+    invalidateFolderCache(folderPath: string): void  // New: Folder-level invalidation
     invalidateAll(): void
     getCacheStats(): { hits: number; misses: number }
     dispose(): void
@@ -426,6 +429,33 @@ The services layer is designed to handle:
 - **Large Codebases**: 10,000+ files efficiently processed
 - **Real-time Updates**: Sub-second response to file changes
 - **Concurrent Access**: Thread-safe operations throughout
+
+## 📊 WebViewReportService
+
+### Purpose
+Provides WebView-based report display for interactive code analysis results, complementing the existing HTML file generation.
+
+### Key Responsibilities
+- **WebView Management**: Creates and manages report display WebViews
+- **Interactive Reports**: Real-time, interactive code analysis displays
+- **Template Integration**: Uses template system for consistent UI
+- **Data Visualization**: Rich charts and graphs for code metrics
+- **Export Options**: Provides export functionality from WebView interface
+
+### API Interface
+```typescript
+class WebViewReportService {
+    async showReport(reportData: LineCountResult): Promise<void>
+    private createReportWebView(): vscode.WebviewPanel
+    private generateReportContent(data: LineCountResult): string
+}
+```
+
+### Features
+- **Live Updates**: Real-time refresh capability
+- **Interactive Elements**: Sortable tables, filterable views
+- **Theme Integration**: Respects VS Code theme settings
+- **Responsive Design**: Adapts to different WebView sizes
 
 ---
 
