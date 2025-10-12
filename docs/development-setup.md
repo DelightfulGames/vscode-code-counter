@@ -1,7 +1,5 @@
 # Development Setup Guide
 
-## 🚀 Quick Start
-
 This guide will get you up and running with the VS Code Code Counter extension development environment in minutes.
 
 ## 📋 Prerequisites

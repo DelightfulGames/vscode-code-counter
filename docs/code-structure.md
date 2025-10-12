@@ -2,39 +2,35 @@
 
 ## 📁 Source Code Organization
 
-```
-src/
-├── extension.ts                 # Extension entry point and template-based WebView management
-├── commands/
-│   └── countLines.ts           # Line counting command implementation
-├── providers/
-│   ├── editorTabDecorator.ts   # Status bar integration
-│   ├── fileExplorerDecorator.ts # File explorer bullet indicators (with file watchers)
-│   └── fileWatcher.ts          # File system monitoring
-├── services/
-│   ├── lineThresholdService.ts # Color coding and threshold logic
-│   ├── htmlGenerator.ts        # HTML report generation
-│   ├── lineCountCache.ts       # Caching system (with folder invalidation)
-│   ├── lineCounter.ts          # Core line counting logic
-│   ├── webViewReportService.ts # WebView-based report display
-│   └── xmlGenerator.ts         # XML report generation
-├── types/
-│   └── index.ts                # TypeScript type definitions
-├── utils/
-│   ├── fileUtils.ts           # File system utilities
-│   └── globUtils.ts           # Pattern matching utilities
-└── test/
-    ├── runTest.ts             # Test runner configuration
-    └── suite/                 # Test suites
-        ├── lineThresholdService.test.ts
-        ├── extension.test.ts
-        ├── index.ts
-        ├── lineCountCache.test.ts
-        └── lineCounter.test.ts
-
-templates/
-├── emoji-picker.html           # Settings WebView template with placeholder system
-└── report.html                 # Report display template
+### Project Structure
+```bash
+├── src/
+│   ├── extension.ts                    # Main extension entry point with color picker
+│   ├── commands/
+│   │   └── countLines.ts               # Count lines command implementation
+│   ├── providers/
+│   │   ├── editorTabDecorator.ts       # Status bar integration for active files
+│   │   ├── fileExplorerDecorator.ts    # Colored bullet points in file explorer
+│   │   └── fileWatcher.ts              # Performance-optimized file system watcher
+│   ├── services/
+│   │   ├── lineThresholdService.ts     # Color classification and theming
+│   │   ├── htmlGenerator.ts            # HTML report generation  
+│   │   ├── lineCountCache.ts           # Intelligent caching system
+│   │   ├── lineCounter.ts              # Core line counting logic
+│   │   ├── webViewReportService.ts     # WebView-based report display
+│   │   └── xmlGenerator.ts             # XML data generation
+│   ├── utils/
+│   │   ├── fileUtils.ts                # File system utilities
+│   │   └── globUtils.ts                # Glob pattern matching 
+│   ├── types/
+│   │   └── index.ts                    # TypeScript type definitions
+│   └── test/
+│       └── suite/                      # Comprehensive test suite (51 tests)
+├── templates/
+│   ├── emoji-picker.html           # Settings WebView template with placeholder system
+│   └── report.html                 # HTML report template
+├── package.json                  #Extension manifest and dependencies
+└── tsconfig.json                 # TypeScript configuration
 ```
 
 ## 🎯 File-by-File Analysis

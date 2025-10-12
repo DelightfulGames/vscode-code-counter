@@ -9,16 +9,16 @@ The WebView interface provides a comprehensive settings management system within
 ### Template-Based WebView System
 ```
 ┌─────────────────────┐   Template Load    ┌─────────────────────┐
-│  HTML Template      │ ───────────────────→ │  Extension Host     │
-│  (emoji-picker.html)│                     │  (TypeScript)       │
-└─────────────────────┘                     └─────────────────────┘
+│  HTML Template      │ ─────────────────→ │  Extension Host     │
+│  (emoji-picker.html)│                    │  (TypeScript)       │
+└─────────────────────┘                    └─────────────────────┘
          │                                            │
          │ {{placeholder}} Processing                 │ Configuration Injection
          ▼                                            ▼
 ┌─────────────────────┐    Messages    ┌─────────────────────┐
-│   WebView UI        │ ←──────────────→ │  Processed Content  │
-│  (Rendered HTML)    │                 │  (Dynamic Values)   │
-└─────────────────────┘                 └─────────────────────┘
+│   WebView UI        │ ←────────────→ │  Processed Content  │
+│  (Rendered HTML)    │                │  (Dynamic Values)   │
+└─────────────────────┘                └─────────────────────┘
          │                                            │
          │ User Interactions                          │ Configuration Updates
          ▼                                            ▼

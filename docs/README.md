@@ -34,14 +34,14 @@ This directory contains comprehensive technical documentation for the VS Code Co
 - **[Configuration System](./configuration.md)** - Settings management and user preferences
 
 ### Advanced Features
-- **[WebView Interface](./webview-interface.md)** - Color picker and settings UI implementation
+- **[WebView Interface](./webview-interface.md)** - Emoji picker and settings UI implementation
 - **[Caching System](./caching-system.md)** - Performance optimization through intelligent caching
 - **[File Watching](./file-watching.md)** - Real-time file system monitoring
 - **[Testing Framework](./testing.md)** - Test structure and coverage
 
 ### Development
 - **[Development Setup](./development-setup.md)** - Environment setup and build process
-- **[Contributing Guide](./contributing.md)** - Guidelines for extension development
+- **[Contributing Guide](../contributing.md)** - Guidelines for extension development
 - **[Release Process](./release-process.md)** - Version management and deployment
 
 ### API Reference

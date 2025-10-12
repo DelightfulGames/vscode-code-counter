@@ -287,12 +287,82 @@ export const createVSCodeMock = () => {
 
             findFiles: async (include: string | any, exclude?: any, maxResults?: number) => {
                 mockEventEmitter.emit('find-files', { include, exclude, maxResults });
-                // Return some mock file URIs for testing
-                return [
-                    mockUri('/mock/workspace/src/test.js'),
-                    mockUri('/mock/workspace/src/app.ts'),
-                    mockUri('/mock/workspace/README.md')
-                ];
+                
+                try {
+                    const fs = require('fs');
+                    const path = require('path');
+                    
+                    let searchBase: string;
+                    let searchPattern: string;
+                    
+                    // Handle RelativePattern (which has base and pattern properties)
+                    if (include && typeof include === 'object' && include.base && include.pattern) {
+                        searchBase = include.base;
+                        searchPattern = include.pattern;
+                    } else if (typeof include === 'string') {
+                        searchBase = process.cwd();
+                        searchPattern = include;
+                    } else {
+                        return [];
+                    }
+                    
+                    // For **/* pattern, recursively find all files in the base directory
+                    if (searchPattern === '**/*') {
+                        const findAllFiles = (dir: string): string[] => {
+                            let files: string[] = [];
+                            try {
+                                const items = fs.readdirSync(dir, { withFileTypes: true });
+                                for (const item of items) {
+                                    const fullPath = path.join(dir, item.name);
+                                    if (item.isDirectory()) {
+                                        // Skip common excluded directories
+                                        if (!['node_modules', '.git', 'out', 'dist'].includes(item.name)) {
+                                            files = files.concat(findAllFiles(fullPath));
+                                        }
+                                    } else if (item.isFile()) {
+                                        files.push(fullPath);
+                                    }
+                                }
+                            } catch (error) {
+                                // Directory doesn't exist or can't read it
+                            }
+                            return files;
+                        };
+                        
+                        const allFiles = findAllFiles(searchBase);
+                        
+                        // Apply exclude patterns
+                        let filteredFiles = allFiles;
+                        if (exclude) {
+                            let excludePatterns: string[] = [];
+                            if (typeof exclude === 'string') {
+                                if (exclude.startsWith('{') && exclude.endsWith('}')) {
+                                    excludePatterns = exclude.slice(1, -1).split(',');
+                                } else {
+                                    excludePatterns = [exclude];
+                                }
+                            } else if (Array.isArray(exclude)) {
+                                excludePatterns = exclude;
+                            }
+                            
+                            // Simple pattern matching for common exclude patterns
+                            filteredFiles = allFiles.filter(file => {
+                                return !excludePatterns.some(pattern => {
+                                    const simplePattern = pattern.replace(/\*\*/g, '').replace(/\*/g, '');
+                                    return file.includes(simplePattern);
+                                });
+                            });
+                        }
+                        
+                        return filteredFiles.map((f: string) => mockUri(f));
+                    }
+                    
+                    // Fallback for other patterns
+                    return [];
+                } catch (error) {
+                    console.log('Mock findFiles error:', error);
+                    return [];
+                }
             },
 
             fs: {

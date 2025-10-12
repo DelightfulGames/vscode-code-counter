@@ -8,17 +8,17 @@ npm test
 ```
 - **Purpose**: Runs the complete test suite (51 tests)
 - **Environment**: VS Code test environment
-- **Coverage**: All tests pass, but no coverage metrics available
+- **Status**: ✅ All 51 tests passing
 - **Use**: Main development and CI testing
 
-### 📊 **Coverage Commands**
+### 📊 **Enhanced Coverage Command** (Recommended for Coverage)
 ```bash
 npm run test:coverage
 ```
-- **Purpose**: Generates coverage report for VS Code-independent code
-- **Environment**: Standard Node.js (limited scope)
-- **Coverage**: Limited to utility functions and pure logic
-- **Output**: Terminal text + HTML report in `coverage/index.html`
+- **Purpose**: Runs 51 tests with comprehensive coverage reporting
+- **Environment**: Node.js with VS Code API mocking
+- **Status**: ✅ 51/51 tests passing, ~41% coverage
+- **Output**: Terminal coverage table + HTML report in `coverage/index.html`
 
 ### 🔧 **Other Available Commands**
 ```bash
@@ -30,16 +30,20 @@ npm run test:coverage-utils # Specific utility coverage
 ## 🎯 **Coverage Report Locations**
 
 ### **Terminal Output**
-After running `npm run test:coverage`, you'll see a table like:
+After running `npm run test:coverage`, you'll see comprehensive coverage:
 ```
 -------------------------|---------|----------|---------|---------|-------------------
 File                     | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
 -------------------------|---------|----------|---------|---------|-------------------
-All files                |   25.51 |      100 |       0 |   25.51 |                   
- services                |    21.5 |      100 |       0 |    21.5 |                   
-  xmlGenerator.ts         |      18 |      100 |       0 |      18 | 7-36,39-49        
- utils                    |   44.18 |      100 |       0 |   44.18 |                   
-  fileUtils.ts            |   44.18 |      100 |       0 |   44.18 | 7-13,16-19,22-23  
+All files                |    41.1 |    91.35 |   59.64 |    41.1 |                   
+ services                |   42.46 |    89.23 |   56.09 |   42.46 |                   
+  lineCounter.ts          |   98.83 |    86.36 |     100 |   98.83 | 32-33             
+  htmlGenerator.ts        |     100 |      100 |     100 |     100 |                   
+  xmlGenerator.ts         |     100 |      100 |     100 |     100 |                   
+  lineThresholdService.ts |      94 |    83.33 |     100 |      94 | 36-38,52-53       
+ utils                    |   86.95 |      100 |    90.9 |   86.95 |                   
+  fileUtils.ts            |     100 |      100 |     100 |     100 |                   
+  globUtils.ts            |   75.51 |      100 |      75 |   75.51 | 37-48             
 -------------------------|---------|----------|---------|---------|-------------------
 ```
 
