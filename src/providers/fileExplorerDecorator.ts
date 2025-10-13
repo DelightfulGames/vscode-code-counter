@@ -88,7 +88,13 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
     async provideFileDecoration(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {
         // Extension is enabled, so always show decorations based on mode
-        console.log('provideFileDecoration called for:', uri.fsPath);
+        console.log('provideFileDecoration called for:', uri.toString());
+
+        // Skip decorations for non-file URIs to prevent filesystem errors
+        if (uri.scheme !== 'file') {
+            console.log('Skipping decoration for non-file URI scheme:', uri.scheme);
+            return undefined;
+        }
 
         try {
             const stat = await vscode.workspace.fs.stat(uri);

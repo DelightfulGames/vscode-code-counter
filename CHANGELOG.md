@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2025-10-12
+
+### Added
+- **Comprehensive Emoji Database**: Expanded from ~140 to 800+ emojis across all categories
+- **Advanced Search System**: Intelligent emoji search with metadata and keyword matching
+- **Emoji Reuse Prevention**: Validation system prevents duplicate emoji usage across thresholds
+- **Visual Usage Indicators**: Used emojis are visually marked with reduced opacity and grayscale filter
+
+### Fixed
+- **Emoji Picker Functionality**: Replaced placeholder alert() with fully functional emoji picker modal
+- **WebView Content Security Policy**: Fixed CSP restrictions that were preventing emoji picker from working
+- **File Explorer Decorator**: Added URI scheme filtering to prevent errors with webview URIs
+- **Folder Emoji Support**: Fixed emoji update handler to properly support both file and folder emoji types
+- **Search Functionality**: Fixed broken emoji search with comprehensive keyword matching
+- **Category Navigation**: Fixed tab switching that was causing modal to shrink and lose content
+
+### Changed
+- **Enhanced Emoji Selection**: Emoji picker now displays categorized emojis with search functionality
+- **Interactive Modal Interface**: Full-featured emoji picker with category tabs and click-to-select interface
+- **Smart Search Results**: Search displays result count and helpful suggestions for empty results
+- **Validation Messaging**: Clear error messages when attempting to reuse emojis
+
+## [0.8.1] - 2025-10-12
+
+### Added
+- **Extension Icon**: Professional visual branding for VS Code Marketplace
+- **Gallery Banner**: Enhanced marketplace presentation with themed banner
+
 ## [0.8.0] - 2025-10-12
 
 
