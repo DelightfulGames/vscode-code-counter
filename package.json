@@ -2,9 +2,9 @@
   "name": "vscode-code-counter",
   "displayName": "Code Counter Pro",
   "description": "Visual line counting with customizable emoji indicators and comprehensive project reports",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "publisher": "DelightfulGames",
-  "icon": "marketing/images/codeCounter-icon.png",
+  "icon": "marketplace/images/codeCounter-icon.png",
   "galleryBanner": {
     "color": "#1e1e1e",
     "theme": "dark"
