@@ -4,6 +4,11 @@
   "description": "Visual line counting with customizable emoji indicators and comprehensive project reports",
   "version": "0.8.0",
   "publisher": "DelightfulGames",
+  "icon": "marketing/images/codeCounter-icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
   "license": "MIT",
   "engines": {
     "vscode": "^1.80.0"
