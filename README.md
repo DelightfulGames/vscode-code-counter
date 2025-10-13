@@ -60,9 +60,7 @@
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
-- [Configuration](#configuration)
 - [UI Integration](#ui-integration)
-- [Development](#development)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -72,7 +70,7 @@
 - **For Teams**: Standardized code metrics across projects and languages
 - **For VS Code Enthusiasts**: Production-grade extension with 51/51 tests passing
 
-## 🚀 **Quick Start**
+## **Quick Start**
 1. **Install**: Search "Code Counter" in VS Code Extensions
 2. **Activate**: Extension activates automatically on startup
 3. **Customize**: Press `Ctrl+Shift+P` → "CodeCounter: Customize Emoji Indicators"
@@ -93,7 +91,7 @@
 # Backstory
 ## 🎨 A long time ago (in technology generations), someone ran a statistical test to see how many lines of code a single file could contain that a single developer could "eyeball" and ensure working code; that number was about **127** lines. In other words, a single developer could ensure "bug-free" code by segmenting code and organizing it so that files have **~127** lines on average. It's one of those good "rules of thumb" behaviors that's learned (typically through debug hell) the hard way. That's where CodeCounter comes in. Simply, it counts lines in files, and alerts users that documents are getting too large for human consumption. It's not meant as a strict limitation for files, but is useful metadata about the file that coders/writers can use to organize their data in the best possible manner.
 
-# **Features**
+## **Features**
 - **Flexible Thresholds**: Configure your own complexity boundaries  
 - **Emoji Customization**: Choose your preferred indicator system
 
@@ -126,7 +124,7 @@
 - **Memory Efficient**: Proper resource disposal and caching
 - **Extensible Architecture**: Clean service-based design
 
-## 📦 **Installation**
+## **Installation**
 ### **From VS Code Marketplace (Recommended)**
 1. Open VS Code
 2. Go to Extensions view (`Ctrl+Shift+X`)
@@ -228,6 +226,33 @@ The extension automatically detects and counts lines for:
 - **Data**: JSON, XML, YAML, Markdown
 - **And more**: Any text file with configurable comment patterns
 
+## 🔍 **Visibility & Accessibility**
+
+### **Making Emoji Badges Bigger & Easier to See**
+If you find the emoji badges (🟢🟡🔴) in the File Explorer too small or hard to distinguish, you can increase VS Code's zoom level to make them larger and more visible:
+
+#### **Quick Method:**
+- **Zoom In**: `Ctrl` + `+` (Windows/Linux) or `Cmd` + `+` (Mac)
+- **Zoom Out**: `Ctrl` + `-` (Windows/Linux) or `Cmd` + `-` (Mac)
+- **Reset Zoom**: `Ctrl` + `0` (Windows/Linux) or `Cmd` + `0` (Mac)
+
+#### **Precise Control via Settings:**
+1. **Open Settings**: `Ctrl` + `,` (Windows/Linux) or `Cmd` + `,` (Mac)
+2. **Search**: Type `window.zoomLevel`
+3. **Adjust**: Set a value like `1` (120% zoom) or `2` (140% zoom)
+   - `0` = 100% (default)
+   - `1` = 120% zoom
+   - `2` = 140% zoom
+   - `0.5` = 110% zoom (fine adjustment)
+
+#### **Benefits of Increased Zoom:**
+- **👁️ Better Visibility**: Emoji badges become larger and easier to distinguish
+- **🎯 Improved Accuracy**: Easier to spot complexity hotspots at a glance
+- **♿ Accessibility**: Better for users who prefer larger interface elements
+- **🖥️ High-DPI Displays**: Especially helpful on high-resolution monitors
+
+> **💡 Pro Tip**: The zoom level affects the entire VS Code interface, making not just emoji badges but all text and UI elements larger and more comfortable to work with!
+
 ## **Report Features**
 The generated HTML report includes:
 - **Summary Statistics**: Total files, lines, languages, and averages
@@ -235,7 +260,7 @@ The generated HTML report includes:
 - **File Details**: Searchable table with individual file statistics
 - **Interactive Elements**: Search, filtering, and responsive design
 
-## 🌟 **Contributing**
+## **Contributing**
 We welcome contributions from developers, architects, and VS Code enthusiasts!
 [CONTRIBUTING.md](./contributing.md)
 
@@ -252,7 +277,7 @@ We welcome contributions from developers, architects, and VS Code enthusiasts!
 - 🔗 **Git Integration**: Blame-aware complexity analysis# Lint code
 - 📱 **Web Dashboard**: Team-wide project insights
 
-## **⭐ Star this repo if VS Code Code Counter makes your development workflow better! ⭐**
+## **⭐⭐⭐⭐⭐ Star this repo if VS Code Code Counter makes your development workflow better!**
 ### **Built with ❤️ by developers, for developers**
 ## 🤝 **Connect With Us**
 
