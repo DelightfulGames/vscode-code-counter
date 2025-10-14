@@ -2,7 +2,7 @@
 
 > **Transform your code visibility with intelligent line counting, visual indicators, and comprehensive reporting**
 
-[![Version](https://img.shields.io/badge/version-0.9.5-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)
+[![Version](https://img.shields.io/badge/version-0.10.0-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
@@ -100,8 +100,13 @@
 ## 📈 **Comprehensive Analytics**
 - 📊 **Count Lines of Code**: Analyzes all files in your workspace with smart caching
 - 📈 **Detailed Statistics**: Shows code lines, comment lines, and blank lines separately
-- 📄 **HTML Reports**: Generates beautiful, interactive HTML reports with search functionality
-- 🗂️ **XML Data Source**: Creates XML files for integration with other tools
+- 📄 **Enhanced HTML Reports**: Beautiful, interactive HTML reports with intelligent path display system
+  - 📁 **Smart Path Toggle**: Interactive button to show/hide full directory paths
+  - 🎯 **Optimized Layout**: Clean filename display with expandable path information
+  - 💾 **Persistent Preferences**: Remembers your path display choice across sessions
+- 🗂️ **Enhanced XML Data**: Comprehensive XML exports with full path metadata
+  - 📍 **Multiple Path Formats**: Includes fullPath, fileName, and directory attributes
+  - 🔄 **Backward Compatible**: Enhanced data while maintaining existing XML structure
 - ⚡ **Performance Optimized**: Only recalculates on file save, not every keystroke
 - 🎯 **Glob Exclusions**: Exclude files and directories using customizable glob patterns
 
@@ -256,11 +261,38 @@ If you find the emoji badges (🟢🟡🔴) in the File Explorer too small or ha
 > **💡 Pro Tip**: The zoom level affects the entire VS Code interface, making not just emoji badges but all text and UI elements larger and more comfortable to work with!
 
 ## **Report Features**
-The generated HTML report includes:
+
+### 🎯 **Enhanced Path Display System**
+> **New in v0.10.0**: Revolutionary file path visibility controls
+
+The HTML reports now feature an intelligent path display system designed for large codebases:
+
+#### **🔄 Interactive Toggle Controls**
+- **📁 Compact View** (default): Shows only filenames for clean, readable reports
+- **📄 Expanded View**: Reveals full directory paths when you need detailed location info
+- **Toggle Button**: Click the 📁/📄 button in the table header to switch views instantly
+
+#### **💾 Smart Persistence** 
+- Your path display preference is automatically saved using localStorage
+- Consistent experience across all reports and browser sessions
+- No need to repeatedly adjust settings
+
+#### **🎨 Optimized Design**
+- **Clean Layout**: Filenames prominently displayed with subtle path information
+- **Responsive Design**: Works beautifully on all screen sizes
+- **Visual Hierarchy**: Clear distinction between filename and directory path
+
+#### **📊 Multiple Export Formats**
+- **HTML Reports**: Interactive reports with enhanced path toggle functionality
+- **XML Data**: Comprehensive exports with `fullPath`, `fileName`, and `directory` attributes
+- **Backward Compatible**: Existing integrations continue to work seamlessly
+
+### **📈 Comprehensive Analytics**
+The generated reports include:
 - **Summary Statistics**: Total files, lines, languages, and averages
-- **Language Breakdown**: Files and lines per programming language
-- **File Details**: Searchable table with individual file statistics
-- **Interactive Elements**: Search, filtering, and responsive design
+- **Language Breakdown**: Files and lines per programming language  
+- **Enhanced File Details**: Searchable table with intelligent path display and individual file statistics
+- **Interactive Elements**: Search, filtering, responsive design, and path visibility controls
 
 ## **Contributing**
 We welcome contributions from developers, architects, and VS Code enthusiasts!

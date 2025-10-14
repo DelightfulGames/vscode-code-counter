@@ -739,7 +739,10 @@ export class WebViewReportService {
         htmlTemplate = htmlTemplate.replace('{{WORKSPACE_PATH}}', data.workspacePath);
         
         // Embed XML data as fallback (this will work even with file:// protocol)
-        const escapedXmlData = xmlData.replace(/'/g, "\\'").replace(/\r?\n/g, '\\n');
+        const escapedXmlData = xmlData.replace(/\\/g, '\\\\')
+                                        .replace(/\r?\n/g, '\\n')
+                                        .replace(/'/g, "\\'");
+                                        
         htmlTemplate = htmlTemplate.replace('{{XML_DATA_FALLBACK}}', escapedXmlData);
         
         return htmlTemplate;

@@ -36,9 +36,15 @@ export class XmlGeneratorService {
     }
 
     private convertFileToXml(file: FileInfo) {
+        const fileName = require('path').basename(file.relativePath);
+        const directory = require('path').dirname(file.relativePath);
+        
         return {
             '@_path': file.path,
             '@_relativePath': file.relativePath,
+            '@_fullPath': file.fullPath || file.relativePath,
+            '@_fileName': fileName,
+            '@_directory': directory === '.' ? '' : directory,
             '@_language': file.language,
             '@_lines': file.lines,
             '@_codeLines': file.codeLines,

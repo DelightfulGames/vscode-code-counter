@@ -15,7 +15,7 @@ export class LineCounterService {
 
         for (const filePath of files) {
             try {
-                const fileInfo = await this.countFileLines(filePath);
+                const fileInfo = await this.countFileLines(filePath, workspacePath);
                 fileInfos.push(fileInfo);
                 
                 totalLines += fileInfo.lines;
@@ -54,7 +54,7 @@ export class LineCounterService {
         return files.map(file => file.fsPath);
     }
 
-    async countFileLines(filePath: string): Promise<FileInfo> {
+    async countFileLines(filePath: string, workspacePath?: string): Promise<FileInfo> {
         const content = await fs.promises.readFile(filePath, 'utf8');
         const lines = content.split('\n');
         
@@ -77,9 +77,12 @@ export class LineCounterService {
             }
         }
 
+        const relativePath = workspacePath ? path.relative(workspacePath, filePath) : path.relative(path.dirname(filePath), filePath);
+        
         return {
             path: filePath,
-            relativePath: path.relative(path.dirname(filePath), filePath),
+            relativePath,
+            fullPath: relativePath.replace(/\\/g, '/'), // Use normalized relative path
             language,
             lines: lines.length,
             codeLines,

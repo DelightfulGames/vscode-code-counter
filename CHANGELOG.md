@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2025-10-14
+
+### Added
+- **Enhanced Path Display**: Revolutionary new file path display system in HTML reports
+  - Interactive toggle button (📁/📄) to show/hide full directory paths
+  - Intelligent layout showing only filename by default with expandable path information
+  - User preference persistence via localStorage for consistent experience
+  - Clean, responsive design optimized for readability in both compact and expanded views
+- **Improved XML Exports**: Enhanced XML output with comprehensive path attributes
+  - Added `fullPath` attribute for workspace-relative file paths
+  - Added `fileName` attribute for isolated file names
+  - Added `directory` attribute for parent directory information
+  - Maintains backward compatibility with existing XML structure
+- **Advanced File Analysis**: Updated core services for enhanced path handling
+  - FileInfo interface extended with optional `fullPath` property
+  - LineCounter service enhanced to calculate and populate relative paths
+  - Improved workspace path resolution and normalization
+
+### Changed
+- **HTML Report UI**: Redesigned file table layout for better path visibility
+  - Replaced single file path column with intelligent filename + expandable path design
+  - Added intuitive toggle controls for user-controlled information density
+  - Enhanced CSS styling for improved visual hierarchy and responsive behavior
+- **API Enhancements**: Extended internal interfaces to support path metadata
+  - Enhanced type definitions for comprehensive file information tracking
+  - Improved service layer APIs for consistent path handling across components
+
+### Performance
+- **Optimized Path Processing**: Efficient path calculation with minimal performance impact
+- **Client-Side Rendering**: Enhanced JavaScript with O(n) complexity maintained
+- **Memory Efficiency**: Minimal memory overhead from additional path metadata
+
 ## [0.9.5] - 2025-10-14
 
 ### Fixed

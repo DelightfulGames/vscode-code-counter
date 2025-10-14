@@ -1,6 +1,7 @@
 export interface FileInfo {
     path: string;
     relativePath: string;
+    fullPath?: string;
     language: string;
     lines: number;
     codeLines: number;
