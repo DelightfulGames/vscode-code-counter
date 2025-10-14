@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2025-10-14
+
+### Fixed
+- **Documentation**: Fixed duplicate title in README.md header section
+- **Marketplace Links**: Corrected extension ID in marketplace badge URLs (removed incorrect `-pro` suffix)
+- **Badge Display**: Cleaned up duplicate and malformed badge entries in README.md
+- **Link Consistency**: Ensured all marketplace references use correct extension identifier
+
 ## [0.9.0] - 2025-10-13
 
 ### Added
