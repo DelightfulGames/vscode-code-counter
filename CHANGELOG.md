@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2025-10-13
+
+### Added
+- **Enhanced Performance**: Embedded emoji data directly into HTML for improved loading performance
+- **Optimized File Structure**: Improved code organization and file splitting for better maintainability
+
+### Fixed
+- **Documentation**: Corrected README.md links for better navigation
+- **Emoji Database**: Refreshed and updated complete emoji database
+
 ## [0.8.2] - 2025-10-12
 
 ### Added
