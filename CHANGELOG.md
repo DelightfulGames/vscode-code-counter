@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] - 2025-10-14
+
+### Fixed
+- **HTML Report Generation**: Fixed JavaScript error in generated HTML reports caused by improper XML data escaping
+- **File Path Handling**: Improved escaping of file paths with backslashes, quotes, and special characters in report templates
+- **Template Stability**: Enhanced robustness of embedded JavaScript in HTML reports for various file naming scenarios
+
+### Added
+- **Test Coverage**: Added comprehensive tests for XML data escaping in HTML generation
+
 ## [0.9.2] - 2025-10-14
 
 ### Fixed

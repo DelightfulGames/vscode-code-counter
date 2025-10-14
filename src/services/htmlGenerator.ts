@@ -17,7 +17,8 @@ export class HtmlGeneratorService {
         htmlTemplate = htmlTemplate.replace('{{WORKSPACE_PATH}}', workspacePath);
         
         // Provide XML data as fallback for file:// protocol access
-        const escapedXmlData = xmlData.replace(/'/g, "\\'").replace(/\r?\n/g, '\\n');
+        // Properly escape XML data for JavaScript string literal
+        const escapedXmlData = this.escapeForJavaScript(xmlData);
         htmlTemplate = htmlTemplate.replace('{{XML_DATA_FALLBACK}}', escapedXmlData);
         
         // Write the HTML file
@@ -37,5 +38,20 @@ export class HtmlGeneratorService {
         } catch {
             await fs.promises.mkdir(dirPath, { recursive: true });
         }
+    }
+
+    private escapeForJavaScript(xmlData: string): string {
+        return xmlData
+            .replace(/\\/g, '\\\\')    // Escape backslashes first
+            .replace(/'/g, "\\'")      // Escape single quotes
+            .replace(/"/g, '\\"')      // Escape double quotes
+            .replace(/\r?\n/g, '\\n')  // Escape newlines
+            .replace(/\r/g, '\\r')     // Escape carriage returns
+            .replace(/\t/g, '\\t')     // Escape tabs
+            .replace(/\f/g, '\\f')     // Escape form feeds
+            .replace(/\v/g, '\\v')     // Escape vertical tabs
+            .replace(/\0/g, '\\0')     // Escape null characters
+            .replace(/\u2028/g, '\\u2028') // Escape line separator
+            .replace(/\u2029/g, '\\u2029'); // Escape paragraph separator
     }
 }
