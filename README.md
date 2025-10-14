@@ -4,9 +4,9 @@
 
 [![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
+[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)[![Downloads](https://img.shields.io/visual-studio-marketplace/d/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
-[![VS Code](https://img.shields.io/badge/VS%20Code-1.60+-007ACC.svg)](https://code.visualstudio.com/)[![Rating](https://img.shields.io/visual-studio-marketplace/r/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
+[![VS Code](https://img.shields.io/badge/VS%20Code-1.80+-007ACC.svg)](https://code.visualstudio.com/)[![Rating](https://img.shields.io/visual-studio-marketplace/r/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2+-blue.svg)](https://www.typescriptlang.org/)[![TypeScript](https://img.shields.io/badge/TypeScript-5.2+-blue.svg)](https://www.typescriptlang.org/)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
 [![Tests](https://img.shields.io/badge/tests-51%2F51%20passing-brightgreen.svg)](#)[![Tests](https://img.shields.io/badge/tests-51%2F51%20passing-brightgreen.svg)](#)
