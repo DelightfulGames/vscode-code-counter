@@ -103,4 +103,38 @@ suite('HtmlGeneratorService Tests', () => {
         expect(writtenXml).to.include('&amp;');
         expect(writtenXml).to.include('файл.js'); // Unicode filename
     });
+
+    test('should properly escape XML data for JavaScript string literals', async () => {
+        // XML data with various problematic characters for JavaScript strings
+        const xmlData = `<?xml version="1.0" encoding="UTF-8"?>
+<report>
+    <file path="C:\\Users\\test\\file's name.js" language="JavaScript"/>
+    <file path="/test/file with "quotes" and 'apostrophes'.js" language="JavaScript"/>
+    <file path="/test/file
+with newlines.js" language="JavaScript"/>
+</report>`;
+        
+        const outputDir = 'output';
+        
+        await htmlGenerator.generateHtmlReport(xmlData, tempDir, outputDir);
+        
+        // Read the HTML file and check that the XML data was properly escaped
+        const htmlFilePath = path.join(tempDir, outputDir, 'code-counter-report.html');
+        const htmlContent = await fs.promises.readFile(htmlFilePath, 'utf8');
+        
+        // Verify that the escaped XML data is present and doesn't break JavaScript
+        expect(htmlContent).to.include("C:\\\\Users\\\\test\\\\file\\'s name.js");
+        expect(htmlContent).to.include('file with \\"quotes\\" and \\\'apostrophes\\\'');
+        expect(htmlContent).to.include('file\\nwith newlines.js');
+        
+        // Ensure no unescaped problematic characters remain in the embedded data
+        const xmlDataStart = htmlContent.indexOf("const embeddedXmlData = '") + "const embeddedXmlData = '".length;
+        const xmlDataEnd = htmlContent.indexOf("';", xmlDataStart);
+        const embeddedXmlData = htmlContent.substring(xmlDataStart, xmlDataEnd);
+        
+        // Should not contain unescaped quotes or newlines that would break JavaScript
+        expect(embeddedXmlData).to.not.match(/(^|[^\\])'/); // No unescaped single quotes
+        expect(embeddedXmlData).to.not.match(/(^|[^\\])"/); // No unescaped double quotes  
+        expect(embeddedXmlData).to.not.match(/(^|[^\\])\n/); // No unescaped newlines
+    });
 });
