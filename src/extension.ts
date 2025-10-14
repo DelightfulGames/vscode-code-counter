@@ -182,9 +182,23 @@ function getEmojiPickerWebviewContent(badges: any, folderBadges: any, thresholds
             </div>
         `).join('');
 
-        //Load the javaScript content
+        //Load the JavaScript content and JSON data
         const scriptPath = path.join(__dirname, '..', 'templates', 'emoji-picker.js');
+        const emojiDataPath = path.join(__dirname, '..', 'templates', 'emoji-data.json');
+        const emojiSearchDataPath = path.join(__dirname, '..', 'templates', 'emoji-search-data.json');
+        
         const scriptContent = fs.readFileSync(scriptPath, 'utf8');
+        const emojiData = fs.readFileSync(emojiDataPath, 'utf8');
+        const emojiSearchData = fs.readFileSync(emojiSearchDataPath, 'utf8');
+        
+        // Prepend the JSON data to the script content
+        const fullScriptContent = `
+            // Embedded emoji data
+            window.emojiData = ${emojiData};
+            window.emojiSearchData = ${emojiSearchData};
+            
+            ${scriptContent}
+        `;
         
         htmlContent = htmlContent.replace(/{{badges\.low}}/g, badges.low);
         htmlContent = htmlContent.replace(/{{badges\.medium}}/g, badges.medium);
@@ -202,7 +216,7 @@ function getEmojiPickerWebviewContent(badges: any, folderBadges: any, thresholds
         htmlContent = htmlContent.replace(/{{highFolderAvg}}/g, highFolderAvg.toString());
         htmlContent = htmlContent.replace(/{{highFolderMax}}/g, highFolderMax.toString());
         htmlContent = htmlContent.replace(/{{excludePatterns}}/g, excludePatternsHtml);
-        htmlContent = htmlContent.replace(/{{scriptContent}}/g, scriptContent);
+        htmlContent = htmlContent.replace(/{{scriptContent}}/g, fullScriptContent);
         
         return htmlContent;
         

@@ -100,20 +100,13 @@ function selectEmoji(emoji) {
     closeEmojiPicker();
 }
 
-async function initializeEmojiPicker() {
+function initializeEmojiPicker() {
     try {
-        // Load emoji data and search metadata from JSON files
-        const [emojiDataResponse, searchDataResponse] = await Promise.all([
-            fetch('./emoji-data.json'),
-            fetch('./emoji-search-data.json')
-        ]);
-        
-        if (!emojiDataResponse.ok || !searchDataResponse.ok) {
-            throw new Error('Failed to load emoji data');
+        // Emoji data is now embedded directly into the HTML by the extension
+        // Check if data is available
+        if (!window.emojiData || !window.emojiSearchData) {
+            throw new Error('Emoji data not loaded');
         }
-        
-        window.emojiData = await emojiDataResponse.json();
-        window.emojiSearchData = await searchDataResponse.json();
         
         displayEmojiCategory('all', window.emojiData);
         
