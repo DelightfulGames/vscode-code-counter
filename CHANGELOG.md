@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.5] - 2025-10-14
+
+### Fixed
+- **Documentation**: Updated version badge in README.md to 0.9.5
+- **Release Process**: Proper version synchronization across project files
+
 ## [0.9.4] - 2025-10-14
 
 ### Fixed
