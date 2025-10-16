@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Counter Emoji Settings</title>
+    <style>
+        body {
+            font-family: var(--vscode-font-family);
+            background: var(--vscode-editor-background);
+            color: var(--vscode-editor-foreground);
+            padding: 20px;
+            margin: 0;
+            box-sizing: border-box;
+            min-height: 100vh;
+            overflow-x: auto;
+        }
+        .color-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 5px;
+            width: 100%;
+            box-sizing: border-box;
+            overflow: visible;
+        }
+        .emoji-picker-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .current-emoji-display {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .current-emoji {
+            width: 60px;
+            height: 60px;
+            background: var(--vscode-input-background);
+            border: 2px solid var(--vscode-input-border);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .current-emoji:hover {
+            border-color: var(--vscode-focusBorder);
+            transform: scale(1.05);
+        }
+        .emoji-picker-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .emoji-picker-modal.show {
+            display: flex;
+        }
+        .emoji-picker {
+            background: var(--vscode-editor-background);
+            border: 2px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .emoji-picker-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .emoji-search-container {
+            padding: 5px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            background: var(--vscode-input-background);
+        }
+        .emoji-search-input {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            color: var(--vscode-input-foreground);
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .emoji-search-input:focus {
+            outline: none;
+            border-color: var(--vscode-focusBorder);
+        }
+        .search-results-info {
+            padding: 8px 15px;
+            background: var(--vscode-textBlockQuote-background);
+            border-bottom: 1px solid var(--vscode-panel-border);
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            display: none;
+        }
+        .emoji-picker-close {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        .emoji-picker-close:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+        .emoji-categories {
+            display: flex; 
+            min-height: 50px;
+            background: var(--vscode-tab-inactiveBackground);
+            border-bottom: 1px solid var(--vscode-panel-border);
+            overflow-x: auto;
+            scrollbar-width: thin;
+        }
+        .category-tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            color: var(--vscode-tab-inactiveForeground);
+            font-size: 16px;
+            white-space: nowrap;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s ease;
+        }
+        .category-tab:hover {
+            background: var(--vscode-tab-hoverBackground);
+        }
+        .category-tab.active {
+            color: var(--vscode-tab-activeForeground);
+            background: var(--vscode-tab-activeBackground);
+            border-bottom-color: var(--vscode-tab-activeBorder);
+        }
+        .emoji-grid-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            max-height: 300px;
+        }
+        .emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+            gap: 8px;
+            justify-items: center;
+        }
+        .emoji-item {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 24px;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+        .emoji-item:hover {
+            background: var(--vscode-list-hoverBackground);
+            transform: scale(1.1);
+            border-color: var(--vscode-focusBorder);
+        }
+        .emoji-item.selected {
+            background: var(--vscode-list-activeSelectionBackground);
+            border-color: var(--vscode-list-activeSelectionForeground);
+        }
+        .threshold-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 5px 0;
+        }
+        .threshold-input {
+            width: 80px;
+            padding: 4px 8px;
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 3px;
+            color: var(--vscode-input-foreground);
+            text-align: center;
+        }
+        .threshold-input:focus {
+            outline: none;
+            border-color: var(--vscode-focusBorder);
+        }
+        .preview {
+            margin: 10px 0;
+            padding: 8px;
+            background: var(--vscode-textBlockQuote-background);
+            border-left: 4px solid var(--vscode-textBlockQuote-border);
+            border-radius: 3px;
+            font-size: 14px;
+            color: var(--vscode-descriptionForeground);
+        }
+        button {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s ease;
+        }
+        button:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+        .button-secondary {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+        }
+        .button-secondary:hover {
+            background: var(--vscode-button-secondaryHoverBackground);
+        }
+        input[type="text"] {
+            padding: 8px;
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 3px;
+            color: var(--vscode-input-foreground);
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--vscode-focusBorder);
+        }
+        .range-display {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            padding: 5px 10px;
+            border-radius: 3px;
+            background: var(--vscode-textCodeBlock-background);
+            border: 1px solid var(--vscode-input-border);
+            font-weight: bold;
+            font-family: monospace;
+        }
+        .glob-patterns-container {
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 3px;
+            padding: 5px;
+        }
+        .glob-pattern-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 5px 0;
+            padding: 5px 10px;
+            background: var(--vscode-input-background);
+            border-radius: 3px;
+        }
+        .glob-pattern-item code {
+            font-family: var(--vscode-editor-font-family);
+            background: transparent;
+            color: var(--vscode-textCodeBlock-foreground);
+            flex: 1;
+        }
+        .remove-btn {
+            background: var(--vscode-inputValidation-errorBackground);
+            color: var(--vscode-inputValidation-errorForeground);
+            border: none;
+            padding: 2px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 0 0 0 10px;
+        }
+        .remove-btn:hover {
+            opacity: 0.8;
+        }
+        .add-pattern-container {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            align-items: center;
+        }
+        .add-pattern-container input {
+            flex: 1;
+            padding: 8px;
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 3px;
+            color: var(--vscode-input-foreground);
+            font-family: var(--vscode-editor-font-family);
+        }
+        .pattern-examples {
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        .pattern-examples details {
+            background: var(--vscode-textBlockQuote-background);
+            border-left: 4px solid var(--vscode-textBlockQuote-border);
+            padding: 10px;
+            border-radius: 3px;
+        }
+        .pattern-examples summary {
+            cursor: pointer;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .pattern-examples ul {
+            margin: 10px 0 0 20px;
+        }
+        .pattern-examples li {
+            margin: 5px 0;
+        }
+        .pattern-examples code {
+            background: var(--vscode-textCodeBlock-background);
+            padding: 2px 4px;
+            border-radius: 2px;
+            font-family: var(--vscode-editor-font-family);
+            color: var(--vscode-textCodeBlock-foreground);
+        }
+        
+        .emoji-horizontal-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            width: 100%;
+            box-sizing: border-box;
+            overflow: visible;
+            min-height: fit-content;
+        }
+        .emoji-config-item {
+            flex: 0 1 auto;
+            width: fit-content;
+            min-width: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 8px;
+            background: var(--vscode-editor-background);
+            box-sizing: border-box;
+            overflow: visible;
+            height: auto;
+        }
+        .emoji-config-item h4 {
+            margin: 0 0 10px 0;
+            text-align: center;
+        }
+        
+        /* Responsive breakpoints */
+        @media (max-width: 600px) {
+            .emoji-horizontal-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .emoji-config-item {
+                width: 100%;
+                max-width: 400px;
+            }
+        }
+        
+        /* Ensure containers expand to fit content */
+        * {
+            box-sizing: border-box;
+        }
+        
+        .main-container {
+            width: 100%;
+            overflow-x: auto;
+        }
+        
+        .reset-section {
+            margin: 20px 0;
+            text-align: center;
+            width: 100%;
+        }
+        
+        .reset-button {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .reset-button:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+        
+        .emoji-sections-container {
+            width: 100%;
+            overflow: visible;
+        }
+        
+        .emoji-type-section {
+            margin: 30px 0;
+            width: 100%;
+            overflow: visible;
+        }
+        
+        /* Notification Settings Styles */
+        .notification-settings-container {
+            margin: 15px 0;
+        }
+        
+        .checkbox-container {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .checkbox-container input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            margin-top: 2px;
+            cursor: pointer;
+        }
+        
+        .checkbox-container label {
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1.4;
+            flex: 1;
+        }
+        
+        .setting-description {
+            color: var(--vscode-descriptionForeground);
+            font-size: 12px;
+            line-height: 1.4;
+            margin-left: 26px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <h1>⚙️ Code Counter Settings</h1>
+        
+        <div class="color-section">
+            <h3>💬 Notification Settings</h3>
+            <p>Control when the extension shows popup notifications:</p>
+            <div class="notification-settings-container">
+                <div class="checkbox-container">
+                    <input type="checkbox" id="showNotificationOnAutoGenerate" {{showNotificationChecked}} onchange="updateNotificationSetting(this.checked)">
+                    <label for="showNotificationOnAutoGenerate">Show popup notifications when reports are auto-generated on file save</label>
+                </div>
+                <div class="setting-description">
+                    When enabled, the extension will show a popup notification with a "View Report" button each time a report is automatically generated when you save a file. When disabled, reports are generated silently in the background.
+                </div>
+            </div>
+        </div>
+
+        <div class="color-section">
+            <h3>🫣 Exclude Patterns</h3>
+            <p>Glob patterns for files to exclude from line counting:</p>
+            <div class="glob-patterns-container">
+                {{excludePatterns}}
+            </div>
+            <div class="add-pattern-container">
+                <input type="text" id="newPattern" placeholder="Enter glob pattern (e.g., **/*.tmp)" />
+                <button onclick="addPattern()">➕ Add Pattern</button>
+            </div>
+            <div class="pattern-examples">
+                <details>
+                    <summary>📖 Pattern Examples</summary>
+                    <ul>
+                        <li><code>**/node_modules/**</code> - Exclude all node_modules folders</li>
+                        <li><code>**/*.tmp</code> - Exclude all .tmp files</li>
+                        <li><code>**/dist/**</code> - Exclude all dist folders</li>
+                        <li><code>**/.git/**</code> - Exclude all .git folders</li>
+                        <li><code>**/test/**</code> - Exclude all test folders</li>
+                        <li><code>**/*.min.js</code> - Exclude minified JS files</li>
+                    </ul>
+                </details>
+            </div>
+            <button onclick="resetPatterns()">🔄 Reset Patterns to Defaults</button>
+        </div>
+
+        <div class="reset-section">
+            <button class="reset-button" onclick="resetEmojis()">🔄 Reset All Emojis to Defaults</button>
+        </div>
+        
+        <div class="emoji-sections-container">
+            <div class="emoji-type-section">
+                <h2>📄-🟢🟡🔴 File Badges (individual files)</h2>
+                <div class="emoji-horizontal-container">
+                    <div class="emoji-config-item">
+                        <h4>Low ({{badges.low}})</h4>
+                        <div class="current-emoji" data-color-key="low" data-type="file" onclick="openEmojiPicker('low', 'file')">{{badges.low}}</div>
+                        <div class="threshold-container">
+                            <label>< </label>
+                            <input type="number" class="threshold-input" id="midThreshold" value="{{thresholds.mid}}" min="1" max="9999" onchange="updateThreshold('mid', this.value)" />
+                            <span> lines</span>
+                        </div>
+                        <div class="preview" id="lowPreview">{{badges.low}} {{lowPreviewLines}} lines</div>
+                    </div>
+                    
+                    <div class="emoji-config-item">
+                        <h4>Medium ({{badges.medium}})</h4>
+                        <div class="current-emoji" data-color-key="medium" data-type="file" onclick="openEmojiPicker('medium', 'file')">{{badges.medium}}</div>
+                        <div class="threshold-container">
+                            <label>< </label>
+                            <input type="number" class="threshold-input" id="highThreshold" value="{{thresholds.high}}" min="1" max="9999" onchange="updateThreshold('high', this.value)" />
+                            <span> lines</span>
+                        </div>
+                        <div class="preview" id="mediumPreview">{{badges.medium}} {{mediumPreviewLines}} lines</div>
+                    </div>
+                    
+                    <div class="emoji-config-item">
+                        <h4>High ({{badges.high}})</h4>
+                        <div class="current-emoji" data-color-key="high" data-type="file" onclick="openEmojiPicker('high', 'file')">{{badges.high}}</div>
+                        <div class="threshold-container">
+                            <label>≥ <strong>{{thresholds.high}}</strong> lines</label>
+                        </div>
+                        <div class="preview" id="highPreview">{{badges.high}} {{highPreviewLines}} lines</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="emoji-type-section">
+                <h2>📁-🟩🟨🟥 Folder Badges (average | maximum lines)</h2>
+                <div class="emoji-horizontal-container">
+                    <div class="emoji-config-item">
+                        <h4>Low ({{folderBadges.low}})</h4>
+                        <div class="current-emoji" data-color-key="low" data-type="folder" onclick="openEmojiPicker('low', 'folder')">{{folderBadges.low}}</div>
+                        <div class="threshold-container">
+                            <label>< {{thresholds.mid}} lines</label>
+                        </div>
+                        <div class="preview" id="lowFolderPreview">{{folderBadges.low}} Avg: {{lowFolderAvg}} | {{badges.low}} Max: {{thresholds.mid}}</div>
+                    </div>
+                    
+                    <div class="emoji-config-item">
+                        <h4>Medium ({{folderBadges.medium}})</h4>
+                        <div class="current-emoji" data-color-key="medium" data-type="folder" onclick="openEmojiPicker('medium', 'folder')">{{folderBadges.medium}}</div>
+                        <div class="threshold-container">
+                            <label>< {{thresholds.high}} lines</label>
+                        </div>
+                        <div class="preview" id="mediumFolderPreview">{{folderBadges.medium}} Avg: {{mediumFolderAvg}} | {{badges.medium}} Max: {{thresholds.high}}</div>
+                    </div>
+                    
+                    <div class="emoji-config-item">
+                        <h4>High ({{folderBadges.high}})</h4>
+                        <div class="current-emoji" data-color-key="high" data-type="folder" onclick="openEmojiPicker('high', 'folder')">{{folderBadges.high}}</div>
+                        <div class="threshold-container">
+                            <label>≥ {{thresholds.high}} lines</label>
+                        </div>
+                        <div class="preview" id="highFolderPreview">{{folderBadges.high}} Avg: {{highFolderAvg}} | {{badges.high}} Max: {{highFolderMax}}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Emoji Picker Modal -->
+        <div class="emoji-picker-modal" id="emojiModal">
+            <div class="emoji-picker">
+                <div class="emoji-picker-header">
+                    <h3>Select Emoji</h3>
+                    <button class="emoji-picker-close" onclick="closeEmojiPicker()">✕</button>
+                </div>
+                <div class="emoji-search-container">
+                    <input type="text" class="emoji-search-input" id="emojiSearch" placeholder="Search emojis... (e.g., 'smile', 'heart', 'red circle')" />
+                </div>
+                <div class="search-results-info" id="searchResultsInfo"></div>
+                <div class="emoji-categories">
+                    <button class="category-tab active" data-category="all" onclick="switchCategory('all')">All</button>
+                    <button class="category-tab" data-category="smileys" onclick="switchCategory('smileys')">😀 Smileys</button>
+                    <button class="category-tab" data-category="nature" onclick="switchCategory('nature')">🌱 Nature</button>
+                    <button class="category-tab" data-category="food" onclick="switchCategory('food')">🍎 Food</button>
+                    <button class="category-tab" data-category="activities" onclick="switchCategory('activities')">⚽ Activities</button>
+                    <button class="category-tab" data-category="travel" onclick="switchCategory('travel')">🚗 Travel</button>
+                    <button class="category-tab" data-category="objects" onclick="switchCategory('objects')">💡 Objects</button>
+                    <button class="category-tab" data-category="symbols" onclick="switchCategory('symbols')">🔴 Symbols</button>
+                    <button class="category-tab" data-category="flags" onclick="switchCategory('flags')">🏁 Flags</button>
+                </div>
+                <div class="emoji-grid-container">
+                    <div class="emoji-grid" id="emojiGrid"></div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            {{scriptContent}}
+        </script>
+    </div>
+</body>
+</html>
