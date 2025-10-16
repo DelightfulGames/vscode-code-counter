@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2025-10-16
+
+### Fixed
+- **File Explorer**: No more conflicts with file colors
+- **Performance**: Limited folder analysis to 30 files and 2 directory levels to prevent timeouts
+- **Caching**: Improved cache invalidation for folder decorations when files are added/deleted
+- **Logging**: Added comprehensive debugging output for folder decoration providers
+
 ## [0.10.0] - 2025-10-14
 
 ### Added

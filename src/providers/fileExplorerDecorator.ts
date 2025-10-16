@@ -133,7 +133,6 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             
             // Use different colored icons based on line count thresholds
             let badge = '●';
-            let themeColor: vscode.ThemeColor;
             
             // Get custom emojis from configuration
             const emoji = lineThresholdService.getThemeEmoji(threshold);
@@ -210,21 +209,6 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
             // Use the higher threshold for the overall color
             const overallThreshold = folderStats.maxLines > folderStats.averageLines ? maxThreshold : avgThreshold;
-            let themeColor: vscode.ThemeColor;
-            switch (overallThreshold) {
-                case 'normal':
-                    themeColor = new vscode.ThemeColor('terminal.ansiGreen');
-                    break;
-                case 'warning':
-                    themeColor = new vscode.ThemeColor('warningForeground');
-                    break;
-                case 'danger':
-                    themeColor = new vscode.ThemeColor('errorForeground');
-                    break;
-                default:
-                    themeColor = new vscode.ThemeColor('foreground');
-            }
-
             const relativePath = vscode.workspace.asRelativePath(folderStats.maxFilePath);
             const fileName = path.basename(folderStats.maxFilePath);
             
@@ -239,7 +223,6 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             return {
                 badge: dualBadge,
                 tooltip: tooltip,
-                color: themeColor,
             };
         } catch (error) {
             console.warn(`Failed to provide folder decoration for ${uri.fsPath}:`, error);
