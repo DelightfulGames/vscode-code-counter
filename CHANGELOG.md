@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2025-10-16
+
+### Fixed
+- **Template Updates**: Enhanced webview template with improved styling and functionality
+- **UI Polish**: Refined notification settings interface for better user experience
+
 ## [0.11.0] - 2025-10-16
 
 ### Fixed
