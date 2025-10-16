@@ -14,7 +14,7 @@ export class HtmlGeneratorService {
         
         // Replace template placeholders
         htmlTemplate = htmlTemplate.replace('{{GENERATED_DATE}}', new Date().toLocaleString());
-        htmlTemplate = htmlTemplate.replace('{{WORKSPACE_PATH}}', workspacePath);
+        htmlTemplate = htmlTemplate.replace('{{WORKSPACE_PATH}}', workspacePath.replace(/\\/g, '/'));
         
         // Provide XML data as fallback for file:// protocol access
         // Properly escape XML data for JavaScript string literal

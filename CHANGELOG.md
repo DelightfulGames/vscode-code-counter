@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2025-10-16
+
+### Fixed
+- **Settings UI**: Line threshold changes now properly save to VS Code configuration
+  - Added missing `onchange` event handlers to threshold input fields
+  - Implemented `updateThreshold` JavaScript function for real-time saves
+  - WebView automatically refreshes to show updated preview values after changes
+  - Provides immediate feedback when threshold values are modified
+
+### Added
+- **Settings UI**: Added notification toggle checkbox to the emoji settings webview
+  - Easy one-click toggle for `showNotificationOnAutoGenerate` setting
+  - Real-time configuration updates with immediate feedback
+  - Integrated seamlessly with existing settings interface
+- **HTML Reports**: Enhanced path display with normalized forward slash formatting
+  - Consistent path formatting across different operating systems
+  - Improved "Toggle Paths" button functionality in generated reports
+
+### Changed
+- **Notifications**: Save notifications now disabled by default for less intrusive experience
+  - Changed `codeCounter.showNotificationOnAutoGenerate` default from `true` to `false`
+  - Users can easily enable notifications via the new checkbox in settings webview
+  - Provides quieter, more focused coding experience while maintaining functionality
+
+### Technical Improvements
+- **Tests**: All 59 tests now passing with improved test isolation
+- **Code Quality**: Fixed path handling for better cross-platform compatibility
+- **Documentation**: Updated configuration examples and webview usage tips
+
 ## [0.10.1] - 2025-10-16
 
 ### Fixed

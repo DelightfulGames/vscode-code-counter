@@ -64,7 +64,7 @@ suite('HtmlGeneratorService Tests', () => {
         // Check if the HTML file was created and contains expected content
         expect(htmlContent).to.be.a('string');
         expect(htmlContent).to.include('html');
-        expect(htmlContent).to.include(tempDir); // Workspace path should be in the content
+        expect(htmlContent).to.include(tempDir.replace(/\\/g, '/')); // Workspace path should be normalized with forward slashes
         
         // Check that basic HTML structure exists
         expect(htmlContent).to.include('<!DOCTYPE html>');

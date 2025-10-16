@@ -125,7 +125,7 @@ export class CountLinesCommand {
             // Get configuration
             const config = vscode.workspace.getConfiguration('codeCounter');
             const excludePatterns = config.get<string[]>('excludePatterns', []);
-            const showNotification = config.get<boolean>('showNotificationOnAutoGenerate', true);
+            const showNotification = config.get<boolean>('showNotificationOnAutoGenerate', false);
 
             // Count lines for the first workspace folder
             const folder = workspaceFolders[0];

@@ -83,6 +83,10 @@ async function showEmojiPicker(fileExplorerDecorator: FileExplorerDecorationProv
                     const thresholdConfig = vscode.workspace.getConfiguration('codeCounter');
                     await thresholdConfig.update(`lineThresholds.${message.thresholdKey}Threshold`, message.value, vscode.ConfigurationTarget.Global);
                     vscode.window.showInformationMessage(`Updated ${message.thresholdKey} threshold to ${message.value} lines`);
+                    
+                    // Refresh the WebView to show updated preview values
+                    const updatedConfigurationThreshold = getCurrentConfiguration();
+                    panel.webview.html = getEmojiPickerWebviewContent(updatedConfigurationThreshold.badges, updatedConfigurationThreshold.folderBadges, updatedConfigurationThreshold.thresholds, updatedConfigurationThreshold.excludePatterns);
                     break;
                 case 'addGlobPattern':
                     const patternConfig = vscode.workspace.getConfiguration('codeCounter');
@@ -156,6 +160,12 @@ async function showEmojiPicker(fileExplorerDecorator: FileExplorerDecorationProv
                     panel.webview.html = getEmojiPickerWebviewContent(updatedConfiguration4.badges, updatedConfiguration4.folderBadges, updatedConfiguration4.thresholds, updatedConfiguration4.excludePatterns);
                     vscode.window.showInformationMessage('Emoji indicators and thresholds reset to defaults');
                     break;
+                case 'updateNotificationSetting':
+                    const notificationConfig = vscode.workspace.getConfiguration('codeCounter');
+                    await notificationConfig.update('showNotificationOnAutoGenerate', message.enabled, vscode.ConfigurationTarget.Global);
+                    const statusText = message.enabled ? 'enabled' : 'disabled';
+                    vscode.window.showInformationMessage(`Popup notifications on auto-generate ${statusText}`);
+                    break;
             }
         },
         undefined
@@ -166,6 +176,11 @@ function getEmojiPickerWebviewContent(badges: any, folderBadges: any, thresholds
     try {
         const templatePath = path.join(__dirname, '..', 'templates', 'emoji-picker.html');
         let htmlContent = fs.readFileSync(templatePath, 'utf8');
+        
+        // Get current notification setting
+        const config = vscode.workspace.getConfiguration('codeCounter');
+        const showNotificationOnAutoGenerate = config.get<boolean>('showNotificationOnAutoGenerate', false);
+        const showNotificationChecked = showNotificationOnAutoGenerate ? 'checked' : '';
         
         const lowPreviewLines = Math.floor(thresholds.mid / 2);
         const mediumPreviewLines = Math.floor((thresholds.mid + thresholds.high) / 2);
@@ -216,6 +231,7 @@ function getEmojiPickerWebviewContent(badges: any, folderBadges: any, thresholds
         htmlContent = htmlContent.replace(/{{highFolderAvg}}/g, highFolderAvg.toString());
         htmlContent = htmlContent.replace(/{{highFolderMax}}/g, highFolderMax.toString());
         htmlContent = htmlContent.replace(/{{excludePatterns}}/g, excludePatternsHtml);
+        htmlContent = htmlContent.replace(/{{showNotificationChecked}}/g, showNotificationChecked);
         htmlContent = htmlContent.replace(/{{scriptContent}}/g, fullScriptContent);
         
         return htmlContent;

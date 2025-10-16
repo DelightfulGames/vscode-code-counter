@@ -302,6 +302,26 @@ function resetEmojis() {
     });
 }
 
+function updateNotificationSetting(isEnabled) {
+    vscode.postMessage({
+        command: 'updateNotificationSetting',
+        enabled: isEnabled
+    });
+}
+
+function updateThreshold(thresholdKey, value) {
+    const numValue = parseInt(value, 10);
+    if (isNaN(numValue) || numValue < 1) {
+        return; // Invalid value, don't save
+    }
+    
+    vscode.postMessage({
+        command: 'updateThreshold',
+        thresholdKey: thresholdKey,
+        value: numValue
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const newPatternInput = document.getElementById('newPattern');
     newPatternInput.addEventListener('keypress', function(e) {

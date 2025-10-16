@@ -2,7 +2,7 @@
 
 > **Transform your code visibility with intelligent line counting, visual indicators, and comprehensive reporting**
 
-[![Version](https://img.shields.io/badge/version-0.10.1-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)
+[![Version](https://img.shields.io/badge/version-0.11.0-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
@@ -191,6 +191,21 @@ Manage file exclusion patterns through the enhanced settings interface:
 - **🎯 Smart Defaults**: Pre-configured to exclude common build artifacts and dependencies
 - **💡 Interactive Help**: Expandable examples section with pattern explanations
 - **⌨️ Keyboard Support**: Press Enter to add patterns quickly
+
+### Configuration Options
+The extension provides several configuration options to customize behavior:
+
+#### **Notification Settings**
+- **`codeCounter.showNotificationOnAutoGenerate`** (default: `false`)
+  - Controls whether popup notifications appear when reports are auto-generated on file save
+  - Set to `true` to enable popup notifications with "View Report" button
+  - Set to `false` for silent operation (recommended for focused coding)
+  - **💡 Tip**: Use the checkbox in the settings webview (`Code Counter: Customize Emoji Indicators`) for easy toggling
+
+#### **Auto-Generation Control** 
+- **`codeCounter.autoGenerate`** (default: `true`)
+  - Enable/disable automatic report generation when files are saved
+  - When disabled, reports are only generated via manual command execution
 
 ### Output Files
 The extension generates two files in the configured output directory:

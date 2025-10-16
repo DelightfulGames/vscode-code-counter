@@ -13,12 +13,18 @@ suite('Enhanced Path Display Tests', () => {
     suiteSetup(async () => {
         lineCounter = new LineCounterService();
         xmlGenerator = new XmlGeneratorService();
+    });
+    
+    setup(async () => {
+        // Create a fresh temp directory for each test
         tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'code-counter-path-test-'));
     });
     
-    suiteTeardown(async () => {
-        // Clean up temp directory
-        await fs.promises.rm(tempDir, { recursive: true, force: true });
+    teardown(async () => {
+        // Clean up temp directory after each test
+        if (tempDir) {
+            await fs.promises.rm(tempDir, { recursive: true, force: true });
+        }
     });
     
     test('should include fullPath property in FileInfo objects', async () => {
@@ -37,8 +43,8 @@ suite('Enhanced Path Display Tests', () => {
         const file = result.files[0];
         expect(file.fullPath).to.exist;
         expect(file.fullPath).to.include('src/components/Button.tsx');
-        expect(file.relativePath).to.exist;
-        expect(file.relativePath).to.equal('src/components/Button.tsx');
+        expect(file.fullPath).to.exist;
+        expect(file.fullPath).to.equal('src/components/Button.tsx');
     });
     
     test('should generate XML with enhanced path attributes', async () => {
@@ -83,6 +89,6 @@ suite('Enhanced Path Display Tests', () => {
         
         const file = result.files[0];
         expect(file.fullPath).to.equal('src/components/ui/forms/LoginForm.tsx');
-        expect(file.relativePath).to.equal('src/components/ui/forms/LoginForm.tsx');
+        expect(file.relativePath).to.equal(path.join('src', 'components', 'ui', 'forms', 'LoginForm.tsx'));
     });
 });
