@@ -29,6 +29,16 @@ export interface ResolvedSettings {
     source: 'global' | 'workspace' | string; // string for subdirectory path
 }
 
+export interface WorkspaceData {
+    currentDirectory: any; 
+    mode?: string; 
+    directoryTree?: DirectoryNode[]; 
+    resolvedSettings?: ResolvedSettings;
+    currentSettings?: WorkspaceSettings | null;
+    parentSettings?: ResolvedSettings;
+    workspacePath?: string; 
+}
+
 export class WorkspaceSettingsService {
     private static readonly CONFIG_FILE_NAME = '.code-counter.json';
     private workspacePath: string;

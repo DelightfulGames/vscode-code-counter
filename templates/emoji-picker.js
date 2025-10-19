@@ -338,90 +338,91 @@ document.addEventListener('DOMContentLoaded', function() {
         const message = event.data;
         
         if (message.command === 'emptySettingsCheckResult') {
-            if (message.hasEmptySettings) {
-                showEmptySettingsWarning(message.targetDirectory);
-            } else {
-                proceedWithDirectoryChange(message.targetDirectory);
-            }
+            // if (message.hasEmptySettings) {
+            //     showEmptySettingsWarning(message.targetDirectory);
+            // } else {
+            proceedWithDirectoryChange(message.targetDirectory);
+            //}
         }
     });
 });
 
-function showEmptySettingsWarning(targetDirectory) {
-    const modal = document.createElement('div');
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.8);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `;
+// function showEmptySettingsWarning(targetDirectory) {
+//     const modal = document.createElement('div');
+//     modal.style.cssText = `
+//         position: fixed;
+//         top: 0;
+//         left: 0;
+//         width: 100%;
+//         height: 100%;
+//         background: rgba(0, 0, 0, 0.8);
+//         z-index: 10000;
+//         display: flex;
+//         align-items: center;
+//         justify-content: center;
+//     `;
     
-    const dialog = document.createElement('div');
-    dialog.style.cssText = `
-        background: var(--vscode-editor-background);
-        border: 2px solid var(--vscode-inputValidation-warningBorder);
-        border-radius: 8px;
-        width: 90%;
-        max-width: 500px;
-        padding: 20px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    `;
+//     const dialog = document.createElement('div');
+//     dialog.style.cssText = `
+//         background: var(--vscode-editor-background);
+//         border: 2px solid var(--vscode-inputValidation-warningBorder);
+//         border-radius: 8px;
+//         width: 90%;
+//         max-width: 500px;
+//         padding: 20px;
+//         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+//     `;
     
-    dialog.innerHTML = `
-        <h3 style="margin: 0 0 15px 0; color: var(--vscode-inputValidation-warningForeground);">
-            ⚠️ Empty Settings File Warning
-        </h3>
-        <p style="margin: 0 0 20px 0; color: var(--vscode-editor-foreground); line-height: 1.5;">
-            The current directory contains an empty <code>.code-counter.json</code> file that will be automatically removed when you change directories. 
-            <br><br>
-            <strong>Would you like to continue?</strong>
-        </p>
-        <div style="display: flex; gap: 10px; justify-content: flex-end;">
-            <button id="warningCancel" style="
-                background: var(--vscode-button-secondaryBackground);
-                color: var(--vscode-button-secondaryForeground);
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                cursor: pointer;
-            ">Cancel</button>
-            <button id="warningProceed" style="
-                background: var(--vscode-inputValidation-warningBackground);
-                color: var(--vscode-inputValidation-warningForeground);
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                cursor: pointer;
-            ">Continue & Remove File</button>
-        </div>
-    `;
+//     dialog.innerHTML = `
+//         <h3 style="margin: 0 0 15px 0; color: var(--vscode-inputValidation-warningForeground);">
+//             ⚠️ Empty Settings File Warning
+//         </h3>
+//         <p style="margin: 0 0 20px 0; color: var(--vscode-editor-foreground); line-height: 1.5;">
+//             The current directory contains an empty <code>.code-counter.json</code> file that will be automatically removed when you change directories. 
+//             <br><br>
+//             <strong>Would you like to continue?</strong>
+//         </p>
+//         <div style="display: flex; gap: 10px; justify-content: flex-end;">
+//             <button id="warningCancel" style="
+//                 background: var(--vscode-button-secondaryBackground);
+//                 color: var(--vscode-button-secondaryForeground);
+//                 border: none;
+//                 padding: 8px 16px;
+//                 border-radius: 4px;
+//                 cursor: pointer;
+//             ">Cancel</button>
+//             <button id="warningProceed" style="
+//                 background: var(--vscode-inputValidation-warningBackground);
+//                 color: var(--vscode-inputValidation-warningForeground);
+//                 border: none;
+//                 padding: 8px 16px;
+//                 border-radius: 4px;
+//                 cursor: pointer;
+//             ">Continue & Remove File</button>
+//         </div>
+//     `;
     
-    modal.appendChild(dialog);
-    document.body.appendChild(modal);
+//     modal.appendChild(dialog);
+//     document.body.appendChild(modal);
     
-    // Handle button clicks
-    document.getElementById('warningCancel').onclick = () => {
-        document.body.removeChild(modal);
-    };
+//     // Handle button clicks
+//     document.getElementById('warningCancel').onclick = () => {
+//         document.body.removeChild(modal);
+//     };
     
-    document.getElementById('warningProceed').onclick = () => {
-        document.body.removeChild(modal);
-        proceedWithDirectoryChange(targetDirectory);
-    };
+//     document.getElementById('warningProceed').onclick = () => {
+//         document.body.removeChild(modal);
+//         proceedWithDirectoryChange(targetDirectory);
+//     };
     
-    // Close on background click
-    modal.onclick = (e) => {
-        if (e.target === modal) {
-            document.body.removeChild(modal);
-        }
-    };
-}
+//     // Close on background click
+//     modal.onclick = (e) => {
+//         if (e.target === modal) {
+//             document.body.removeChild(modal);
+//         }
+//     };
+// }
+
 
 // Initialize workspace mode
 function initializeWorkspaceMode() {

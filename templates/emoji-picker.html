@@ -8,94 +8,85 @@
 </head>
 <body>
     <div class="main-container">
-        <h1>⚙️ Code Counter Settings</h1>
-        
-        <!-- Workspace Mode Indicator -->
-        <div class="workspace-mode-indicator workspace-only" id="workspaceModeIndicator" style="display: none;">
-            <div class="mode-legend">
-                <div class="legend-item workspace-root-legend">
-                    <span class="legend-color"></span>
-                    <span class="legend-text">📁 Workspace Root Settings (Green)</span>
-                </div>
-                <div class="legend-item sub-workspace-legend">
-                    <span class="legend-color"></span>
-                    <span class="legend-text">📂 Sub-workspace Settings (Magenta)</span>
-                </div>
-            </div>
-        </div>
-        
-        <div class="color-section">
-            <h3>💬 Notification Settings</h3>
-            <p>Control when the extension shows popup notifications:</p>
-            <div class="notification-settings-container">
-                <div class="checkbox-container">
-                    <input type="checkbox" id="showNotificationOnAutoGenerate" {{showNotificationChecked}} onchange="updateNotificationSetting(this.checked)">
-                    <label for="showNotificationOnAutoGenerate">Show popup notifications when reports are auto-generated on file save</label>
-                </div>
-                <div class="setting-description">
-                    When enabled, the extension will show a popup notification with a "View Report" button each time a report is automatically generated when you save a file. When disabled, reports are generated silently in the background.
-                </div>
-            </div>
-        </div>
-
-        <div class="color-section">
-            <h3>🫣 Exclude Patterns</h3>
-            <p>Glob patterns for files to exclude from line counting:</p>
-            <div class="glob-patterns-container">
-                {{excludePatterns}}
-            </div>
-            <div class="add-pattern-container">
-                <input type="text" id="newPattern" placeholder="Enter glob pattern (e.g., **/*.tmp)" />
-                <button onclick="addPattern()">➕ Add Pattern</button>
-                <button class="emoji-reset-btn workspace-only" onclick="resetField('excludePatterns')" title="Reset to parent settings">Reset All Patterns</button>
-            </div>
-            <div class="pattern-examples">
-                <details>
-                    <summary>📖 Pattern Examples</summary>
-                    <ul>
-                        <li><code>**/node_modules/**</code> - Exclude all node_modules folders</li>
-                        <li><code>**/*.tmp</code> - Exclude all .tmp files</li>
-                        <li><code>**/dist/**</code> - Exclude all dist folders</li>
-                        <li><code>**/.git/**</code> - Exclude all .git folders</li>
-                        <li><code>**/test/**</code> - Exclude all test folders</li>
-                        <li><code>**/*.min.js</code> - Exclude minified JS files</li>
-                    </ul>
-                </details>
-            </div>
-            <button onclick="resetPatterns()">🔄 Reset Patterns to Defaults</button>
-        </div>
-
-        <div class="reset-section">
-            <button class="reset-button" onclick="resetEmojis()">🔄 Reset All Emojis to Defaults</button>
-        </div>
-        
         <div class="settings-layout-container">
-            <div class="emoji-sections-container emoji-sections-wrapper" id="emojiSectionsContainer">
-                <div class="emoji-type-section">
+            <div class="directory-sections-container emoji-sections-wrapper" id="emojiSectionsContainer">
+                <h1>⚙️ Code Counter Settings</h1>
+                
+                <!-- Workspace Mode Indicator -->
+                <div class="workspace-mode-indicator workspace-only" id="workspaceModeIndicator" style="display: none;">
+                    <div class="mode-legend">
+                        <div class="legend-item workspace-root-legend">
+                            <span class="legend-color"></span>
+                            <span class="legend-text">📁 Workspace Root Settings (Green)</span>
+                        </div>
+                        <div class="legend-item sub-workspace-legend">
+                            <span class="legend-color"></span>
+                            <span class="legend-text">📂 Sub-workspace Settings (Magenta)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="color-section">
+                    <h3>🫣 Exclude Patterns</h3>
+                    <p>Glob patterns for files to exclude from line counting:</p>
+                    <div class="glob-patterns-container">
+                        {{excludePatterns}}
+                    </div>
+                    <div class="add-pattern-container">
+                        <input type="text" id="newPattern" placeholder="Enter glob pattern (e.g., **/*.tmp)" />
+                        <button onclick="addPattern()">➕ Add Pattern</button>
+                        <button class="emoji-reset-btn workspace-only" onclick="resetField('excludePatterns')" title="Reset to parent settings">Reset All Patterns</button>
+                    </div>
+                    <div class="pattern-examples">
+                        <details>
+                            <summary>📖 Pattern Examples</summary>
+                            <ul>
+                                <li><code>**/node_modules/**</code> - Exclude all node_modules folders</li>
+                                <li><code>**/*.tmp</code> - Exclude all .tmp files</li>
+                                <li><code>**/dist/**</code> - Exclude all dist folders</li>
+                                <li><code>**/.git/**</code> - Exclude all .git folders</li>
+                                <li><code>**/test/**</code> - Exclude all test folders</li>
+                                <li><code>**/*.min.js</code> - Exclude minified JS files</li>
+                            </ul>
+                        </details>
+                    </div>
+                    <button onclick="resetPatterns()">🔄 Reset Patterns to Defaults</button>
+                </div>
+
+                <div class="reset-section">
+                    <button class="reset-button" onclick="resetEmojis()">🔄 Reset All Emojis to Defaults</button>
+                </div>
+
+                <div class="directory-type-section">
                     <h2>📄-🟢🟡🔴 File Badges (individual files)</h2>
                     <div class="emoji-horizontal-container">
                         <div class="emoji-config-item">
                             <h4>Low ({{badges.low}})</h4>
-                            <div class="current-emoji" data-color-key="low" data-type="file" onclick="openEmojiPicker('low', 'file')">{{badges.low}}</div>
+                            <div class="current-emoji" data-color-key="low" data-type="file" onclick="openEmojiPicker('low', 'file')">
+                                {{badges.low}}                                
+                            </div>
+                            <button class="emoji-reset-btn workspace-only" onclick="resetField('badges.low')" title="Reset to parent setting">🔁</button>                            
                             <div class="inheritance-info workspace-only">
                                 <small>Inherited: {{parentFileNormal}}</small>
                             </div>
                             <div class="threshold-container">
                                 <label>< </label>
                                 <input type="number" class="threshold-input" id="midThreshold" value="{{thresholds.mid}}" min="1" max="9999" onchange="updateThreshold('mid', this.value)" />
-                                <span> lines</span>
-                                <button class="emoji-reset-btn workspace-only" onclick="resetField('thresholds.mid')" title="Reset to parent setting">Reset</button>
+                                <span> lines</span>                                
                             </div>
+                            <button class="emoji-reset-btn workspace-only" onclick="resetField('thresholds.mid')" title="Reset to parent setting">🔁</button>
                             <div class="inheritance-info workspace-only">
                                 <small>Inherited: {{parentWarningThreshold}}</small>
                             </div>
-                            <div class="preview" id="lowPreview">{{badges.low}} {{lowPreviewLines}} lines</div>
-                            <button class="emoji-reset-btn workspace-only" onclick="resetField('badges.low')" title="Reset to parent setting">Reset</button>
+                            <div class="preview" id="lowPreview">{{badges.low}} {{lowPreviewLines}} lines</div>                            
                         </div>
                         
                         <div class="emoji-config-item">
                             <h4>Medium ({{badges.medium}})</h4>
-                            <div class="current-emoji" data-color-key="medium" data-type="file" onclick="openEmojiPicker('medium', 'file')">{{badges.medium}}</div>
+                            <div class="current-emoji" data-color-key="medium" data-type="file" onclick="openEmojiPicker('medium', 'file')">
+                                {{badges.medium}}                                
+                            </div>
+                            <button class="emoji-reset-btn workspace-only" onclick="resetField('badges.medium')" title="Reset to parent setting">🔁</button>
                             <div class="inheritance-info workspace-only">
                                 <small>Inherited: {{parentFileWarning}}</small>
                             </div>
@@ -103,18 +94,20 @@
                                 <label>< </label>
                                 <input type="number" class="threshold-input" id="highThreshold" value="{{thresholds.high}}" min="1" max="9999" onchange="updateThreshold('high', this.value)" />
                                 <span> lines</span>
-                                <button class="emoji-reset-btn workspace-only" onclick="resetField('thresholds.high')" title="Reset to parent setting">Reset</button>
                             </div>
+                            <button class="emoji-reset-btn workspace-only" onclick="resetField('thresholds.high')" title="Reset to parent setting">🔁</button>
                             <div class="inheritance-info workspace-only">
                                 <small>Inherited: {{parentDangerThreshold}}</small>
                             </div>
                             <div class="preview" id="mediumPreview">{{badges.medium}} {{mediumPreviewLines}} lines</div>
-                            <button class="emoji-reset-btn workspace-only" onclick="resetField('badges.medium')" title="Reset to parent setting">Reset</button>
                         </div>
                         
                         <div class="emoji-config-item">
                             <h4>High ({{badges.high}})</h4>
-                            <div class="current-emoji" data-color-key="high" data-type="file" onclick="openEmojiPicker('high', 'file')">{{badges.high}}</div>
+                            <div class="current-emoji" data-color-key="high" data-type="file" onclick="openEmojiPicker('high', 'file')">
+                                {{badges.high}}                                
+                            </div>
+                            <button class="emoji-reset-btn workspace-only" onclick="resetField('badges.high')" title="Reset to parent setting">🔁</button>
                             <div class="inheritance-info workspace-only">
                                 <small>Inherited: {{parentFileDanger}}</small>
                             </div>
@@ -122,49 +115,68 @@
                                 <label>≥ <strong>{{thresholds.high}}</strong> lines</label>
                             </div>
                             <div class="preview" id="highPreview">{{badges.high}} {{highPreviewLines}} lines</div>
-                            <button class="emoji-reset-btn workspace-only" onclick="resetField('badges.high')" title="Reset to parent setting">Reset</button>
+                            <h3>🔜👀 More coming soon!</h3>
                         </div>
                     </div>
                 </div>
                 
-                <div class="emoji-type-section">
+                <div class="directory-type-section">
                     <h2>📁-🟩🟨🟥 Folder Badges (average | maximum lines)</h2>
                     <div class="emoji-horizontal-container">
                         <div class="emoji-config-item">
                             <h4>Low ({{folderBadges.low}})</h4>
-                            <div class="current-emoji" data-color-key="low" data-type="folder" onclick="openEmojiPicker('low', 'folder')">{{folderBadges.low}}</div>
+                            <div class="current-emoji" data-color-key="low" data-type="folder" onclick="openEmojiPicker('low', 'folder')">
+                                {{folderBadges.low}}                                
+                            </div>
+                            <button class="emoji-reset-btn workspace-only" onclick="resetField('badges.low')" title="Reset to parent setting">🔁</button>
                             <div class="threshold-container">
                                 <label>< {{thresholds.mid}} lines</label>
                             </div>
                             <div class="preview" id="lowFolderPreview">{{folderBadges.low}} Avg: {{lowFolderAvg}} | {{badges.low}} Max: {{thresholds.mid}}</div>
-                            <button class="emoji-reset-btn workspace-only" onclick="resetField('folderBadges.low')" title="Reset to parent setting">Reset</button>
                         </div>
                         
                         <div class="emoji-config-item">
                             <h4>Medium ({{folderBadges.medium}})</h4>
-                            <div class="current-emoji" data-color-key="medium" data-type="folder" onclick="openEmojiPicker('medium', 'folder')">{{folderBadges.medium}}</div>
+                            <div class="current-emoji" data-color-key="medium" data-type="folder" onclick="openEmojiPicker('medium', 'folder')">
+                                {{folderBadges.medium}}                                
+                            </div>
+                            <button class="emoji-reset-btn workspace-only" onclick="resetField('badges.medium')" title="Reset to parent setting">🔁</button>
                             <div class="threshold-container">
                                 <label>< {{thresholds.high}} lines</label>
                             </div>
                             <div class="preview" id="mediumFolderPreview">{{folderBadges.medium}} Avg: {{mediumFolderAvg}} | {{badges.medium}} Max: {{thresholds.high}}</div>
-                            <button class="emoji-reset-btn workspace-only" onclick="resetField('folderBadges.medium')" title="Reset to parent setting">Reset</button>
                         </div>
                         
                         <div class="emoji-config-item">
                             <h4>High ({{folderBadges.high}})</h4>
-                            <div class="current-emoji" data-color-key="high" data-type="folder" onclick="openEmojiPicker('high', 'folder')">{{folderBadges.high}}</div>
+                            <div class="current-emoji" data-color-key="high" data-type="folder" onclick="openEmojiPicker('high', 'folder')">
+                                {{folderBadges.high}}                                
+                            </div>
+                            <button class="emoji-reset-btn workspace-only" onclick="resetField('badges.high')" title="Reset to parent setting">🔁</button>     
                             <div class="threshold-container">
                                 <label>≥ {{thresholds.high}} lines</label>
                             </div>
                             <div class="preview" id="highFolderPreview">{{folderBadges.high}} Avg: {{highFolderAvg}} | {{badges.high}} Max: {{highFolderMax}}</div>
-                            <button class="emoji-reset-btn workspace-only" onclick="resetField('folderBadges.high')" title="Reset to parent setting">Reset</button>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="workspace-settings-sidebar">
                 {{workspaceSettings}}
-                {{createWorkspaceButton}}
+
+                <div class="color-section">
+                    <h3>💬 Notification Settings</h3>
+                    <p>Control when the extension shows popup notifications:</p>
+                    <div class="notification-settings-container">
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="showNotificationOnAutoGenerate" {{showNotificationChecked}} onchange="updateNotificationSetting(this.checked)">
+                            <label for="showNotificationOnAutoGenerate">Show popup notifications when reports are auto-generated on file save</label>
+                        </div>
+                        <div class="setting-description">
+                            When enabled, the extension will show a popup notification with a "View Report" button each time a report is automatically generated when you save a file. When disabled, reports are generated silently in the background.
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
