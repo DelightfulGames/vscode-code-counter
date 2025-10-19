@@ -1,0 +1,107 @@
+import { suite, test } from 'mocha';
+import * as assert from 'assert';
+import * as path from 'path';
+import * as fs from 'fs';
+
+suite('Emoji Database Tests', () => {
+    const templatesPath = path.join(__dirname, '..', '..', 'templates');
+    
+    test('emoji-data.json should exist and be valid', () => {
+        const emojiDataPath = path.join(templatesPath, 'emoji-data.json');
+        assert.ok(fs.existsSync(emojiDataPath), 'emoji-data.json should exist');
+        
+        const content = fs.readFileSync(emojiDataPath, 'utf8');
+        let emojiData: any;
+        
+        assert.doesNotThrow(() => {
+            emojiData = JSON.parse(content);
+        }, 'emoji-data.json should be valid JSON');
+        
+        assert.ok(typeof emojiData === 'object', 'Emoji data should be an object');
+        assert.ok(Object.keys(emojiData).length > 0, 'Emoji data should have categories');
+        
+        // Check expected categories
+        const expectedCategories = ['smileys', 'nature', 'food', 'activities', 'travel', 'objects', 'symbols', 'flags'];
+        expectedCategories.forEach(category => {
+            assert.ok(emojiData[category], `Should have ${category} category`);
+            assert.ok(Array.isArray(emojiData[category]), `${category} should be an array`);
+            assert.ok(emojiData[category].length > 0, `${category} should have emojis`);
+        });
+    });
+    
+    test('emoji-search-data.json should exist and be valid', () => {
+        const emojiSearchPath = path.join(templatesPath, 'emoji-search-data.json');
+        assert.ok(fs.existsSync(emojiSearchPath), 'emoji-search-data.json should exist');
+        
+        const content = fs.readFileSync(emojiSearchPath, 'utf8');
+        let emojiSearchData: any;
+        
+        assert.doesNotThrow(() => {
+            emojiSearchData = JSON.parse(content);
+        }, 'emoji-search-data.json should be valid JSON');
+        
+        assert.ok(typeof emojiSearchData === 'object', 'Emoji search data should be an object');
+        assert.ok(Object.keys(emojiSearchData).length > 0, 'Emoji search data should have entries');
+        
+        // Check that all values are arrays of strings
+        Object.entries(emojiSearchData).forEach(([emoji, keywords]) => {
+            assert.ok(Array.isArray(keywords), `Keywords for ${emoji} should be an array`);
+            assert.ok(keywords.length > 0, `Keywords for ${emoji} should not be empty`);
+            keywords.forEach(keyword => {
+                assert.ok(typeof keyword === 'string', `All keywords for ${emoji} should be strings`);
+            });
+        });
+    });
+    
+    test('emoji-picker.js should exist and be valid JavaScript', () => {
+        const emojiPickerJsPath = path.join(templatesPath, 'emoji-picker.js');
+        assert.ok(fs.existsSync(emojiPickerJsPath), 'emoji-picker.js should exist');
+        
+        const content = fs.readFileSync(emojiPickerJsPath, 'utf8');
+        assert.ok(content.includes('initializeEmojiPicker'), 'Should contain initializeEmojiPicker function');
+        assert.ok(content.includes('displayEmojiCategory'), 'Should contain displayEmojiCategory function');
+        assert.ok(content.includes('selectEmoji'), 'Should contain selectEmoji function');
+    });
+    
+    test('emoji-picker.html should exist and have required placeholders', () => {
+        const emojiPickerHtmlPath = path.join(templatesPath, 'emoji-picker.html');
+        assert.ok(fs.existsSync(emojiPickerHtmlPath), 'emoji-picker.html should exist');
+        
+        const content = fs.readFileSync(emojiPickerHtmlPath, 'utf8');
+        assert.ok(content.includes('{{emojiData}}'), 'Should have emojiData placeholder');
+        assert.ok(content.includes('{{emojiSearchData}}'), 'Should have emojiSearchData placeholder');
+        assert.ok(content.includes('{{scriptUri}}'), 'Should have scriptUri placeholder');
+        assert.ok(content.includes('{{cssUri}}'), 'Should have cssUri placeholder');
+        assert.ok(content.includes('id="emojiGrid"'), 'Should have emoji grid element');
+        assert.ok(content.includes('id="emojiModal"'), 'Should have emoji modal element');
+    });
+    
+    test('compiled templates should be copied to out directory', () => {
+        const outTemplatesPath = path.join(__dirname, '..', '..', 'out', 'templates');
+        
+        // These files should exist in the out directory after compilation
+        const requiredFiles = [
+            'emoji-data.json',
+            'emoji-search-data.json', 
+            'emoji-picker.js',
+            'emoji-picker.css',
+            'emoji-picker.html'
+        ];
+        
+        requiredFiles.forEach(filename => {
+            const filePath = path.join(outTemplatesPath, filename);
+            assert.ok(fs.existsSync(filePath), `${filename} should be copied to out/templates/`);
+        });
+    });
+    
+    test('emoji data should not have duplicate keys', () => {
+        const emojiSearchPath = path.join(templatesPath, 'emoji-search-data.json');
+        const content = fs.readFileSync(emojiSearchPath, 'utf8');
+        const emojiSearchData = JSON.parse(content);
+        
+        const keys = Object.keys(emojiSearchData);
+        const uniqueKeys = [...new Set(keys)];
+        
+        assert.strictEqual(keys.length, uniqueKeys.length, 'Emoji search data should not have duplicate keys');
+    });
+});

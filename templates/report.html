@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Counter Report</title>
+    <style>
+        :root {
+            /* Light theme variables (default) */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-tertiary: #f5f5f5;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-color: #e1e4e8;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
+            --accent-color: #007acc;
+            --accent-gradient: linear-gradient(135deg, #007acc, #005a9e);
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --hover-bg: rgba(0,122,204,0.05);
+        }
+
+        /* Dark theme variables */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #1e1e1e;
+                --bg-secondary: #2d2d30;
+                --bg-tertiary: #252526;
+                --text-primary: #cccccc;
+                --text-secondary: #9d9d9d;
+                --text-muted: #6d6d6d;
+                --border-color: #3c3c3c;
+                --shadow: 0 2px 10px rgba(0,0,0,0.3);
+                --accent-color: #0078d4;
+                --accent-gradient: linear-gradient(135deg, #0078d4, #106ebe);
+                --success-color: #4ec9b0;
+                --warning-color: #ffcc02;
+                --danger-color: #f85149;
+                --hover-bg: rgba(0,120,212,0.1);
+            }
+        }
+
+        /* Manual dark theme override for exports */
+        [data-theme="dark"] {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #2d2d30;
+            --bg-tertiary: #252526;
+            --text-primary: #cccccc;
+            --text-secondary: #9d9d9d;
+            --text-muted: #6d6d6d;
+            --border-color: #3c3c3c;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+            --accent-color: #0078d4;
+            --accent-gradient: linear-gradient(135deg, #0078d4, #106ebe);
+            --success-color: #4ec9b0;
+            --warning-color: #ffcc02;
+            --danger-color: #f85149;
+            --hover-bg: rgba(0,120,212,0.1);
+        }
+
+        /* Manual light theme override - forces light theme even on dark systems */
+        [data-theme="light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-tertiary: #f5f5f5;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-color: #e1e4e8;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
+            --accent-color: #007acc;
+            --accent-gradient: linear-gradient(135deg, #007acc, #005a9e);
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --hover-bg: rgba(0,122,204,0.05);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .header {
+            background: var(--accent-gradient);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0;
+            opacity: 0.9;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 30px;
+        }
+        .stat-card {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid var(--accent-color);
+            border: 1px solid var(--border-color);
+        }
+        .stat-card h3 {
+            margin: 0 0 10px;
+            color: var(--accent-color);
+            font-size: 1.2em;
+        }
+        .stat-card .value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: var(--text-primary);
+            margin: 0;
+        }
+        .section {
+            padding: 20px 30px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-primary);
+        }
+        .section h2 {
+            color: var(--accent-color);
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        .language-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .language-item {
+            background: var(--bg-secondary);
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 3px solid var(--success-color);
+            border: 1px solid var(--border-color);
+        }
+        .language-name {
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 5px;
+        }
+        .language-details {
+            font-size: 0.9em;
+            color: var(--text-secondary);
+        }
+        .files-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .files-table th,
+        .files-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .files-table th {
+            background: var(--bg-secondary);
+            color: var(--accent-color);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        .files-table tr:hover {
+            background: var(--hover-bg);
+        }
+        .files-table tbody tr:nth-child(even) {
+            background: rgba(0, 0, 0, 0.02);
+        }
+        [data-theme="dark"] .files-table tbody tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .file-path {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: var(--text-secondary);
+        }
+        .file-name-cell {
+            position: relative;
+            max-width: 300px;
+        }
+        .file-name-display {
+            display: flex;
+            flex-direction: column;
+        }
+        .file-name {
+            font-weight: 500;
+            color: var(--accent-color);
+            display: block;
+        }
+        .file-path-toggle {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            margin-top: 2px;
+            font-family: 'Courier New', monospace;
+            display: none; /* Hidden by default */
+        }
+        .file-path-toggle:empty {
+            display: none; /* Hide when empty */
+        }
+        .file-name-text {
+            font-weight: 500;
+            color: var(--accent-color);
+            display: block;
+        }
+        .file-path-text {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            margin-top: 2px;
+            font-family: 'Courier New', monospace;
+        }
+        .file-full-path {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: var(--text-secondary);
+            word-break: break-all;
+            max-width: 400px;
+        }
+        .path-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px 4px;
+            margin-left: 8px;
+            border-radius: 3px;
+            font-size: 0.9em;
+            color: var(--text-primary);
+        }
+        .path-toggle:hover {
+            background-color: var(--hover-bg);
+        }
+        .path-column {
+            min-width: 200px;
+            max-width: 400px;
+        }
+        @media (max-width: 768px) {
+            .path-column {
+                display: none !important;
+            }
+        }
+        .language-badge {
+            background: var(--accent-color);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+        .footer {
+            padding: 20px 30px;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-primary);
+        }
+        .search-box {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 20px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 16px;
+            transition: border-color 0.2s ease;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+        }
+        .search-box::placeholder {
+            color: var(--text-muted);
+        }
+        .loading-indicator {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        .error-message {
+            text-align: center;
+            padding: 20px;
+            color: var(--danger-color);
+            background: var(--bg-primary);
+            border: 1px solid var(--danger-color);
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 10px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow);
+            z-index: 1000;
+        }
+        .theme-toggle:hover {
+            background: var(--hover-bg);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .theme-toggle:active {
+            transform: translateY(0);
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .theme-toggle {
+                top: 10px;
+                right: 10px;
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            .container {
+                margin-top: 60px;
+            }
+        }
+        
+        .hidden {
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <button class="theme-toggle" id="theme-toggle" title="Toggle dark/light theme">
+        <span id="theme-icon">�</span> <span id="theme-text">Auto</span>
+    </button>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Code Counter Report</h1>
+            <p>Generated on {{GENERATED_DATE}}</p>
+            <p>Workspace: {{WORKSPACE_PATH}}</p>
+        </div>
+
+        <div id="loading-indicator" class="loading-indicator">
+            <div class="loading-spinner"></div>
+            Loading report data...
+        </div>
+
+        <div id="error-message" class="error-message hidden">
+            <strong>Error:</strong> <span id="error-text"></span>
+        </div>
+
+        <div id="report-content" class="hidden">
+            <div class="stats-grid" id="summary-stats">
+                <!-- Will be populated by JavaScript -->
+            </div>
+
+            <div class="section">
+                <h2>📈 Language Statistics</h2>
+                <div class="language-stats" id="language-stats">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>📁 File Details</h2>
+                <input type="text" class="search-box" id="file-search" placeholder="Search files..." />
+                <div style="overflow-x: auto;">
+                    <table class="files-table">
+                        <thead>
+                            <tr>
+                                <th>
+                                    File Name
+                                    <button class="path-toggle" id="path-toggle" onclick="togglePathDisplay()" title="Toggle full path display">Toggle Paths</button>
+                                </th>
+                                <th>Language</th>
+                                <th>Total Lines</th>
+                                <th>Code Lines</th>
+                                <th>Comment Lines</th>
+                                <th>Blank Lines</th>
+                                <th>File Size (bytes)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="files-tbody">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p>Generated by VS Code Code Counter Extension</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Theme detection and application
+        let currentTheme = localStorage.getItem('theme') || 'auto';
+        
+        // Debug: Log initial state
+        console.log('Initial theme state:', {
+            storedTheme: localStorage.getItem('theme'),
+            currentTheme: currentTheme,
+            systemPrefersDark: window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : 'unknown'
+        });
+        
+        function updateThemeToggle() {
+            const themeIcon = document.getElementById('theme-icon');
+            const themeText = document.getElementById('theme-text');
+            
+            console.log('updateThemeToggle called:', {
+                currentTheme,
+                themeIconExists: !!themeIcon,
+                themeTextExists: !!themeText,
+                domReadyState: document.readyState
+            });
+            
+            // Check if elements exist (might be called before DOM ready)
+            if (!themeIcon || !themeText) {
+                console.log('Theme toggle elements not found, skipping update');
+                return;
+            }
+            
+            const prefersDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false;
+            const actuallyDark = currentTheme === 'dark' || (currentTheme === 'auto' && prefersDark);
+            
+            console.log('Theme toggle update details:', {
+                prefersDark,
+                actuallyDark,
+                currentTheme
+            });
+            
+            if (currentTheme === 'auto') {
+                themeIcon.textContent = actuallyDark ? '🌙' : '☀️';
+                themeText.textContent = 'Auto';
+            } else if (currentTheme === 'dark') {
+                themeIcon.textContent = '🌙';
+                themeText.textContent = 'Dark';
+            } else {
+                themeIcon.textContent = '☀️';
+                themeText.textContent = 'Light';
+            }
+            
+            console.log('Updated button to:', {
+                icon: themeIcon.textContent,
+                text: themeText.textContent
+            });
+        }
+        
+        // Apply theme styles to document
+        function applyThemeStyles() {
+            const prefersDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false;
+            
+            if (currentTheme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else if (currentTheme === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+            } else if (currentTheme === 'auto') {
+                // For auto mode, use system preference
+                if (prefersDark) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.removeAttribute('data-theme'); // Use default light theme
+                }
+            } else {
+                // Fallback: remove attribute to use default light theme
+                document.documentElement.removeAttribute('data-theme');
+            }
+            
+            console.log('Applied theme:', {
+                currentTheme,
+                prefersDark,
+                dataTheme: document.documentElement.getAttribute('data-theme')
+            });
+        }
+
+        // Apply theme and update UI
+        function applyTheme() {
+            applyThemeStyles();
+            updateThemeToggle();
+        }
+        
+        function toggleTheme() {
+            const themes = ['auto', 'light', 'dark'];
+            const currentIndex = themes.indexOf(currentTheme);
+            const newTheme = themes[(currentIndex + 1) % themes.length];
+            
+            console.log('Theme toggle:', {
+                from: currentTheme,
+                to: newTheme,
+                systemPrefersDark: window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : 'unknown'
+            });
+            
+            currentTheme = newTheme;
+            localStorage.setItem('theme', currentTheme);
+            applyTheme();
+        }
+        
+        // Listen for theme changes
+        if (window.matchMedia) {
+            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            if (mediaQuery.addEventListener) {
+                mediaQuery.addEventListener('change', applyTheme);
+            } else if (mediaQuery.addListener) {
+                // Fallback for older browsers
+                mediaQuery.addListener(applyTheme);
+            }
+        }
+        
+        // Apply theme styles immediately (before DOM ready)
+        applyThemeStyles();
+        
+        // Setup theme toggle button and full theme application after DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeToggle = document.getElementById('theme-toggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', toggleTheme);
+                // Now that DOM is ready, update the toggle UI
+                updateThemeToggle();
+            }
+        });
+
+        // Template-specific functionality for exported HTML files
+        
+        // Path display toggle functionality
+        let showFullPaths = false;
+        
+        function togglePathDisplay() {
+            showFullPaths = !showFullPaths;
+            const pathToggles = document.querySelectorAll('.file-path-toggle');
+            const toggleButton = document.getElementById('path-toggle');
+            
+            pathToggles.forEach(pathElement => {
+                pathElement.style.display = showFullPaths ? 'block' : 'none';
+            });
+            
+            // Update button state
+            if (toggleButton) {
+                toggleButton.textContent = showFullPaths ? '📄' : '📁';
+                toggleButton.title = showFullPaths ? 'Hide full paths' : 'Show full paths';
+            }
+            
+            // Store preference
+            localStorage.setItem('codeCounterShowPaths', showFullPaths.toString());
+        }
+        
+        // Restore user preference on load
+        function restorePathPreference() {
+            const savedPreference = localStorage.getItem('codeCounterShowPaths');
+            if (savedPreference === 'true') {
+                togglePathDisplay();
+            }
+        }
+        
+        // Embedded XML data (populated by HTML generator)
+        const embeddedXmlData = '{{XML_DATA_FALLBACK}}';
+        
+        // Parse XML data
+        function parseXML(xmlString) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+            
+            const codeCounter = xmlDoc.querySelector('codeCounter');
+            const summary = {
+                totalFiles: parseInt(codeCounter.querySelector('summary totalFiles').textContent),
+                totalLines: parseInt(codeCounter.querySelector('summary totalLines').textContent)
+            };
+            
+            const languages = Array.from(codeCounter.querySelectorAll('languageStats language')).map(lang => ({
+                name: lang.getAttribute('name'),
+                files: parseInt(lang.getAttribute('files')),
+                lines: parseInt(lang.getAttribute('lines'))
+            }));
+            
+            const files = Array.from(codeCounter.querySelectorAll('files file')).map(file => ({
+                path: file.getAttribute('path'),
+                relativePath: file.getAttribute('relativePath'),
+                fullPath: file.getAttribute('fullPath') || file.getAttribute('relativePath'),
+                language: file.getAttribute('language'),
+                lines: parseInt(file.getAttribute('lines')),
+                codeLines: parseInt(file.getAttribute('codeLines')),
+                commentLines: parseInt(file.getAttribute('commentLines')),
+                blankLines: parseInt(file.getAttribute('blankLines')),
+                size: parseInt(file.getAttribute('size'))
+            }));
+            
+            return { summary, languages, files };
+        }
+        
+        // Format numbers with commas
+        function formatNumber(num) {
+            return num.toLocaleString();
+        }
+        
+        // Populate the report content
+        function populateReport() {
+            try {
+                // Check if we have embedded data
+                if (!embeddedXmlData || embeddedXmlData === '{{XML_DATA_FALLBACK}}') {
+                    throw new Error('No embedded report data found');
+                }
+                
+                const data = parseXML(embeddedXmlData);
+                
+                // Populate summary statistics
+                const summaryDiv = document.getElementById('summary-stats');
+                if (summaryDiv) {
+                    summaryDiv.innerHTML = `
+                        <div class="stat-card">
+                            <h3>Total Files</h3>
+                            <p class="value">${formatNumber(data.summary.totalFiles)}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Total Lines</h3>
+                            <p class="value">${formatNumber(data.summary.totalLines)}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Languages</h3>
+                            <p class="value">${data.languages.length}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Avg Lines/File</h3>
+                            <p class="value">${Math.round(data.summary.totalLines / data.summary.totalFiles)}</p>
+                        </div>
+                    `;
+                }
+                
+                // Populate language statistics
+                const langDiv = document.getElementById('language-stats');
+                if (langDiv) {
+                    langDiv.innerHTML = data.languages.map(lang => `
+                        <div class="language-item">
+                            <div class="language-name">${lang.name}</div>
+                            <div class="language-details">
+                                ${formatNumber(lang.files)} files • ${formatNumber(lang.lines)} lines
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                
+                // Populate files table
+                const tbody = document.getElementById('files-tbody');
+                if (tbody) {
+                    tbody.innerHTML = data.files.map(file => {
+                        const fullPath = file.fullPath || file.relativePath || file.path;
+                        const pathParts = fullPath.split(/[\\/]/);
+                        const fileName = pathParts.pop() || fullPath;
+                        let directory = '';
+                        
+                        // Build directory path with proper separators
+                        if (pathParts.length > 0) {
+                            directory = pathParts.join('/') + '/';
+                        }
+                        
+                        return `
+                        <tr>
+                            <td class="file-name-cell">
+                                <div class="file-name-display">
+                                    <span class="file-name">${fileName}</span>
+                                    ${directory ? `<div class="file-path-toggle">${directory}</div>` : ''}
+                                </div>
+                            </td>
+                            <td><span class="language-badge">${file.language}</span></td>
+                            <td>${formatNumber(file.lines)}</td>
+                            <td>${formatNumber(file.codeLines)}</td>
+                            <td>${formatNumber(file.commentLines)}</td>
+                            <td>${formatNumber(file.blankLines)}</td>
+                            <td>${formatNumber(file.size)}</td>
+                        </tr>
+                        `;
+                    }).join('');
+                }
+                
+                // Add search functionality
+                const searchBox = document.getElementById('file-search');
+                if (searchBox && tbody) {
+                    searchBox.addEventListener('input', function() {
+                        const filter = this.value.toLowerCase();
+                        const rows = tbody.querySelectorAll('tr');
+                        
+                        rows.forEach(row => {
+                            const fileCell = row.querySelector('.file-name-cell');
+                            const filePath = fileCell ? fileCell.textContent.toLowerCase() : '';
+                            row.style.display = filePath.includes(filter) ? '' : 'none';
+                        });
+                    });
+                }
+                
+                // Show report content
+                const loadingIndicator = document.getElementById('loading-indicator');
+                const reportContent = document.getElementById('report-content');
+                
+                if (loadingIndicator) loadingIndicator.classList.add('hidden');
+                if (reportContent) reportContent.classList.remove('hidden');
+                
+                // Restore path display preference
+                restorePathPreference();
+                
+            } catch (error) {
+                console.error('Error parsing report data:', error);
+                const loadingIndicator = document.getElementById('loading-indicator');
+                const errorMessage = document.getElementById('error-message');
+                const errorText = document.getElementById('error-text');
+                
+                if (loadingIndicator) loadingIndicator.classList.add('hidden');
+                if (errorText) errorText.textContent = 'Error loading report data: ' + error.message;
+                if (errorMessage) errorMessage.classList.remove('hidden');
+            }
+        }
+        
+        // Initialize the report when page loads (for exported HTML files)
+        document.addEventListener('DOMContentLoaded', () => {
+            // Only populate if we have the expected template structure
+            if (document.getElementById('summary-stats')) {
+                populateReport();
+            }
+        });
+    </script>
+</body>
+</html>

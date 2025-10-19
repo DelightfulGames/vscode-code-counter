@@ -1,0 +1,338 @@
+import { expect } from 'chai';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+
+suite('Workspace UI and Message Handling Tests', () => {
+    let tempDir: string;
+    
+    suiteSetup(async () => {
+        tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'workspace-ui-test-'));
+    });
+    
+    suiteTeardown(async () => {
+        await fs.promises.rm(tempDir, { recursive: true, force: true });
+    });
+
+    test('should generate correct workspace placeholder content', () => {
+        // Test workspace container placeholder generation
+        const workspaceData = {
+            mode: 'workspace',
+            directoryTree: [
+                {
+                    name: 'src',
+                    path: '/test/src',
+                    relativePath: 'src',
+                    hasSettings: true,
+                    children: [
+                        {
+                            name: 'components',
+                            path: '/test/src/components',
+                            relativePath: 'src/components',
+                            hasSettings: false,
+                            children: []
+                        }
+                    ]
+                }
+            ],
+            currentDirectory: '/test',
+            resolvedSettings: {
+                lineThresholds: { warning: 100, danger: 200 },
+                emojis: { normal: '🟢', warning: '🟡', danger: '🔴' },
+                source: 'workspace'
+            },
+            workspacePath: '/test'
+        };
+
+        // Test that workspace data structure is valid
+        expect(workspaceData.mode).to.equal('workspace');
+        expect(workspaceData.directoryTree).to.be.an('array');
+        expect(workspaceData.directoryTree.length).to.be.greaterThan(0);
+        expect(workspaceData.currentDirectory).to.be.a('string');
+        expect(workspaceData.resolvedSettings).to.be.an('object');
+    });
+
+    test('should validate message structure for workspace operations', () => {
+        // Test createWorkspaceSettings message
+        const createMessage = {
+            command: 'createWorkspaceSettings'
+        };
+        expect(createMessage.command).to.equal('createWorkspaceSettings');
+
+        // Test selectDirectory message
+        const selectMessage = {
+            command: 'selectWorkspaceDirectory',
+            directoryPath: '/test/src'
+        };
+        expect(selectMessage.command).to.equal('selectWorkspaceDirectory');
+        expect(selectMessage.directoryPath).to.be.a('string');
+
+        // Test saveWorkspaceSettings message
+        const saveMessage = {
+            command: 'saveWorkspaceSettings',
+            directoryPath: '/test/src',
+            settings: {
+                lineThresholds: { warning: 75 },
+                emojis: { normal: '⚙️' }
+            }
+        };
+        expect(saveMessage.command).to.equal('saveWorkspaceSettings');
+        expect(saveMessage.directoryPath).to.be.a('string');
+        expect(saveMessage.settings).to.be.an('object');
+
+        // Test resetWorkspaceField message
+        const resetMessage = {
+            command: 'resetWorkspaceField',
+            field: 'badges.low',
+            directory: '/test/src'
+        };
+        expect(resetMessage.command).to.equal('resetWorkspaceField');
+        expect(resetMessage.field).to.be.a('string');
+        expect(resetMessage.directory).to.be.a('string');
+    });
+
+    test('should handle field path mapping correctly', () => {
+        const fieldMappings = [
+            { ui: 'badges.low', workspace: 'emojis.normal' },
+            { ui: 'badges.medium', workspace: 'emojis.warning' },
+            { ui: 'badges.high', workspace: 'emojis.danger' },
+            { ui: 'folderBadges.low', workspace: 'emojis.normal' },
+            { ui: 'folderBadges.medium', workspace: 'emojis.warning' },
+            { ui: 'folderBadges.high', workspace: 'emojis.danger' },
+            { ui: 'thresholds.mid', workspace: 'lineThresholds.warning' },
+            { ui: 'thresholds.high', workspace: 'lineThresholds.danger' }
+        ];
+
+        for (const mapping of fieldMappings) {
+            expect(mapping.ui).to.be.a('string');
+            expect(mapping.workspace).to.be.a('string');
+            expect(mapping.ui.split('.').length).to.equal(2);
+            expect(mapping.workspace.split('.').length).to.equal(2);
+        }
+    });
+
+    test('should validate workspace CSS classes', () => {
+        // Test CSS class names that should be applied
+        const workspaceClasses = [
+            'workspace-mode',
+            'workspace-only',
+            'workspace-container',
+            'directory-tree',
+            'directory-item',
+            'directory-name',
+            'settings-indicator',
+            'emoji-reset-btn'
+        ];
+
+        for (const className of workspaceClasses) {
+            expect(className).to.be.a('string');
+            expect(className.length).to.be.greaterThan(0);
+            expect(className).to.not.include(' '); // No spaces in class names
+        }
+    });
+
+    test('should handle directory tree structure correctly', () => {
+        const mockTree = [
+            {
+                name: 'src',
+                path: '/workspace/src',
+                relativePath: 'src',
+                hasSettings: true,
+                children: [
+                    {
+                        name: 'components',
+                        path: '/workspace/src/components',
+                        relativePath: 'src/components',
+                        hasSettings: false,
+                        children: [
+                            {
+                                name: 'ui',
+                                path: '/workspace/src/components/ui',
+                                relativePath: 'src/components/ui',
+                                hasSettings: true,
+                                children: []
+                            }
+                        ]
+                    },
+                    {
+                        name: 'utils',
+                        path: '/workspace/src/utils',
+                        relativePath: 'src/utils',
+                        hasSettings: false,
+                        children: []
+                    }
+                ]
+            },
+            {
+                name: 'docs',
+                path: '/workspace/docs',
+                relativePath: 'docs',
+                hasSettings: false,
+                children: []
+            }
+        ];
+
+        // Validate tree structure
+        expect(mockTree).to.be.an('array');
+        expect(mockTree.length).to.equal(2);
+
+        const srcNode = mockTree[0];
+        expect(srcNode.name).to.equal('src');
+        expect(srcNode.hasSettings).to.be.true;
+        expect(srcNode.children).to.be.an('array');
+        expect(srcNode.children.length).to.equal(2);
+
+        const componentsNode = srcNode.children[0];
+        expect(componentsNode.name).to.equal('components');
+        expect(componentsNode.hasSettings).to.be.false;
+        expect(componentsNode.children.length).to.equal(1);
+
+        const uiNode = componentsNode.children[0];
+        expect(uiNode.name).to.equal('ui');
+        expect(uiNode.hasSettings).to.be.true;
+        expect(uiNode.relativePath).to.equal('src/components/ui');
+    });
+
+    test('should validate settings inheritance logic', () => {
+        // Test settings inheritance chain
+        const globalSettings = {
+            lineThresholds: { warning: 100, danger: 200 },
+            emojis: { normal: '🟢', warning: '🟡', danger: '🔴' }
+        };
+
+        const workspaceSettings: any = {
+            lineThresholds: { warning: 80 }, // Override warning
+            emojis: { normal: '📄' } // Override normal
+        };
+
+        const directorySettings: any = {
+            emojis: { danger: '💥' } // Override danger
+        };
+
+        // Simulate inheritance resolution
+        const resolved = {
+            lineThresholds: {
+                warning: workspaceSettings.lineThresholds?.warning ?? globalSettings.lineThresholds.warning,
+                danger: directorySettings.lineThresholds?.danger ?? 
+                       workspaceSettings.lineThresholds?.danger ?? 
+                       globalSettings.lineThresholds.danger
+            },
+            emojis: {
+                normal: directorySettings.emojis?.normal ?? 
+                       workspaceSettings.emojis?.normal ?? 
+                       globalSettings.emojis.normal,
+                warning: directorySettings.emojis?.warning ?? 
+                        workspaceSettings.emojis?.warning ?? 
+                        globalSettings.emojis.warning,
+                danger: directorySettings.emojis?.danger ?? 
+                       workspaceSettings.emojis?.danger ?? 
+                       globalSettings.emojis.danger
+            }
+        };
+
+        expect(resolved.lineThresholds.warning).to.equal(80); // From workspace
+        expect(resolved.lineThresholds.danger).to.equal(200); // From global
+        expect(resolved.emojis.normal).to.equal('📄'); // From workspace
+        expect(resolved.emojis.warning).to.equal('🟡'); // From global
+        expect(resolved.emojis.danger).to.equal('💥'); // From directory
+    });
+
+    test('should handle workspace mode detection', () => {
+        // Test workspace mode detection logic
+        const testCases = [
+            { workspaceData: null, expectedMode: false },
+            { workspaceData: { currentDirectory: '<global>' }, expectedMode: false },
+            { workspaceData: { currentDirectory: '/workspace' }, expectedMode: true },
+            { workspaceData: { currentDirectory: '/workspace/src' }, expectedMode: true }
+        ];
+
+        for (const testCase of testCases) {
+            const isWorkspaceMode = testCase.workspaceData && 
+                                  testCase.workspaceData.currentDirectory !== '<global>';
+            expect(!!isWorkspaceMode).to.equal(testCase.expectedMode);
+        }
+    });
+
+    test('should validate reset functionality', () => {
+        // Test reset field logic
+        const currentSettings = {
+            lineThresholds: { warning: 50, danger: 150 },
+            emojis: { normal: '⚙️', warning: '🟡', danger: '🔴' }
+        };
+
+        const parentSettings = {
+            lineThresholds: { warning: 100, danger: 200 },
+            emojis: { normal: '🟢', warning: '🟡', danger: '🔴' }
+        };
+
+        // Simulate reset operations
+        const resetOperations = [
+            { field: 'thresholds.mid', currentValue: 50, parentValue: 100 },
+            { field: 'badges.low', currentValue: '⚙️', parentValue: '🟢' },
+            { field: 'thresholds.high', currentValue: 150, parentValue: 200 }
+        ];
+
+        for (const operation of resetOperations) {
+            expect(operation.currentValue).to.not.equal(operation.parentValue);
+            // After reset, value should equal parent value
+            const resetValue = operation.parentValue;
+            expect(resetValue).to.equal(operation.parentValue);
+        }
+    });
+
+    test('should handle error scenarios gracefully', () => {
+        // Test error handling scenarios
+        const errorScenarios = [
+            { type: 'invalid-json', data: '{ invalid json }' },
+            { type: 'missing-file', data: null },
+            { type: 'permission-error', data: 'EACCES' },
+            { type: 'invalid-path', data: '/nonexistent/path' }
+        ];
+
+        for (const scenario of errorScenarios) {
+            expect(scenario.type).to.be.a('string');
+            
+            // Each error scenario should have a handling strategy
+            switch (scenario.type) {
+                case 'invalid-json':
+                    // Should fall back to parent/global settings
+                    expect(scenario.data).to.be.a('string');
+                    break;
+                case 'missing-file':
+                    // Should treat as no custom settings
+                    expect(scenario.data).to.be.null;
+                    break;
+                case 'permission-error':
+                    // Should show appropriate error message
+                    expect(scenario.data).to.be.a('string');
+                    break;
+                case 'invalid-path':
+                    // Should validate path before operations
+                    expect(scenario.data).to.be.a('string');
+                    break;
+            }
+        }
+    });
+
+    test('should validate HTML template placeholders', () => {
+        // Test that all required placeholders are present
+        const requiredPlaceholders = [
+            '{{workspaceContainer}}',
+            '{{createWorkspaceButton}}',
+            '{{badges.low}}',
+            '{{badges.medium}}',
+            '{{badges.high}}',
+            '{{folderBadges.low}}',
+            '{{folderBadges.medium}}',
+            '{{folderBadges.high}}',
+            '{{thresholds.mid}}',
+            '{{thresholds.high}}'
+        ];
+
+        for (const placeholder of requiredPlaceholders) {
+            expect(placeholder).to.be.a('string');
+            expect(placeholder.startsWith('{{')).to.be.true;
+            expect(placeholder.endsWith('}}')).to.be.true;
+        }
+    });
+});

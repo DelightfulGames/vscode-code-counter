@@ -47,8 +47,13 @@
           "default": [
             "**/node_modules/**",
             "**/out/**",
+            "**/bin/**",
             "**/dist/**",
-            "**/.git/**"
+            "**/.git/**",
+            "**/.**/**",
+            "**/*.vsix",
+            "**/.code-counter.json",
+            "**/**-lock.json"
           ],
           "description": "Glob patterns for files to exclude from counting"
         },
@@ -167,7 +172,8 @@
   ],
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "tsc -p ./ && npm run copy-templates",
+    "copy-templates": "node -e \"const fs=require('fs'),path=require('path'); const src='templates',dst='out/templates'; if(!fs.existsSync(dst)) fs.mkdirSync(dst,{recursive:true}); fs.readdirSync(src).forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dst,f))); console.log('Templates copied');\"",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",

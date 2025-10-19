@@ -6,6 +6,7 @@ import { FileWatcherProvider } from './providers/fileWatcher';
 import { FileExplorerDecorationProvider } from './providers/fileExplorerDecorator';
 import { EditorTabDecorationProvider } from './providers/editorTabDecorator';
 import { WebViewReportService } from './services/webViewReportService';
+import { WorkspaceSettingsService, ResolvedSettings } from './services/workspaceSettingsService';
 
 function getCurrentConfiguration() {
     const config = vscode.workspace.getConfiguration('codeCounter');
@@ -29,14 +30,19 @@ function getCurrentConfiguration() {
         },
         excludePatterns: config.get<string[]>('excludePatterns', [
             '**/node_modules/**',
-            '**/out/**', 
+            '**/out/**',
+            '**/bin/**', 
             '**/dist/**',
-            '**/.git/**'
+            '**/.git/**',
+            '**/.**/**',
+            '**/*.vsix',
+            '**/.code-counter.json',
+            '**/**-lock.json'            
         ])
     };
 }
 
-async function showEmojiPicker(fileExplorerDecorator: FileExplorerDecorationProvider): Promise<void> {
+async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecorationProvider): Promise<void> {
     const { badges, folderBadges, thresholds, excludePatterns } = getCurrentConfiguration();
 
     // Create a webview panel for the emoji picker
@@ -50,43 +56,233 @@ async function showEmojiPicker(fileExplorerDecorator: FileExplorerDecorationProv
         }
     );
 
+    // Auto-detect workspace settings
+    let workspaceData = undefined;
+    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        const workspaceService = new WorkspaceSettingsService(workspacePath);
+        
+        if (await workspaceService.hasSettings(workspacePath)) {
+            // Workspace has settings, load in workspace mode
+            const directoryTree = await workspaceService.getDirectoryTree();
+            const inheritanceInfo = await workspaceService.getSettingsWithInheritance(workspacePath);
+            
+            workspaceData = {
+                mode: 'workspace',
+                directoryTree,
+                currentDirectory: '<workspace>',
+                resolvedSettings: inheritanceInfo.resolvedSettings,
+                currentSettings: inheritanceInfo.currentSettings,
+                parentSettings: inheritanceInfo.parentSettings,
+                workspacePath
+            };
+        }
+    }
+
     // HTML content with emoji picker
-    panel.webview.html = getEmojiPickerWebviewContent(badges, folderBadges, thresholds, excludePatterns);
+    panel.webview.html = getEmojiPickerWebviewContent(badges, folderBadges, thresholds, excludePatterns, workspaceData, panel.webview);
 
     // Handle messages from the webview
     panel.webview.onDidReceiveMessage(
         async (message) => {
             switch (message.command) {
                 case 'updateEmoji':
-                    // Map emoji keys to configuration paths
-                    const emojiKeyMap: { [key: string]: string } = {
-                        'low': 'normal',
-                        'medium': 'warning', 
-                        'high': 'danger'
-                    };
-                    const configKey = emojiKeyMap[message.colorKey];
-                    if (configKey) {
-                        const configPath = message.type === 'folder' ? 'folders' : '';
-                        const baseConfig = configPath ? `codeCounter.emojis.${configPath}` : 'codeCounter.emojis';
-                        const emojiConfig = vscode.workspace.getConfiguration(baseConfig);
-                        await emojiConfig.update(configKey, message.emoji, vscode.ConfigurationTarget.Global);
+                    // Check if we're in workspace mode
+                    if (workspaceData !== undefined && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                        // Handle workspace emoji update
+                        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const targetPath = workspaceData.currentDirectory === '<workspace>' ? workspacePath : 
+                                         path.join(workspacePath, workspaceData.currentDirectory);
                         
-                        const emojiType = message.type === 'folder' ? 'folder' : 'file';
-                        vscode.window.showInformationMessage(`Updated ${configKey} ${emojiType} emoji to ${message.emoji}`);
+                        // Get current workspace settings by reading the file manually (since readSettingsFile is private)
+                        const settingsPath = path.join(targetPath, '.code-counter.json');
+                        let existingWorkspaceSettings: any = {};
                         
-                        // Refresh the WebView to show the updated emoji
-                        const updatedConfiguration = getCurrentConfiguration();
-                        panel.webview.html = getEmojiPickerWebviewContent(updatedConfiguration.badges, updatedConfiguration.folderBadges, updatedConfiguration.thresholds, updatedConfiguration.excludePatterns);
+                        try {
+                            if (await fs.promises.access(settingsPath).then(() => true).catch(() => false)) {
+                                const content = await fs.promises.readFile(settingsPath, 'utf-8');
+                                existingWorkspaceSettings = JSON.parse(content);
+                            }
+                        } catch (error) {
+                            console.log('Could not read existing workspace settings, starting with empty settings');
+                        }
+                        
+                        // Map emoji keys to the standardized workspace settings structure
+                        let settingKey: string;
+                        if (message.type === 'folder') {
+                            const folderKeyMap: { [key: string]: string } = {
+                                'low': 'codeCounter.emojis.folders.normal',
+                                'medium': 'codeCounter.emojis.folders.warning', 
+                                'high': 'codeCounter.emojis.folders.danger'
+                            };
+                            settingKey = folderKeyMap[message.colorKey];
+                        } else {
+                            const fileKeyMap: { [key: string]: string } = {
+                                'low': 'codeCounter.emojis.normal',
+                                'medium': 'codeCounter.emojis.warning', 
+                                'high': 'codeCounter.emojis.danger'
+                            };
+                            settingKey = fileKeyMap[message.colorKey];
+                        }
+                        
+                        if (settingKey) {
+                            // Update the workspace settings using the new flattened structure
+                            const updatedSettings = {
+                                ...existingWorkspaceSettings,
+                                [settingKey]: message.emoji
+                            };
+                            
+                            await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+                            
+                            const emojiType = message.type === 'folder' ? 'folder' : 'file';
+                            const colorName = message.colorKey === 'low' ? 'low' : message.colorKey === 'medium' ? 'medium' : 'high';
+                            vscode.window.showInformationMessage(`Updated ${colorName} ${emojiType} emoji to ${message.emoji} in workspace settings`);
+                            
+                            // Refresh the WebView to show the updated emoji
+                            const directoryTree = await workspaceService.getDirectoryTree();
+                            const resolvedSettings = await workspaceService.getResolvedSettings(targetPath);
+                            const currentConfig = getCurrentConfiguration();
+                            
+                            // Use resolved workspace settings instead of global config
+                            const workspaceBadges = {
+                                low: resolvedSettings['codeCounter.emojis.normal'],
+                                medium: resolvedSettings['codeCounter.emojis.warning'],
+                                high: resolvedSettings['codeCounter.emojis.danger']
+                            };
+                            const workspaceFolderBadges = {
+                                low: resolvedSettings['codeCounter.emojis.folders.normal'],
+                                medium: resolvedSettings['codeCounter.emojis.folders.warning'],
+                                high: resolvedSettings['codeCounter.emojis.folders.danger']
+                            };
+                            const workspaceThresholds = {
+                                mid: resolvedSettings['codeCounter.lineThresholds.midThreshold'],
+                                high: resolvedSettings['codeCounter.lineThresholds.highThreshold']
+                            };
+                            
+                            panel.webview.html = getEmojiPickerWebviewContent(
+                                workspaceBadges, 
+                                workspaceFolderBadges, 
+                                workspaceThresholds, 
+                                currentConfig.excludePatterns,
+                                {
+                                    mode: 'workspace',
+                                    directoryTree,
+                                    currentDirectory: targetPath === workspacePath ? '<workspace>' : 
+                                                    path.relative(workspacePath, targetPath),
+                                    resolvedSettings,
+                                    workspacePath
+                                }
+                            );
+                        }
+                    } else {
+                        // Handle global emoji update (original behavior)
+                        const emojiKeyMap: { [key: string]: string } = {
+                            'low': 'normal',
+                            'medium': 'warning', 
+                            'high': 'danger'
+                        };
+                        const configKey = emojiKeyMap[message.colorKey];
+                        if (configKey) {
+                            const configPath = message.type === 'folder' ? 'folders' : '';
+                            const baseConfig = configPath ? `codeCounter.emojis.${configPath}` : 'codeCounter.emojis';
+                            const emojiConfig = vscode.workspace.getConfiguration(baseConfig);
+                            await emojiConfig.update(configKey, message.emoji, vscode.ConfigurationTarget.Global);
+                            
+                            const emojiType = message.type === 'folder' ? 'folder' : 'file';
+                            vscode.window.showInformationMessage(`Updated ${configKey} ${emojiType} emoji to ${message.emoji}`);
+                            
+                            // Refresh the WebView to show the updated emoji
+                            const updatedConfiguration = getCurrentConfiguration();
+                            panel.webview.html = getEmojiPickerWebviewContent(updatedConfiguration.badges, updatedConfiguration.folderBadges, updatedConfiguration.thresholds, updatedConfiguration.excludePatterns, undefined, panel.webview);
+                        }
                     }
                     break;
                 case 'updateThreshold':
-                    const thresholdConfig = vscode.workspace.getConfiguration('codeCounter');
-                    await thresholdConfig.update(`lineThresholds.${message.thresholdKey}Threshold`, message.value, vscode.ConfigurationTarget.Global);
-                    vscode.window.showInformationMessage(`Updated ${message.thresholdKey} threshold to ${message.value} lines`);
-                    
-                    // Refresh the WebView to show updated preview values
-                    const updatedConfigurationThreshold = getCurrentConfiguration();
-                    panel.webview.html = getEmojiPickerWebviewContent(updatedConfigurationThreshold.badges, updatedConfigurationThreshold.folderBadges, updatedConfigurationThreshold.thresholds, updatedConfigurationThreshold.excludePatterns);
+                    // Check if we're in workspace mode
+                    if (workspaceData && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                        // Handle workspace threshold update
+                        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const targetPath = workspaceData.currentDirectory === '<workspace>' ? workspacePath : 
+                                         path.join(workspacePath, workspaceData.currentDirectory);
+                        
+                        // Get existing workspace settings
+                        const settingsPath = path.join(targetPath, '.code-counter.json');
+                        let existingWorkspaceSettings: any = {};
+                        
+                        try {
+                            if (await fs.promises.access(settingsPath).then(() => true).catch(() => false)) {
+                                const content = await fs.promises.readFile(settingsPath, 'utf-8');
+                                existingWorkspaceSettings = JSON.parse(content);
+                            }
+                        } catch (error) {
+                            console.log('Could not read existing workspace settings, starting with empty settings');
+                        }
+                        
+                        // Map threshold keys to the standardized workspace settings structure
+                        const thresholdKeyMap: { [key: string]: string } = {
+                            'mid': 'codeCounter.lineThresholds.midThreshold',
+                            'high': 'codeCounter.lineThresholds.highThreshold'
+                        };
+                        const settingKey = thresholdKeyMap[message.thresholdKey];
+                        
+                        if (settingKey) {
+                            // Update the workspace settings using the new flattened structure
+                            const updatedSettings = {
+                                ...existingWorkspaceSettings,
+                                [settingKey]: message.value
+                            };
+                            
+                            await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+                            vscode.window.showInformationMessage(`Updated ${message.thresholdKey} threshold to ${message.value} lines in workspace settings`);
+                            
+                            // Refresh the WebView to show updated values
+                            const directoryTree = await workspaceService.getDirectoryTree();
+                            const resolvedSettings = await workspaceService.getResolvedSettings(targetPath);
+                            const currentConfig = getCurrentConfiguration();
+                            
+                            // Use resolved workspace settings instead of global config
+                            const workspaceBadges = {
+                                low: resolvedSettings['codeCounter.emojis.normal'],
+                                medium: resolvedSettings['codeCounter.emojis.warning'],
+                                high: resolvedSettings['codeCounter.emojis.danger']
+                            };
+                            const workspaceFolderBadges = {
+                                low: resolvedSettings['codeCounter.emojis.folders.normal'],
+                                medium: resolvedSettings['codeCounter.emojis.folders.warning'],
+                                high: resolvedSettings['codeCounter.emojis.folders.danger']
+                            };
+                            const workspaceThresholds = {
+                                mid: resolvedSettings['codeCounter.lineThresholds.midThreshold'],
+                                high: resolvedSettings['codeCounter.lineThresholds.highThreshold']
+                            };
+                            
+                            panel.webview.html = getEmojiPickerWebviewContent(
+                                workspaceBadges, 
+                                workspaceFolderBadges, 
+                                workspaceThresholds, 
+                                currentConfig.excludePatterns,
+                                {
+                                    mode: 'workspace',
+                                    directoryTree,
+                                    currentDirectory: targetPath === workspacePath ? '<workspace>' : 
+                                                    path.relative(workspacePath, targetPath),
+                                    resolvedSettings,
+                                    workspacePath
+                                }
+                            );
+                        }
+                    } else {
+                        // Handle global threshold update (original behavior)
+                        const thresholdConfig = vscode.workspace.getConfiguration('codeCounter');
+                        await thresholdConfig.update(`lineThresholds.${message.thresholdKey}Threshold`, message.value, vscode.ConfigurationTarget.Global);
+                        vscode.window.showInformationMessage(`Updated ${message.thresholdKey} threshold to ${message.value} lines`);
+                        
+                        // Refresh the WebView to show updated preview values
+                        const updatedConfigurationThreshold = getCurrentConfiguration();
+                        panel.webview.html = getEmojiPickerWebviewContent(updatedConfigurationThreshold.badges, updatedConfigurationThreshold.folderBadges, updatedConfigurationThreshold.thresholds, updatedConfigurationThreshold.excludePatterns);
+                    }
                     break;
                 case 'addGlobPattern':
                     const patternConfig = vscode.workspace.getConfiguration('codeCounter');
@@ -123,8 +319,13 @@ async function showEmojiPicker(fileExplorerDecorator: FileExplorerDecorationProv
                     const defaultPatterns = [
                         '**/node_modules/**',
                         '**/out/**',
+                        '**/bin/**', 
                         '**/dist/**',
-                        '**/.git/**'
+                        '**/.git/**',
+                        '**/.**/**',
+                        '**/*.vsix',
+                        '**/.code-counter.json',
+                        '**/**-lock.json'
                     ];
                     await resetConfig.update('excludePatterns', defaultPatterns, vscode.ConfigurationTarget.Global);
                     vscode.window.showInformationMessage('Exclude patterns reset to defaults');
@@ -136,7 +337,7 @@ async function showEmojiPicker(fileExplorerDecorator: FileExplorerDecorationProv
                     const updatedConfiguration3 = getCurrentConfiguration();
                     panel.webview.html = getEmojiPickerWebviewContent(updatedConfiguration3.badges, updatedConfiguration3.folderBadges, updatedConfiguration3.thresholds, updatedConfiguration3.excludePatterns);
                     break;
-                case 'resetColors':
+                case 'resetEmoji':
                     const emojiConfig = vscode.workspace.getConfiguration('codeCounter.emojis');
                     await emojiConfig.update('normal', '🟢', vscode.ConfigurationTarget.Global);
                     await emojiConfig.update('warning', '🟡', vscode.ConfigurationTarget.Global);
@@ -166,13 +367,337 @@ async function showEmojiPicker(fileExplorerDecorator: FileExplorerDecorationProv
                     const statusText = message.enabled ? 'enabled' : 'disabled';
                     vscode.window.showInformationMessage(`Popup notifications on auto-generate ${statusText}`);
                     break;
+                case 'createWorkspaceSettings':
+                    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        
+                        // Create empty workspace settings file with skipCleanup=true to preserve empty file
+                        await workspaceService.saveWorkspaceSettings(workspacePath, {}, true);
+                        
+                        // Get directory tree and workspace data
+                        const directoryTree = await workspaceService.getDirectoryTree();
+                        const resolvedSettings = await workspaceService.getResolvedSettings(workspacePath);
+                        const inheritanceInfo = await workspaceService.getSettingsWithInheritance(workspacePath);
+
+                        // Refresh webview with workspace mode
+                        const currentConfig = getCurrentConfiguration();
+                        workspaceData = {
+                            mode: 'workspace',
+                            directoryTree,
+                            currentDirectory: '<workspace>',
+                            resolvedSettings: inheritanceInfo.resolvedSettings,
+                            currentSettings: inheritanceInfo.currentSettings,
+                            parentSettings: inheritanceInfo.parentSettings,
+                            workspacePath
+                        };
+
+                        panel.webview.html = getEmojiPickerWebviewContent(
+                            currentConfig.badges, 
+                            currentConfig.folderBadges, 
+                            currentConfig.thresholds, 
+                            currentConfig.excludePatterns,
+                            workspaceData
+                        );
+                        
+                        vscode.window.showInformationMessage('Workspace settings created');
+                    } else {
+                        vscode.window.showWarningMessage('Please open a workspace or folder in VS Code before creating workspace settings.');
+                    }
+                    break;
+                case 'checkEmptySettingsBeforeChange':
+                    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        
+                        const currentPath = message.currentDirectory === '<global>' ? null : 
+                                          message.currentDirectory === '<workspace>' ? workspacePath : 
+                                          path.join(workspacePath, message.currentDirectory);
+                        
+                        let hasEmptySettings = false;
+                        if (currentPath) {
+                            hasEmptySettings = await workspaceService.hasEmptySettings(currentPath);
+                        }
+                        
+                        // Send response back to webview
+                        panel.webview.postMessage({
+                            command: 'emptySettingsCheckResult',
+                            hasEmptySettings,
+                            targetDirectory: message.targetDirectory
+                        });
+                    }
+                    break;
+                case 'selectDirectory':
+                    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        
+                        // Get the previous directory path if it exists and track if cleanup happened
+                        const previousDirectory = message.previousDirectory;
+                        let cleanupHappened = false;
+                        
+                        if (previousDirectory && previousDirectory !== '<global>') {
+                            const previousPath = previousDirectory === '<workspace>' ? workspacePath : 
+                                               path.join(workspacePath, previousDirectory);
+                            
+                            // Check if previous directory has empty settings and clean them up
+                            if (await workspaceService.hasEmptySettings(previousPath)) {
+                                await workspaceService.deleteSettingsFile(path.join(previousPath, '.code-counter.json'));
+                                cleanupHappened = true;
+                            }
+                        }
+                        
+                        const selectedPath = message.directoryPath === '<global>' ? null : 
+                                           message.directoryPath === '<workspace>' ? workspacePath : 
+                                           path.join(workspacePath, message.directoryPath);
+                        
+                        let resolvedSettings;
+                        let mode = 'global';
+                        
+                        if (selectedPath === null) {
+                            // Global mode
+                            const globalConfig = getCurrentConfiguration();
+                            resolvedSettings = {
+                                lineThresholds: {
+                                    warning: globalConfig.thresholds.mid,
+                                    danger: globalConfig.thresholds.high
+                                },
+                                emojis: {
+                                    normal: globalConfig.badges.low,
+                                    warning: globalConfig.badges.medium,
+                                    danger: globalConfig.badges.high
+                                },
+                                source: 'global'
+                            };
+                        } else {
+                            // Workspace/subdirectory mode
+                            resolvedSettings = await workspaceService.getResolvedSettings(selectedPath);
+                            mode = 'workspace';
+                        }
+                        
+                        const directoryTree = await workspaceService.getDirectoryTree();
+                        const currentConfig = getCurrentConfiguration();
+                        
+                        // Only switch to global mode if:
+                        // 1. User explicitly selected <global>, OR
+                        // 2. Cleanup happened from workspace root AND no workspace settings remain
+                        let finalSelectedPath = selectedPath;
+                        let finalResolvedSettings = resolvedSettings;
+                        let finalMode = mode;
+                        let inheritanceInfo = null;
+                        
+                        if (message.directoryPath === '<global>' || 
+                            (cleanupHappened && previousDirectory === '<workspace>' && directoryTree.length === 0)) {
+                            finalMode = 'global';
+                            finalSelectedPath = null;
+                            finalResolvedSettings = {
+                                'codeCounter.lineThresholds.midThreshold': currentConfig.thresholds.mid,
+                                'codeCounter.lineThresholds.highThreshold': currentConfig.thresholds.high,
+                                'codeCounter.emojis.normal': currentConfig.badges.low,
+                                'codeCounter.emojis.warning': currentConfig.badges.medium,
+                                'codeCounter.emojis.danger': currentConfig.badges.high,
+                                'codeCounter.emojis.folders.normal': currentConfig.folderBadges.low,
+                                'codeCounter.emojis.folders.warning': currentConfig.folderBadges.medium,
+                                'codeCounter.emojis.folders.danger': currentConfig.folderBadges.high,
+                                'codeCounter.excludePatterns': currentConfig.excludePatterns,
+                                'codeCounter.showNotificationOnAutoGenerate': false, // Default for global
+                                source: 'global'
+                            };
+                        } else if (finalSelectedPath) {
+                            // Get inheritance information for workspace/subdirectory
+                            inheritanceInfo = await workspaceService.getSettingsWithInheritance(finalSelectedPath);
+                            finalResolvedSettings = inheritanceInfo.resolvedSettings;
+                        }
+                        
+                        // Use resolved settings for display (type assertion to handle union type)
+                        const settings = finalResolvedSettings as ResolvedSettings;
+                        const displayBadges = {
+                            low: settings['codeCounter.emojis.normal'],
+                            medium: settings['codeCounter.emojis.warning'],
+                            high: settings['codeCounter.emojis.danger']
+                        };
+                        const displayFolderBadges = {
+                            low: settings['codeCounter.emojis.folders.normal'],
+                            medium: settings['codeCounter.emojis.folders.warning'],
+                            high: settings['codeCounter.emojis.folders.danger']
+                        };
+                        const displayThresholds = {
+                            mid: settings['codeCounter.lineThresholds.midThreshold'],
+                            high: settings['codeCounter.lineThresholds.highThreshold']
+                        };
+                        
+                        panel.webview.html = getEmojiPickerWebviewContent(
+                            displayBadges, 
+                            displayFolderBadges, 
+                            displayThresholds, 
+                            currentConfig.excludePatterns,
+                            finalMode === 'global' ? null : {
+                                mode: finalMode,
+                                directoryTree,
+                                currentDirectory: finalSelectedPath === null ? '<global>' : 
+                                                finalSelectedPath === workspacePath ? '<workspace>' : 
+                                                path.relative(workspacePath, finalSelectedPath),
+                                resolvedSettings: finalResolvedSettings,
+                                currentSettings: inheritanceInfo?.currentSettings || null,
+                                parentSettings: inheritanceInfo?.parentSettings || null,
+                                workspacePath
+                            }
+                        );
+                    }
+                    break;
+                case 'createSubWorkspace':
+                    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const targetPath = path.join(workspacePath, message.directoryPath);
+                        
+                        // Create empty settings file in subdirectory with skipCleanup=true
+                        await workspaceService.saveWorkspaceSettings(targetPath, {}, true);
+                        
+                        // Refresh with updated tree
+                        const directoryTree = await workspaceService.getDirectoryTree();
+                        const resolvedSettings = await workspaceService.getResolvedSettings(targetPath);
+                        const currentConfig = getCurrentConfiguration();
+                        
+                        // Use resolved workspace settings instead of global config
+                        const workspaceBadges = {
+                            low: resolvedSettings['codeCounter.emojis.normal'],
+                            medium: resolvedSettings['codeCounter.emojis.warning'],
+                            high: resolvedSettings['codeCounter.emojis.danger']
+                        };
+                        const workspaceFolderBadges = {
+                            low: resolvedSettings['codeCounter.emojis.normal'], // For now, use same as file badges
+                            medium: resolvedSettings['codeCounter.emojis.warning'],
+                            high: resolvedSettings['codeCounter.emojis.danger']
+                        };
+                        const workspaceThresholds = {
+                            mid: resolvedSettings['codeCounter.lineThresholds.midThreshold'],
+                            high: resolvedSettings['codeCounter.lineThresholds.highThreshold']
+                        };
+                        
+                        panel.webview.html = getEmojiPickerWebviewContent(
+                            workspaceBadges, 
+                            workspaceFolderBadges, 
+                            workspaceThresholds, 
+                            currentConfig.excludePatterns,
+                            {
+                                mode: 'workspace',
+                                directoryTree,
+                                currentDirectory: targetPath === workspacePath ? '<workspace>' : 
+                                                path.relative(workspacePath, targetPath),
+                                resolvedSettings,
+                                workspacePath
+                            }
+                        );
+                        
+                        vscode.window.showInformationMessage(`Sub-workspace settings created in ${message.directoryPath}`);
+                    }
+                    break;
+                case 'saveWorkspaceSettings':
+                    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        
+                        const targetPath = message.directoryPath === '<workspace>' ? workspacePath : 
+                                         path.join(workspacePath, message.directoryPath);
+                        
+                        await workspaceService.saveWorkspaceSettings(targetPath, message.settings);
+                        
+                        // Refresh to show updated settings
+                        const directoryTree = await workspaceService.getDirectoryTree();
+                        const resolvedSettings = await workspaceService.getResolvedSettings(targetPath);
+                        const currentConfig = getCurrentConfiguration();
+                        
+                        // Use resolved workspace settings instead of global config
+                        const workspaceBadges = {
+                            low: resolvedSettings['codeCounter.emojis.normal'],
+                            medium: resolvedSettings['codeCounter.emojis.warning'],
+                            high: resolvedSettings['codeCounter.emojis.danger']
+                        };
+                        const workspaceFolderBadges = {
+                            low: resolvedSettings['codeCounter.emojis.folders.normal'],
+                            medium: resolvedSettings['codeCounter.emojis.folders.warning'],
+                            high: resolvedSettings['codeCounter.emojis.folders.danger']
+                        };
+                        const workspaceThresholds = {
+                            mid: resolvedSettings['codeCounter.lineThresholds.midThreshold'],
+                            high: resolvedSettings['codeCounter.lineThresholds.highThreshold']
+                        };
+                        
+                        panel.webview.html = getEmojiPickerWebviewContent(
+                            workspaceBadges, 
+                            workspaceFolderBadges, 
+                            workspaceThresholds, 
+                            currentConfig.excludePatterns,
+                            {
+                                mode: 'workspace',
+                                directoryTree,
+                                currentDirectory: targetPath === workspacePath ? '<workspace>' : 
+                                                path.relative(workspacePath, targetPath),
+                                resolvedSettings,
+                                workspacePath
+                            }
+                        );
+                        
+                        vscode.window.showInformationMessage('Workspace settings saved');
+                    }
+                    break;
+                case 'resetWorkspaceField':
+                    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        
+                        const targetPath = message.directory === '<workspace>' ? workspacePath : 
+                                         path.join(workspacePath, message.directory);
+                        
+                        await workspaceService.resetField(targetPath, message.field);
+                        
+                        // Refresh to show updated settings
+                        const directoryTree = await workspaceService.getDirectoryTree();
+                        const resolvedSettings = await workspaceService.getResolvedSettings(targetPath);
+                        const currentConfig = getCurrentConfiguration();
+                        
+                        // Use resolved workspace settings instead of global config
+                        const workspaceBadges = {
+                            low: resolvedSettings['codeCounter.emojis.normal'],
+                            medium: resolvedSettings['codeCounter.emojis.warning'],
+                            high: resolvedSettings['codeCounter.emojis.danger']
+                        };
+                        const workspaceFolderBadges = {
+                            low: resolvedSettings['codeCounter.emojis.normal'], // For now, use same as file badges
+                            medium: resolvedSettings['codeCounter.emojis.warning'],
+                            high: resolvedSettings['codeCounter.emojis.danger']
+                        };
+                        const workspaceThresholds = {
+                            mid: resolvedSettings['codeCounter.lineThresholds.midThreshold'],
+                            high: resolvedSettings['codeCounter.lineThresholds.highThreshold']
+                        };
+                        
+                        panel.webview.html = getEmojiPickerWebviewContent(
+                            workspaceBadges, 
+                            workspaceFolderBadges, 
+                            workspaceThresholds, 
+                            currentConfig.excludePatterns,
+                            {
+                                mode: 'workspace',
+                                directoryTree,
+                                currentDirectory: targetPath === workspacePath ? '<workspace>' : 
+                                                path.relative(workspacePath, targetPath),
+                                resolvedSettings,
+                                workspacePath
+                            }
+                        );
+                        
+                        vscode.window.showInformationMessage(`Field ${message.field} reset to parent value`);
+                    }
+                    break;
             }
         },
         undefined
     );
 }
 
-function getEmojiPickerWebviewContent(badges: any, folderBadges: any, thresholds: any, excludePatterns: string[] = []): string {
+function getEmojiPickerWebviewContent(badges: any, folderBadges: any, thresholds: any, excludePatterns: string[] = [], workspaceData?: any, webview?: vscode.Webview): string {
     try {
         const templatePath = path.join(__dirname, '..', 'templates', 'emoji-picker.html');
         let htmlContent = fs.readFileSync(templatePath, 'utf8');
@@ -197,20 +722,52 @@ function getEmojiPickerWebviewContent(badges: any, folderBadges: any, thresholds
             </div>
         `).join('');
 
-        //Load the JavaScript content and JSON data
+        //Load the JavaScript content, CSS and JSON data
         const scriptPath = path.join(__dirname, '..', 'templates', 'emoji-picker.js');
+        const cssPath = path.join(__dirname, '..', 'templates', 'emoji-picker.css');
         const emojiDataPath = path.join(__dirname, '..', 'templates', 'emoji-data.json');
         const emojiSearchDataPath = path.join(__dirname, '..', 'templates', 'emoji-search-data.json');
         
         const scriptContent = fs.readFileSync(scriptPath, 'utf8');
+        const cssContent = fs.readFileSync(cssPath, 'utf8');
         const emojiData = fs.readFileSync(emojiDataPath, 'utf8');
         const emojiSearchData = fs.readFileSync(emojiSearchDataPath, 'utf8');
         
-        // Prepend the JSON data to the script content
+        // Create webview URIs for the JavaScript and CSS files
+        const scriptUri = webview ? webview.asWebviewUri(vscode.Uri.file(scriptPath)) : null;
+        const cssUri = webview ? webview.asWebviewUri(vscode.Uri.file(cssPath)) : null;
+        
+        // Fallback: if no webview provided, embed the script and CSS inline (backward compatibility)
+        let useInlineScript = !webview || !scriptUri;
+        
+        console.log('Debug: useInlineScript =', useInlineScript, 'webview =', !!webview, 'scriptUri =', !!scriptUri);
+        
+        // We'll embed only the data, not the script content
+        let embeddedData;
+        try {
+            embeddedData = {
+                emojiData: JSON.parse(emojiData),
+                emojiSearchData: JSON.parse(emojiSearchData),
+                workspaceData: workspaceData || null
+            };
+        } catch (parseError) {
+            console.error('Error parsing emoji data:', parseError);
+            // Fallback to safe empty data
+            embeddedData = {
+                emojiData: [],
+                emojiSearchData: [],
+                workspaceData: workspaceData || null
+            };
+        }
+        
+        // For backward compatibility, create full script content as fallback
         const fullScriptContent = `
             // Embedded emoji data
-            window.emojiData = ${emojiData};
-            window.emojiSearchData = ${emojiSearchData};
+            window.emojiData = ${JSON.stringify(embeddedData.emojiData)};
+            window.emojiSearchData = ${JSON.stringify(embeddedData.emojiSearchData)};
+            
+            // Workspace settings data
+            window.workspaceData = ${JSON.stringify(embeddedData.workspaceData)};
             
             ${scriptContent}
         `;
@@ -232,21 +789,149 @@ function getEmojiPickerWebviewContent(badges: any, folderBadges: any, thresholds
         htmlContent = htmlContent.replace(/{{highFolderMax}}/g, highFolderMax.toString());
         htmlContent = htmlContent.replace(/{{excludePatterns}}/g, excludePatternsHtml);
         htmlContent = htmlContent.replace(/{{showNotificationChecked}}/g, showNotificationChecked);
-        htmlContent = htmlContent.replace(/{{scriptContent}}/g, fullScriptContent);
+        
+        // Inheritance information placeholders
+        let parentFileNormal = 'N/A';
+        let parentFileWarning = 'N/A';
+        let parentFileDanger = 'N/A';
+        let parentWarningThreshold = 'N/A';
+        let parentDangerThreshold = 'N/A';
+        
+        if (workspaceData && workspaceData.parentSettings) {
+            parentFileNormal = workspaceData.parentSettings.emojis.normal;
+            parentFileWarning = workspaceData.parentSettings.emojis.warning;
+            parentFileDanger = workspaceData.parentSettings.emojis.danger;
+            parentWarningThreshold = workspaceData.parentSettings.lineThresholds.warning.toString();
+            parentDangerThreshold = workspaceData.parentSettings.lineThresholds.danger.toString();
+        }
+        
+        htmlContent = htmlContent.replace(/{{parentFileNormal}}/g, parentFileNormal);
+        htmlContent = htmlContent.replace(/{{parentFileWarning}}/g, parentFileWarning);
+        htmlContent = htmlContent.replace(/{{parentFileDanger}}/g, parentFileDanger);
+        htmlContent = htmlContent.replace(/{{parentWarningThreshold}}/g, parentWarningThreshold);
+        htmlContent = htmlContent.replace(/{{parentDangerThreshold}}/g, parentDangerThreshold);
+        
+        // Workspace settings placeholders
+        const workspaceSettingsHtml = workspaceData ? generateWorkspaceSettingsHtml(workspaceData) : '';
+        
+        // Check if workspace is available (separate from whether it has existing settings)
+        const hasWorkspace = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0;
+        
+        let createWorkspaceButtonHtml = '';
+        if (!workspaceData || !workspaceData.directoryTree || workspaceData.directoryTree.length === 0) {
+            if (hasWorkspace) {
+                // Workspace available but no workspace settings, show active button
+                createWorkspaceButtonHtml = '<button onclick="createWorkspaceSettings()" class="create-workspace-button">Create Workspace Settings</button>';
+            } else {
+                // No workspace, show disabled button with informative text
+                createWorkspaceButtonHtml = '<button disabled class="create-workspace-button button-secondary" title="Open a workspace or folder first">Select Workspace First</button>';
+            }
+        }
+        
+        htmlContent = htmlContent.replace(/{{workspaceSettings}}/g, workspaceSettingsHtml);
+        htmlContent = htmlContent.replace(/{{createWorkspaceButton}}/g, createWorkspaceButtonHtml);
+        
+        if (useInlineScript) {
+            // Fallback: embed script and CSS inline for backward compatibility
+            htmlContent = htmlContent.replace(/{{emojiData}}/g, 'null');
+            htmlContent = htmlContent.replace(/{{emojiSearchData}}/g, 'null');
+            htmlContent = htmlContent.replace(/{{workspaceData}}/g, 'null');
+            htmlContent = htmlContent.replace(/{{scriptUri}}/g, '');
+            htmlContent = htmlContent.replace(/{{cssUri}}/g, '');
+            // Add fallback style and script tags with inline content
+            htmlContent = htmlContent.replace('</head>', `<style>${cssContent}</style></head>`);
+            htmlContent = htmlContent.replace('</body>', `<script>${fullScriptContent}</script></body>`);
+        } else {
+            // Modern approach: separate JS and CSS files with embedded data
+            htmlContent = htmlContent.replace(/{{emojiData}}/g, JSON.stringify(embeddedData.emojiData));
+            htmlContent = htmlContent.replace(/{{emojiSearchData}}/g, JSON.stringify(embeddedData.emojiSearchData));
+            htmlContent = htmlContent.replace(/{{workspaceData}}/g, JSON.stringify(embeddedData.workspaceData));
+            htmlContent = htmlContent.replace(/{{scriptUri}}/g, scriptUri ? scriptUri.toString() : '');
+            htmlContent = htmlContent.replace(/{{cssUri}}/g, cssUri ? cssUri.toString() : '');
+        }
         
         return htmlContent;
         
     } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorStack = error instanceof Error ? error.stack : String(error);
+        
         console.error('Error loading emoji picker template:', error);
+        console.error('Error details:', {
+            message: errorMessage,
+            stack: errorStack,
+            workspaceData: workspaceData
+        });
         return `<!DOCTYPE html>
             <html>
             <head><title>Code Counter Settings</title></head>
             <body>
                 <h1>Error Loading Settings</h1>
-                <p>Could not load template: ${error}</p>
+                <p>Could not load template: ${errorMessage}</p>
+                <details>
+                    <summary>Error Details</summary>
+                    <pre>${errorStack}</pre>
+                </details>
             </body>
             </html>`;
     }
+}
+
+function generateWorkspaceSettingsHtml(workspaceData: any): string {
+    if (!workspaceData) return '';
+    
+    const directoryTreeHtml = generateDirectoryTreeHtml(workspaceData.directoryTree, workspaceData.currentDirectory);
+    const currentScope = workspaceData.currentDirectory === '<global>' ? '<global>' : 
+                        workspaceData.currentDirectory === workspaceData.workspacePath ? '<workspace>' :
+                        workspaceData.currentDirectory.replace(workspaceData.workspacePath, '').replace(/^[\\\/]/, '');
+    
+    return `
+        <div class="workspace-settings-container">
+            <h3>📁 Directory Settings</h3>
+            <div class="current-scope">
+                Currently editing: <strong>${currentScope}</strong>
+            </div>
+            <div class="directory-tree">
+                <div class="directory-item ${workspaceData.currentDirectory === '<global>' ? 'selected' : ''}" 
+                     onclick="selectDirectory('<global>')">
+                    <span class="directory-icon">🌐</span>
+                    &lt;global&gt;
+                </div>
+                <div class="directory-item ${workspaceData.currentDirectory === '<workspace>' ? 'selected' : ''}" 
+                     onclick="selectDirectory('<workspace>')">
+                    <span class="directory-icon">📁</span>
+                    &lt;workspace&gt;
+                </div>
+                ${directoryTreeHtml}
+            </div>
+            ${workspaceData.currentDirectory !== '<global>' ? 
+                '<button onclick="createSubWorkspace()" class="create-sub-workspace-button">Create sub-workspace</button>' : 
+                ''}
+        </div>
+    `;
+}
+
+function generateDirectoryTreeHtml(directories: any[], currentDirectory: string, level: number = 1): string {
+    if (!directories || directories.length === 0) return '';
+    
+    return directories.map(dir => {
+        const isSelected = currentDirectory === dir.relativePath;
+        const hasSettingsClass = dir.hasSettings ? 'has-settings' : '';
+        const selectedClass = isSelected ? 'selected' : '';
+        
+        const childrenHtml = dir.children && dir.children.length > 0 ? 
+            generateDirectoryTreeHtml(dir.children, currentDirectory, level + 1) : '';
+        
+        return `
+            <div class="directory-item ${selectedClass} ${hasSettingsClass}" 
+                 style="margin-left: ${level * 15}px"
+                 onclick="selectDirectory('${dir.relativePath.replace(/\\/g, '\\\\')}')">
+                <span class="directory-icon">📁</span>
+                ${dir.name}
+            </div>
+            ${childrenHtml}
+        `;
+    }).join('');
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -279,7 +964,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const openColorSettingsDisposable = vscode.commands.registerCommand('codeCounter.openSettings', async () => {
-        await showEmojiPicker(fileExplorerDecorator);
+        await showCodeCounterSettings(fileExplorerDecorator);
     });
 
     const showReportPanelDisposable = vscode.commands.registerCommand('codeCounter.showReportPanel', async () => {
