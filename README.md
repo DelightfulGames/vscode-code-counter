@@ -2,7 +2,7 @@
 
 > **Transform your code visibility with intelligent line counting, visual indicators, and comprehensive reporting**
 
-[![Version](https://img.shields.io/badge/version-0.11.1-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)
+[![Version](https://img.shields.io/badge/version-0.12.0-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
@@ -10,7 +10,7 @@
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2+-blue.svg)](https://www.typescriptlang.org/)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
-[![Tests](https://img.shields.io/badge/tests-51%2F51%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-161%2F183%20passing-yellow.svg)](#)
 [![Coverage](https://img.shields.io/badge/coverage-41%25-green.svg)](#)
 [![GitHub Issues](https://img.shields.io/github/issues/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/stargazers)
@@ -33,10 +33,10 @@
 ```
 ### After VS Code Code Counter
 ```bash    
-📁 src/                🟡🟥 # (avg 917 lines, max 2,847 lines)
+📁 src/                🟨🔴 # (avg 917 lines, max 2,847 lines)
 ├── service.ts            🟢 # (156 lines)
 ├── utils.ts              🟢 # (42 lines)
-└── 📁 components/     🔴🟥 # (avg 2,847 lines, max 2,847 lines)  
+└── 📁 components/     🟥🔴 # (avg 2,847 lines, max 2,847 lines)  
     └── legacy.ts         🔴 # (2,847 lines)
 ```
 
@@ -70,7 +70,7 @@
 - **For Architects**: Comprehensive project analytics and reporting capabilities  
 - **For Developers**: Real-time visual feedback on code complexity with fun emoji indicators  
 - **For Teams**: Standardized code metrics across projects and languages
-- **For VS Code Enthusiasts**: Production-grade extension with 51/51 tests passing
+- **For VS Code Enthusiasts**: Production-grade extension with 161/183 tests passing
 
 ## **Quick Start**
 1. **Install**: Search "Code Counter" in VS Code Extensions
@@ -80,7 +80,8 @@
 5. **Reports**: Run "Count Lines of Code" command for detailed HTML reports
 
 ## ✨ Key Highlights
-- 🎨 **Emoji Customization**: Choose ANY emoji for your line count thresholds
+- ⚙️ **Hierarchical Workspace Settings**: Workspace/Directory-specific configurations with inheritance
+- ⚙️🎨 **Emoji Customization**: Choose ANY emoji for your line count thresholds
 - 📝 **Glob Pattern Manager**: Visual interface for managing file exclusion patterns
 - ⌨️ **Language Support**: supports most programming languages
 - 🔍 **Smart Search**: Find emojis by typing "smile", "heart", "circle", etc.
@@ -96,6 +97,30 @@
 ## **Features**
 - **Flexible Thresholds**: Configure your own complexity boundaries  
 - **Emoji Customization**: Choose your preferred indicator system
+
+## 🏗️ **Hierarchical Workspace Settings**
+> **NEW**: Directory-specific settings with intelligent inheritance
+
+### **Nearest-Ancestor Inheritance**
+- Configure different settings for specific project directories
+- Child directories automatically inherit from their nearest parent with settings
+- Override only the settings you need - others inherit automatically
+
+### **Visual Directory Tree**
+- Interactive directory browser with settings indicators
+- See which directories have custom configurations
+- Visual inheritance chain display
+
+### **Copy-Then-Modify Pattern Management**
+- Add/remove exclusion patterns at any directory level
+- Automatic pattern inheritance with visual context
+- Smart pattern operations preserve existing configurations
+
+### **Use Cases**
+- **Monorepos**: Different thresholds for frontend/backend/shared code
+- **Legacy Code**: Relaxed rules for older directories during migration
+- **Third-party**: Stricter rules for vendor/external code directories
+- **Team Projects**: Department-specific coding standards
 
 ## 📈 **Comprehensive Analytics**
 - 📊 **Count Lines of Code**: Analyzes all files in your workspace with smart caching
@@ -121,7 +146,7 @@
 - **Team Alignment**: Visual indicators everyone understands
 - **Technical Debt Tracking**: Identify refactoring candidates
 - **Documentation Integration**: Embed reports in architecture docs
-- ✅ **51/51 Tests Passing** - Comprehensive test coveragecode 
+- ✅ **161/183 Tests Passing** - Comprehensive test coverage with hierarchical features 
 - ✅ **41% Code Coverage** - Real metrics, not estimates```
 - ✅ **TypeScript 5.2+** - Modern, type-safe codebase
 - ✅ **Zero Dependencies** - Lightweight and secure
@@ -152,10 +177,11 @@ install-extension DelightfulGames.vscode-code-counter
 - Manually trigger line counting and report generation
   - → **Code Counter: Count Lines of Code** (`codeCounter.countLines`)
 - Opens comprehensive settings interface featuring:
-  - → **Code Counter: Customize Emoji Indicators** (`codeCounter.
-openSettings`)
+  - → **Code Counter: Customize Emoji Indicators** (`codeCounter.openSettings`)
+- Manage hierarchical workspace settings:
+  - → **Code Counter: Create Workspace Settings** (`codeCounter.createWorkspaceSettings`)
 - Reset the plugin to the defaults
-  - → **Code Counter: Reset Emoji Indicators to Defaults** (`codeCounter.openSettings`)"codeCounter.resetBadgeSettings"
+  - → **Code Counter: Reset Emoji Indicators to Defaults** (`codeCounter.resetBadgeSettings`)
 
 ### **UI Integration**
 #### File Explorer Integration
@@ -216,7 +242,7 @@ The extension generates two files in the configured output directory:
 
 ## 📊 **Technical Excellence**
 ### **Testing & Quality**
-- **Unit Tests**: 51 comprehensive tests across 9 test suites
+- **Unit Tests**: 161 comprehensive tests across 15+ test suites covering hierarchical settings
 - **Integration Tests**: VS Code API compatibility validation  
 - **Performance Tests**: File system operation optimization
 - **Coverage Analysis**: 41% real coverage with C8 tooling

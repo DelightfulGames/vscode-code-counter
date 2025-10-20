@@ -86,6 +86,12 @@ function selectEmoji(emoji) {
     // Update the current emoji display
     if (currentEmojiEl) {
         currentEmojiEl.textContent = emoji;
+        
+        // Show the reset button since we're setting a custom emoji
+        const resetBtn = currentEmojiEl.querySelector('.emoji-reset-btn');
+        if (resetBtn) {
+            resetBtn.style.display = 'flex';
+        }
     }
     
     // Send update to VS Code
@@ -93,7 +99,8 @@ function selectEmoji(emoji) {
         command: 'updateEmoji',
         colorKey: currentColorKey,
         type: currentEmojiType,
-        emoji: emoji
+        emoji: emoji,
+        currentDirectory: window.workspaceData ? window.workspaceData.currentDirectory : '<global>'
     });
     
     // Close the picker
@@ -275,30 +282,54 @@ function addPattern() {
     const input = document.getElementById('newPattern');
     const pattern = input.value.trim();
     if (pattern) {
+        // Check if we're in workspace mode
+        const currentDirectory = window.workspaceData ? window.workspaceData.currentDirectory : '<global>';
+        const isWorkspaceMode = currentDirectory !== '<global>';
+        
         vscode.postMessage({
             command: 'addGlobPattern',
-            pattern: pattern
+            pattern: pattern,
+            currentDirectory: currentDirectory,
+            isWorkspaceMode: isWorkspaceMode
         });
         input.value = '';
     }
 }
 
 function removePattern(pattern) {
+    // Check if we're in workspace mode
+    const currentDirectory = window.workspaceData ? window.workspaceData.currentDirectory : '<global>';
+    const isWorkspaceMode = currentDirectory !== '<global>';
+    
     vscode.postMessage({
         command: 'removeGlobPattern',
-        pattern: pattern
+        pattern: pattern,
+        currentDirectory: currentDirectory,
+        isWorkspaceMode: isWorkspaceMode
     });
 }
 
 function resetPatterns() {
+    // Check if we're in workspace mode
+    const currentDirectory = window.workspaceData ? window.workspaceData.currentDirectory : '<global>';
+    const isWorkspaceMode = currentDirectory !== '<global>';
+    
     vscode.postMessage({
-        command: 'resetGlobPatterns'
+        command: 'resetGlobPatterns',
+        currentDirectory: currentDirectory,
+        isWorkspaceMode: isWorkspaceMode
     });
 }
 
 function resetEmojis() {
+    // Check if we're in workspace mode by looking at the current context
+    const currentDirectory = window.workspaceData ? window.workspaceData.currentDirectory : '<global>';
+    const isWorkspaceMode = currentDirectory !== '<global>';
+    
     vscode.postMessage({
-        command: 'resetEmoji'
+        command: 'resetEmoji',
+        currentDirectory: currentDirectory,
+        isWorkspaceMode: isWorkspaceMode
     });
 }
 
@@ -315,10 +346,20 @@ function updateThreshold(thresholdKey, value) {
         return; // Invalid value, don't save
     }
     
+    // Show the reset button for this threshold since we're setting a custom value
+    if (thresholdKey === 'mid') {
+        const resetBtn = document.querySelector('button[onclick*="resetField(event, \'threshold\', \'warning\')"]');
+        if (resetBtn) resetBtn.style.display = 'flex';
+    } else if (thresholdKey === 'high') {
+        const resetBtn = document.querySelector('button[onclick*="resetField(event, \'threshold\', \'danger\')"]');
+        if (resetBtn) resetBtn.style.display = 'flex';
+    }
+    
     vscode.postMessage({
         command: 'updateThreshold',
         thresholdKey: thresholdKey,
-        value: numValue
+        value: numValue,
+        currentDirectory: window.workspaceData ? window.workspaceData.currentDirectory : '<global>'
     });
 }
 
@@ -330,8 +371,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Initialize workspace mode
-    initializeWorkspaceMode();
+    // Initialize workspace mode (with small delay to ensure DOM is fully updated)
+    setTimeout(initializeWorkspaceMode, 500);
     
     // Listen for messages from the extension
     window.addEventListener('message', event => {
@@ -343,9 +384,87 @@ document.addEventListener('DOMContentLoaded', function() {
             // } else {
             proceedWithDirectoryChange(message.targetDirectory);
             //}
+        } else if (message.command === 'fieldReset') {
+            // Handle individual field reset - update the UI without full refresh
+            handleFieldReset(message.field, message.directory, message.resolvedSettings);
         }
     });
 });
+
+function handleFieldReset(field, directory, resolvedSettings) {
+    // Update the specific field display and keep the reset button hidden
+    const currentDirectoryPath = window.workspaceData ? window.workspaceData.currentDirectory : '<global>';
+    if (currentDirectoryPath === directory) {
+        // Update the resolved settings for the current directory
+        if (window.resolvedSettings) {
+            window.resolvedSettings = resolvedSettings;
+        }
+        
+        // Update the field display based on the reset field
+        updateFieldDisplay(field, resolvedSettings);
+        
+        // The reset button should already be hidden from the resetField function
+        // No need to run full initializeWorkspaceSettings which would show all buttons
+    }
+}
+
+function updateFieldDisplay(field, resolvedSettings) {
+    // Update emoji displays
+    if (field.startsWith('codeCounter.emojis.')) {
+        const emojiType = field.replace('codeCounter.emojis.', '');
+        const colorKey = emojiType === 'normal' ? 'low' : 
+                        emojiType === 'warning' ? 'medium' : 'high';
+        
+        // Check if field is folders or files
+        const isFolder = field.includes('folders.');
+        const emojiSelector = `[data-color-key="${colorKey}"][data-type="${isFolder ? 'folder' : 'file'}"]`;
+        const fileEmojiEl = document.querySelector(emojiSelector);
+        
+        if (fileEmojiEl) {
+            // Field was reset, so display resolved value (inherited) with grayed styling
+            fileEmojiEl.textContent = resolvedSettings[field] || '❓';
+            fileEmojiEl.style.opacity = '0.6';
+            fileEmojiEl.title = 'Inherited from parent settings';
+            
+            // Reset button should be hidden since we're inheriting
+            const resetBtn = fileEmojiEl.querySelector('.emoji-reset-btn');
+            if (resetBtn) resetBtn.style.display = 'none';
+        }
+    }
+    
+    // Update threshold displays
+    if (field.startsWith('codeCounter.lineThresholds.')) {
+        const thresholdType = field.replace('codeCounter.lineThresholds.', '').replace('Threshold', '');
+        const thresholdEl = document.getElementById(`${thresholdType}Threshold`);
+        
+        if (thresholdEl) {
+            // Field was reset, so show as inherited
+            thresholdEl.value = '';
+            thresholdEl.placeholder = `${resolvedSettings[field]} (inherited)`;
+            
+            // Hide reset button since we're inheriting
+            const resetBtnPattern = thresholdType === 'mid' ? 'warning' : 'danger';
+            const resetBtn = document.querySelector(`button[onclick*="resetField"][onclick*="'${resetBtnPattern}'"]`);
+            if (resetBtn) resetBtn.style.display = 'none';
+        }
+    }
+    
+    // Update exclude patterns display
+    if (field === 'codeCounter.excludePatterns') {
+        // Clear the current patterns container
+        const patternsContainer = document.querySelector('.glob-patterns-container');
+        if (patternsContainer) {
+            patternsContainer.innerHTML = '';
+        }
+        
+        // Hide reset button since we're now inheriting
+        const resetBtn = document.querySelector('button[onclick*="resetField"][onclick*="excludePatterns"]');
+        if (resetBtn) resetBtn.style.display = 'none';
+        
+        // Note: The extension will refresh the entire webview to show updated patterns
+        // with proper inheritance styling, so we don't need to manually rebuild the HTML here
+    }
+}
 
 // function showEmptySettingsWarning(targetDirectory) {
 //     const modal = document.createElement('div');
@@ -446,7 +565,7 @@ function initializeWorkspaceMode() {
 
 // Initialize workspace settings UI with current vs inherited values
 function initializeWorkspaceSettings() {
-    if (!window.workspaceData || !window.workspaceData.currentSettings || !window.workspaceData.parentSettings) {
+    if (!window.workspaceData || !window.workspaceData.parentSettings) {
         return;
     }
     
@@ -459,32 +578,151 @@ function initializeWorkspaceSettings() {
     const highEmojiEl = document.querySelector('[data-color-key="high"][data-type="file"]');
     
     if (lowEmojiEl) {
-        if (currentSettings.emojis && currentSettings.emojis.normal !== undefined) {
-            lowEmojiEl.textContent = currentSettings.emojis.normal;
+        const resetBtn = lowEmojiEl.querySelector('.emoji-reset-btn');
+        const currentEmojiValue = lowEmojiEl.textContent ? lowEmojiEl.textContent.trim() : '';
+        const parentEmojiValue = parentSettings['codeCounter.emojis.normal'];
+        
+        // Only show reset button if this emoji is actually set in the current directory
+        const isSetInCurrentDirectory = currentSettings && currentSettings['codeCounter.emojis.normal'] !== undefined;
+        
+        if (isSetInCurrentDirectory) {
+            // Don't change the emoji if it's already set in DOM (user just selected it)
+            if (!currentEmojiValue || currentEmojiValue === '?' || currentEmojiValue === parentEmojiValue) {
+                lowEmojiEl.textContent = currentSettings['codeCounter.emojis.normal'];
+            }
+            lowEmojiEl.style.opacity = '1';
+            lowEmojiEl.title = 'Custom value for this directory';
+            if (resetBtn) resetBtn.style.display = 'flex';
         } else {
-            lowEmojiEl.textContent = parentSettings.emojis.normal;
+            lowEmojiEl.textContent = parentEmojiValue;
             lowEmojiEl.style.opacity = '0.6';
             lowEmojiEl.title = 'Inherited from parent settings';
+            if (resetBtn) resetBtn.style.display = 'none';
         }
     }
     
     if (mediumEmojiEl) {
-        if (currentSettings.emojis && currentSettings.emojis.warning !== undefined) {
-            mediumEmojiEl.textContent = currentSettings.emojis.warning;
+        const resetBtn = mediumEmojiEl.querySelector('.emoji-reset-btn');
+        const currentEmojiValue = mediumEmojiEl.textContent ? mediumEmojiEl.textContent.trim() : '';
+        const parentEmojiValue = parentSettings['codeCounter.emojis.warning'];
+        
+        // Only show reset button if this emoji is actually set in the current directory
+        const isSetInCurrentDirectory = currentSettings && currentSettings['codeCounter.emojis.warning'] !== undefined;
+        
+        if (isSetInCurrentDirectory) {
+            // Don't change the emoji if it's already set in DOM (user just selected it)
+            if (!currentEmojiValue || currentEmojiValue === '?' || currentEmojiValue === parentEmojiValue) {
+                mediumEmojiEl.textContent = currentSettings['codeCounter.emojis.warning'];
+            }
+            mediumEmojiEl.style.opacity = '1';
+            mediumEmojiEl.title = 'Custom value for this directory';
+            if (resetBtn) resetBtn.style.display = 'flex';
         } else {
-            mediumEmojiEl.textContent = parentSettings.emojis.warning;
+            mediumEmojiEl.textContent = parentEmojiValue;
             mediumEmojiEl.style.opacity = '0.6';
             mediumEmojiEl.title = 'Inherited from parent settings';
+            if (resetBtn) resetBtn.style.display = 'none';
         }
     }
     
     if (highEmojiEl) {
-        if (currentSettings.emojis && currentSettings.emojis.danger !== undefined) {
-            highEmojiEl.textContent = currentSettings.emojis.danger;
+        const resetBtn = highEmojiEl.querySelector('.emoji-reset-btn');
+        const currentEmojiValue = highEmojiEl.textContent ? highEmojiEl.textContent.trim() : '';
+        const parentEmojiValue = parentSettings['codeCounter.emojis.danger'];
+        
+        // Only show reset button if this emoji is actually set in the current directory
+        const isSetInCurrentDirectory = currentSettings && currentSettings['codeCounter.emojis.danger'] !== undefined;
+        
+        if (isSetInCurrentDirectory) {
+            // Don't change the emoji if it's already set in DOM (user just selected it)
+            if (!currentEmojiValue || currentEmojiValue === '?' || currentEmojiValue === parentEmojiValue) {
+                highEmojiEl.textContent = currentSettings['codeCounter.emojis.danger'];
+            }
+            highEmojiEl.style.opacity = '1';
+            highEmojiEl.title = 'Custom value for this directory';
+            if (resetBtn) resetBtn.style.display = 'flex';
         } else {
-            highEmojiEl.textContent = parentSettings.emojis.danger;
+            highEmojiEl.textContent = parentEmojiValue;
             highEmojiEl.style.opacity = '0.6';
             highEmojiEl.title = 'Inherited from parent settings';
+            if (resetBtn) resetBtn.style.display = 'none';
+        }
+    }
+    
+    // Initialize folder emoji fields
+    const lowFolderEmojiEl = document.querySelector('[data-color-key="low"][data-type="folder"]');
+    const mediumFolderEmojiEl = document.querySelector('[data-color-key="medium"][data-type="folder"]');
+    const highFolderEmojiEl = document.querySelector('[data-color-key="high"][data-type="folder"]');
+    
+    if (lowFolderEmojiEl) {
+        const resetBtn = lowFolderEmojiEl.querySelector('.emoji-reset-btn');
+        const currentEmojiValue = lowFolderEmojiEl.textContent ? lowFolderEmojiEl.textContent.trim() : '';
+        const parentEmojiValue = parentSettings['codeCounter.emojis.folders.normal'];
+        
+        // Only show reset button if this emoji is actually set in the current directory
+        const isSetInCurrentDirectory = currentSettings && currentSettings['codeCounter.emojis.folders.normal'] !== undefined;
+        
+        if (isSetInCurrentDirectory) {
+            // Don't change the emoji if it's already set in DOM (user just selected it)
+            if (!currentEmojiValue || currentEmojiValue === '?' || currentEmojiValue === parentEmojiValue) {
+                lowFolderEmojiEl.textContent = currentSettings['codeCounter.emojis.folders.normal'];
+            }
+            lowFolderEmojiEl.style.opacity = '1';
+            lowFolderEmojiEl.title = 'Custom value for this directory';
+            if (resetBtn) resetBtn.style.display = 'flex';
+        } else {
+            lowFolderEmojiEl.textContent = parentEmojiValue;
+            lowFolderEmojiEl.style.opacity = '0.6';
+            lowFolderEmojiEl.title = 'Inherited from parent settings';
+            if (resetBtn) resetBtn.style.display = 'none';
+        }
+    }
+    
+    if (mediumFolderEmojiEl) {
+        const resetBtn = mediumFolderEmojiEl.querySelector('.emoji-reset-btn');
+        const currentEmojiValue = mediumFolderEmojiEl.textContent ? mediumFolderEmojiEl.textContent.trim() : '';
+        const parentEmojiValue = parentSettings['codeCounter.emojis.folders.warning'];
+        
+        // Only show reset button if this emoji is actually set in the current directory
+        const isSetInCurrentDirectory = currentSettings && currentSettings['codeCounter.emojis.folders.warning'] !== undefined;
+        
+        if (isSetInCurrentDirectory) {
+            // Don't change the emoji if it's already set in DOM (user just selected it)
+            if (!currentEmojiValue || currentEmojiValue === '?' || currentEmojiValue === parentEmojiValue) {
+                mediumFolderEmojiEl.textContent = currentSettings['codeCounter.emojis.folders.warning'];
+            }
+            mediumFolderEmojiEl.style.opacity = '1';
+            mediumFolderEmojiEl.title = 'Custom value for this directory';
+            if (resetBtn) resetBtn.style.display = 'flex';
+        } else {
+            mediumFolderEmojiEl.textContent = parentEmojiValue;
+            mediumFolderEmojiEl.style.opacity = '0.6';
+            mediumFolderEmojiEl.title = 'Inherited from parent settings';
+            if (resetBtn) resetBtn.style.display = 'none';
+        }
+    }
+    
+    if (highFolderEmojiEl) {
+        const resetBtn = highFolderEmojiEl.querySelector('.emoji-reset-btn');
+        const currentEmojiValue = highFolderEmojiEl.textContent ? highFolderEmojiEl.textContent.trim() : '';
+        const parentEmojiValue = parentSettings['codeCounter.emojis.folders.danger'];
+        
+        // Only show reset button if this emoji is actually set in the current directory
+        const isSetInCurrentDirectory = currentSettings && currentSettings['codeCounter.emojis.folders.danger'] !== undefined;
+        
+        if (isSetInCurrentDirectory) {
+            // Don't change the emoji if it's already set in DOM (user just selected it)
+            if (!currentEmojiValue || currentEmojiValue === '?' || currentEmojiValue === parentEmojiValue) {
+                highFolderEmojiEl.textContent = currentSettings['codeCounter.emojis.folders.danger'];
+            }
+            highFolderEmojiEl.style.opacity = '1';
+            highFolderEmojiEl.title = 'Custom value for this directory';
+            if (resetBtn) resetBtn.style.display = 'flex';
+        } else {
+            highFolderEmojiEl.textContent = parentEmojiValue;
+            highFolderEmojiEl.style.opacity = '0.6';
+            highFolderEmojiEl.title = 'Inherited from parent settings';
+            if (resetBtn) resetBtn.style.display = 'none';
         }
     }
     
@@ -493,20 +731,62 @@ function initializeWorkspaceSettings() {
     const dangerThresholdEl = document.getElementById('highThreshold');
     
     if (warningThresholdEl) {
-        if (currentSettings.lineThresholds && currentSettings.lineThresholds.warning !== undefined) {
-            warningThresholdEl.value = currentSettings.lineThresholds.warning;
+        const resetBtn = document.querySelector('button[onclick*="resetField(event, \'threshold\', \'warning\')"]');
+        const currentValue = warningThresholdEl.value;
+        const parentValue = parentSettings['codeCounter.lineThresholds.midThreshold'];
+        
+        // Only show reset button if this threshold is actually set in the current directory
+        const isSetInCurrentDirectory = currentSettings && currentSettings['codeCounter.lineThresholds.midThreshold'] !== undefined;
+        
+        if (isSetInCurrentDirectory) {
+            // Don't change the value if it's already set in DOM (user just typed it)
+            if (!currentValue || currentValue.trim() === '') {
+                warningThresholdEl.value = currentSettings['codeCounter.lineThresholds.midThreshold'];
+            }
+            if (resetBtn) resetBtn.style.display = 'flex';
         } else {
             warningThresholdEl.value = '';
-            warningThresholdEl.placeholder = `${parentSettings.lineThresholds.warning} (inherited)`;
+            warningThresholdEl.placeholder = `${parentValue}`;
+            if (resetBtn) resetBtn.style.display = 'none';
         }
     }
     
     if (dangerThresholdEl) {
-        if (currentSettings.lineThresholds && currentSettings.lineThresholds.danger !== undefined) {
-            dangerThresholdEl.value = currentSettings.lineThresholds.danger;
+        const resetBtn = document.querySelector('button[onclick*="resetField(event, \'threshold\', \'danger\')"]');
+        const currentValue = dangerThresholdEl.value;
+        const parentValue = parentSettings['codeCounter.lineThresholds.highThreshold'];
+        
+        // Only show reset button if this threshold is actually set in the current directory
+        const isSetInCurrentDirectory = currentSettings && currentSettings['codeCounter.lineThresholds.highThreshold'] !== undefined;
+        
+        if (isSetInCurrentDirectory) {
+            // Don't change the value if it's already set in DOM (user just typed it)
+            if (!currentValue || currentValue.trim() === '') {
+                dangerThresholdEl.value = currentSettings['codeCounter.lineThresholds.highThreshold'];
+            }
+            if (resetBtn) resetBtn.style.display = 'flex';
         } else {
             dangerThresholdEl.value = '';
-            dangerThresholdEl.placeholder = `${parentSettings.lineThresholds.danger} (inherited)`;
+            dangerThresholdEl.placeholder = `${parentValue}`;
+            if (resetBtn) resetBtn.style.display = 'none';
+        }
+    }
+    
+    // Initialize exclude patterns reset button visibility
+    if (window.workspaceData && window.workspaceData.currentSettings && window.workspaceData.parentSettings) {
+        const currentSettings = window.workspaceData.currentSettings;
+        const parentSettings = window.workspaceData.parentSettings;
+        
+        // Check if exclude patterns are set in current directory
+        const isSetInCurrentDirectory = currentSettings && currentSettings['codeCounter.excludePatterns'] !== undefined;
+        const resetBtn = document.querySelector('button[onclick*="resetField"][onclick*="excludePatterns"]');
+        
+        if (resetBtn) {
+            if (isSetInCurrentDirectory) {
+                resetBtn.style.display = 'flex';
+            } else {
+                resetBtn.style.display = 'none';
+            }
         }
     }
 }
@@ -514,10 +794,13 @@ function initializeWorkspaceSettings() {
 // Update visual styling based on workspace vs sub-workspace
 function updateWorkspaceVisualMode() {
     const emojiContainer = document.getElementById('emojiSectionsContainer');
-    if (!emojiContainer || !window.workspaceData) return;
+    const dynamicHeader = document.getElementById('dynamicWorkspaceHeader');
+    
+    if (!emojiContainer || !dynamicHeader || !window.workspaceData) return;
     
     // Remove existing classes
     emojiContainer.classList.remove('workspace-root', 'sub-workspace');
+    dynamicHeader.classList.remove('workspace-root', 'sub-workspace');
     
     const currentDir = window.workspaceData.currentDirectory;
     const workspacePath = window.workspaceData.workspacePath;
@@ -525,29 +808,40 @@ function updateWorkspaceVisualMode() {
     if (currentDir === '<workspace>' || currentDir === workspacePath) {
         // Root workspace settings
         emojiContainer.classList.add('workspace-root');
+        dynamicHeader.classList.add('workspace-root');
+        dynamicHeader.textContent = '📁 Workspace Root Settings';
+        dynamicHeader.style.display = 'flex';
     } else {
-        // Sub-workspace settings
+        // Sub-workspace settings - show relative path
         emojiContainer.classList.add('sub-workspace');
+        dynamicHeader.classList.add('sub-workspace');
+        
+        // Calculate relative path from workspace root
+        let relativePath = currentDir;
+        if (workspacePath && currentDir.startsWith(workspacePath)) {
+            // Remove workspace path prefix and leading slash/backslash
+            relativePath = currentDir.substring(workspacePath.length).replace(/^[\\\/]/, '');
+        }
+        
+        dynamicHeader.textContent = `📂 Sub-workspace Settings: ${relativePath}`;
+        dynamicHeader.style.display = 'flex';
     }
 }
 
 // Reset visual styling when not in workspace mode
 function resetWorkspaceVisualMode() {
     const emojiContainer = document.getElementById('emojiSectionsContainer');
+    const dynamicHeader = document.getElementById('dynamicWorkspaceHeader');
+    
     if (emojiContainer) {
         emojiContainer.classList.remove('workspace-root', 'sub-workspace');
     }
-}
-
-// Reset field to parent value
-function resetField(fieldPath) {
-    if (!window.workspaceData) return;
     
-    vscode.postMessage({
-        command: 'resetWorkspaceField',
-        field: fieldPath,
-        directory: window.workspaceData.currentDirectory
-    });
+    if (dynamicHeader) {
+        dynamicHeader.classList.remove('workspace-root', 'sub-workspace');
+        dynamicHeader.style.display = 'none';
+        dynamicHeader.textContent = '';
+    }
 }
 
 // Workspace settings functions
@@ -559,7 +853,11 @@ function createWorkspaceSettings() {
 
 function selectDirectory(directoryPath) {
     // Check if current directory has empty settings before changing
-    if (window.workspaceData && window.workspaceData.currentDirectory !== '<global>' && window.workspaceData.currentDirectory !== directoryPath) {
+    // Skip empty settings check when switching TO global mode
+    if (window.workspaceData && 
+        window.workspaceData.currentDirectory !== '<global>' && 
+        window.workspaceData.currentDirectory !== directoryPath &&
+        directoryPath !== '<global>') {
         checkEmptySettingsBeforeChange(directoryPath);
     } else {
         // No need to check, proceed with directory change
@@ -589,13 +887,12 @@ function proceedWithDirectoryChange(directoryPath) {
         window.workspaceData.currentDirectory = directoryPath;
         
         const workspaceModeIndicator = document.getElementById('workspaceModeIndicator');
-        if (window.workspaceData && previousDirectory === '<workspace>') {
+        if (directoryPath === '<global>') {
             document.body.classList.remove('workspace-mode');
             if (workspaceModeIndicator) {
                 workspaceModeIndicator.style.display = 'none';
             }
             resetWorkspaceVisualMode();
-            selectDirectory('<global>');
         } else {
             document.body.classList.add('workspace-mode');
             if (workspaceModeIndicator) {
@@ -680,49 +977,111 @@ function saveWorkspaceSettings() {
     });
 }
 
-function resetField(fieldType, fieldKey) {
+function resetField(event, fieldType, fieldKey) {
+    // Prevent the click from bubbling up to the parent emoji container
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    
     // Reset a specific field to inherit from parent
     if (window.workspaceData && window.workspaceData.currentDirectory !== '<global>') {
-        const settings = {};
+        let fieldPath;
         
         if (fieldType === 'threshold') {
-            settings.lineThresholds = {};
             if (fieldKey === 'warning') {
-                // Remove warning threshold to inherit
+                fieldPath = 'lineThresholds.midThreshold';
+                // Update UI to show it's been reset
                 const input = document.getElementById('midThreshold');
-                if (input) {
+                if (input && window.workspaceData && window.workspaceData.parentSettings) {
+                    const parentValue = window.workspaceData.parentSettings['codeCounter.lineThresholds.midThreshold'];
                     input.value = '';
-                    input.placeholder = 'Inherited';
+                    input.placeholder = `${parentValue}`;
                 }
+                // Hide the reset button since we're now inheriting
+                const resetBtn = document.querySelector('button[onclick*="resetField(event, \'threshold\', \'warning\')"]');
+                if (resetBtn) resetBtn.style.display = 'none';
             } else if (fieldKey === 'danger') {
-                // Remove danger threshold to inherit
+                fieldPath = 'lineThresholds.highThreshold';
+                // Update UI to show it's been reset
                 const input = document.getElementById('highThreshold');
-                if (input) {
+                if (input && window.workspaceData && window.workspaceData.parentSettings) {
+                    const parentValue = window.workspaceData.parentSettings['codeCounter.lineThresholds.highThreshold'];
                     input.value = '';
-                    input.placeholder = 'Inherited';
+                    input.placeholder = `${parentValue}`;
                 }
+                // Hide the reset button since we're now inheriting
+                const resetBtn = document.querySelector('button[onclick*="resetField(event, \'threshold\', \'danger\')"]');
+                if (resetBtn) resetBtn.style.display = 'none';
             }
         } else if (fieldType === 'emoji') {
-            settings.emojis = {};
-            const emojiDisplay = document.querySelector(`[data-color-key="${fieldKey}"][data-type="file"]`);
-            if (emojiDisplay) {
-                emojiDisplay.textContent = '?'; // Show as unset
+            // Map field keys to config paths
+            const emojiKeyMap = {
+                'low': 'normal',
+                'medium': 'warning',
+                'high': 'danger'
+            };
+            fieldPath = `emojis.${emojiKeyMap[fieldKey]}`;
+            
+            // Update UI to show it's been reset to inherited state
+            const fileEmojiDisplay = document.querySelector(`[data-color-key="${fieldKey}"][data-type="file"]`);
+            if (fileEmojiDisplay && window.workspaceData && window.workspaceData.parentSettings) {
+                const parentEmojiValue = window.workspaceData.parentSettings[`codeCounter.emojis.${emojiKeyMap[fieldKey]}`];
+                
+                // Display parent emoji with inherited styling
+                fileEmojiDisplay.textContent = parentEmojiValue || '❓';
+                fileEmojiDisplay.style.opacity = '0.6';
+                fileEmojiDisplay.title = 'Inherited from parent settings';
+                
+                // Hide the reset button since we're now inheriting
+                const resetBtn = fileEmojiDisplay.querySelector('.emoji-reset-btn');
+                if (resetBtn) resetBtn.style.display = 'none';
             }
+        } else if (fieldType === 'folderEmoji') {
+            // Map field keys to config paths for folder emojis
+            const emojiKeyMap = {
+                'low': 'normal',
+                'medium': 'warning', 
+                'high': 'danger'
+            };
+            fieldPath = `emojis.folders.${emojiKeyMap[fieldKey]}`;
+            
+            // Update UI to show it's been reset to inherited state
+            const folderEmojiDisplay = document.querySelector(`[data-color-key="${fieldKey}"][data-type="folder"]`);
+            if (folderEmojiDisplay && window.workspaceData && window.workspaceData.parentSettings) {
+                const parentEmojiValue = window.workspaceData.parentSettings[`codeCounter.emojis.folders.${emojiKeyMap[fieldKey]}`];
+                
+                // Display parent emoji with inherited styling
+                folderEmojiDisplay.textContent = parentEmojiValue || '❓';
+                folderEmojiDisplay.style.opacity = '0.6';
+                folderEmojiDisplay.title = 'Inherited from parent settings';
+                
+                // Hide the reset button since we're now inheriting
+                const resetBtn = folderEmojiDisplay.querySelector('.emoji-reset-btn');
+                if (resetBtn) resetBtn.style.display = 'none';
+            }
+        } else if (fieldType === 'excludePatterns') {
+            fieldPath = 'excludePatterns';
+            
+            // Clear the exclude patterns UI and hide reset button
+            const patternsContainer = document.querySelector('.glob-patterns-container');
+            if (patternsContainer) {
+                patternsContainer.innerHTML = '';
+            }
+            
+            // Hide the reset button since we're now inheriting
+            const resetBtn = document.querySelector('button[onclick*="resetField"][title*="Reset to parent settings"]');
+            if (resetBtn) resetBtn.style.display = 'none';
         }
         
-        // Save the settings with the removed field
-        let directoryPath = window.workspaceData.currentDirectory;
-        if (directoryPath === window.workspaceData.workspacePath) {
-            directoryPath = '<workspace>';
-        } else if (directoryPath !== '<global>') {
-            directoryPath = directoryPath.replace(window.workspaceData.workspacePath, '').replace(/^[\\\/]/, '');
+        if (fieldPath) {
+            // Use the resetWorkspaceField command to remove just this field
+            vscode.postMessage({
+                command: 'resetWorkspaceField',
+                field: fieldPath,
+                directory: window.workspaceData.currentDirectory
+            });
         }
-        
-        vscode.postMessage({
-            command: 'saveWorkspaceSettings',
-            directoryPath: directoryPath,
-            settings: settings
-        });
     }
 }
 

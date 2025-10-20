@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { LineCountCacheService, CachedLineCount } from '../services/lineCountCache';
 import { lineThresholdService } from '../services/lineThresholdService';
+import { PathBasedSettingsService } from '../services/pathBasedSettingsService';
+import { WorkspaceSettingsService } from '../services/workspaceSettingsService';
 import { GlobUtils } from '../utils/globUtils';
 
 export class FileExplorerDecorationProvider implements vscode.FileDecorationProvider {
@@ -9,10 +11,12 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     readonly onDidChangeFileDecorations: vscode.Event<vscode.Uri | vscode.Uri[] | undefined> = this._onDidChangeFileDecorations.event;
 
     private lineCountCache: LineCountCacheService;
+    private pathBasedSettings: PathBasedSettingsService;
     private disposables: vscode.Disposable[] = [];
 
     constructor() {
         this.lineCountCache = new LineCountCacheService();
+        this.pathBasedSettings = new PathBasedSettingsService();
         this.setupConfigurationWatcher();
     }
 
@@ -35,9 +39,13 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
         // Listen for file saves to refresh decorations
         const saveWatcher = vscode.workspace.onDidSaveTextDocument(document => {
+            console.log('File saved:', document.uri.fsPath);
+            // Invalidate cache for parent folders since their statistics may have changed
+            this.lineCountCache.invalidateFolderCache(document.uri.fsPath);
             // Fire change event for the specific file to refresh its decoration
-            // The cache will be automatically invalidated when the decoration is re-rendered
             this._onDidChangeFileDecorations.fire(document.uri);
+            // Also refresh parent folders since their totals may have changed
+            this.refreshParentFolders(document.uri);
         });
         this.disposables.push(saveWatcher);
 
@@ -63,6 +71,28 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         });
 
         this.disposables.push(fileWatcher, onFileCreate, onFileDelete);
+
+        // Listen for workspace settings changes (.code-counter.json file saves)
+        const workspaceSettingsWatcher = WorkspaceSettingsService.onDidChangeSettings((event) => {
+            console.log('Workspace settings changed:', event.configFilePath);
+            // Clear cache since settings (emojis, thresholds, excludes) may have changed
+            // Settings changes can affect inheritance throughout the directory tree
+            this.lineCountCache.clearCache();
+            
+            // Refresh the specific directory that changed
+            const changedDirectoryUri = vscode.Uri.file(event.directoryPath);
+            this._onDidChangeFileDecorations.fire(changedDirectoryUri);
+            
+            // Also refresh all parent directories up to workspace root since inheritance affects them
+            this.refreshParentDirectoriesForWorkspaceChange(changedDirectoryUri);
+            
+            // Refresh immediate files in the changed directory
+            this.refreshImmediateChildrenForWorkspaceChange(changedDirectoryUri);
+            
+            // Additionally refresh all subdirectories and their contents since they inherit from this directory
+            this.refreshSubdirectoriesForWorkspaceChange(changedDirectoryUri);
+        });
+        this.disposables.push(workspaceSettingsWatcher);
     }
 
     private refreshParentFolders(uri: vscode.Uri): void {
@@ -83,6 +113,105 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                 console.log('Refreshing ancestor folder:', currentParent.fsPath);
                 this._onDidChangeFileDecorations.fire(currentParent);
             }
+        }
+    }
+
+    private refreshParentDirectoriesForWorkspaceChange(changedDirectoryUri: vscode.Uri): void {
+        // Get the parent directory and refresh its decoration
+        const parent = vscode.Uri.file(path.dirname(changedDirectoryUri.fsPath));
+        
+        // Only refresh if parent is within workspace
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(parent);
+        if (workspaceFolder && parent.fsPath !== changedDirectoryUri.fsPath) {
+            console.log('Refreshing parent directory for workspace change:', parent.fsPath);
+            this._onDidChangeFileDecorations.fire(parent);
+            
+            // Recursively refresh parent directories up to workspace root
+            let currentParent = parent;
+            while (currentParent.fsPath !== workspaceFolder.uri.fsPath && 
+                   currentParent.fsPath !== path.dirname(currentParent.fsPath)) {
+                currentParent = vscode.Uri.file(path.dirname(currentParent.fsPath));
+                if (currentParent.fsPath !== workspaceFolder.uri.fsPath) {
+                    console.log('Refreshing ancestor directory for workspace change:', currentParent.fsPath);
+                    this._onDidChangeFileDecorations.fire(currentParent);
+                }
+            }
+            
+            // Also refresh the workspace root itself
+            console.log('Refreshing workspace root for workspace change:', workspaceFolder.uri.fsPath);
+            this._onDidChangeFileDecorations.fire(workspaceFolder.uri);
+        }
+    }
+
+    private async refreshImmediateChildrenForWorkspaceChange(changedDirectoryUri: vscode.Uri): Promise<void> {
+        try {
+            console.log('Refreshing immediate children for workspace settings change:', changedDirectoryUri.fsPath);
+            
+            // Read the immediate children of the changed directory
+            const entries = await vscode.workspace.fs.readDirectory(changedDirectoryUri);
+            
+            for (const [name, type] of entries) {
+                const childUri = vscode.Uri.joinPath(changedDirectoryUri, name);
+                console.log('Refreshing immediate child:', childUri.fsPath, type === vscode.FileType.Directory ? '(directory)' : '(file)');
+                this._onDidChangeFileDecorations.fire(childUri);
+            }
+        } catch (error) {
+            console.warn('Error refreshing immediate children for workspace change:', error);
+        }
+    }
+
+    private async refreshSubdirectoriesForWorkspaceChange(changedDirectoryUri: vscode.Uri): Promise<void> {
+        try {
+            console.log('Refreshing all children for workspace settings change:', changedDirectoryUri.fsPath);
+            
+            const workspaceFolder = vscode.workspace.getWorkspaceFolder(changedDirectoryUri);
+            if (!workspaceFolder) {
+                return;
+            }
+
+            // Find ALL files under the changed directory (not just directories)
+            const pattern = new vscode.RelativePattern(changedDirectoryUri, '**/*');
+            const allFiles = await vscode.workspace.findFiles(pattern, null, 1000); // Increased limit for better coverage
+
+            // Track unique directories to avoid duplicate refreshes
+            const uniqueDirectories = new Set<string>();
+            
+            // Refresh all files found
+            for (const fileUri of allFiles) {
+                console.log('Refreshing file for workspace change:', fileUri.fsPath);
+                this._onDidChangeFileDecorations.fire(fileUri);
+                
+                // Also collect unique parent directories of these files
+                let currentDir = path.dirname(fileUri.fsPath);
+                while (currentDir !== changedDirectoryUri.fsPath && 
+                       currentDir.startsWith(changedDirectoryUri.fsPath) && 
+                       currentDir !== path.dirname(currentDir)) {
+                    uniqueDirectories.add(currentDir);
+                    currentDir = path.dirname(currentDir);
+                }
+            }
+
+            // Refresh all unique directories found
+            for (const dirPath of uniqueDirectories) {
+                console.log('Refreshing directory for workspace change:', dirPath);
+                this._onDidChangeFileDecorations.fire(vscode.Uri.file(dirPath));
+            }
+
+            // Also explicitly refresh the immediate children of the changed directory
+            // This catches empty directories that might not have files
+            try {
+                const entries = await vscode.workspace.fs.readDirectory(changedDirectoryUri);
+                for (const [name, type] of entries) {
+                    const childUri = vscode.Uri.joinPath(changedDirectoryUri, name);
+                    console.log('Refreshing immediate child for workspace change:', childUri.fsPath);
+                    this._onDidChangeFileDecorations.fire(childUri);
+                }
+            } catch (readDirError) {
+                console.warn('Could not read directory for immediate children refresh:', readDirError);
+            }
+
+        } catch (error) {
+            console.warn('Error refreshing subdirectories for workspace change:', error);
         }
     }
 
@@ -117,7 +246,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     private async provideFileDecorationForFile(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {
 
         // Skip certain file types
-        if (this.shouldSkipFile(uri.fsPath)) {
+        if (await this.shouldSkipFile(uri.fsPath)) {
             return undefined;
         }
 
@@ -127,15 +256,15 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                 return undefined;
             }
 
-            // Get the color classification for this line count
-            const threshold = lineThresholdService.getColorThreshold(lineCount.lines);
+            // Get the color classification for this line count using path-based settings
+            const threshold = await this.pathBasedSettings.getColorThresholdForPath(lineCount.lines, uri.fsPath);
             const coloredTooltip = this.createColoredTooltip(uri.fsPath, lineCount);
             
             // Use different colored icons based on line count thresholds
             let badge = '●';
             
-            // Get custom emojis from configuration
-            const emoji = lineThresholdService.getThemeEmoji(threshold);
+            // Get custom emojis from path-based configuration
+            const emoji = await this.pathBasedSettings.getThemeEmojiForPath(threshold, uri.fsPath);
             
             switch (threshold) {
                 case 'normal':
@@ -162,7 +291,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         }
     }
 
-    private shouldSkipFile(filePath: string): boolean {
+    private async shouldSkipFile(filePath: string): Promise<boolean> {
         const ext = path.extname(filePath).toLowerCase();
         
         // Skip binary files that don't make sense to count
@@ -174,9 +303,8 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             return true;
         }
 
-        // Check against user-configured exclusion patterns
-        const config = vscode.workspace.getConfiguration('codeCounter');
-        const excludePatterns = config.get<string[]>('excludePatterns', []);
+        // Check against path-based exclusion patterns
+        const excludePatterns = await this.pathBasedSettings.getExcludePatternsForPath(filePath);
         const relativePath = vscode.workspace.asRelativePath(filePath);
         
         for (const pattern of excludePatterns) {
@@ -199,13 +327,13 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                 return undefined;
             }
 
-            // Get average emoji (left side - folder emojis)
-            const avgThreshold = lineThresholdService.getColorThreshold(folderStats.averageLines);
-            const avgEmoji = this.getFolderEmoji(avgThreshold);
+            // Get average emoji (left side - folder emojis) using path-based settings
+            const avgThreshold = await this.pathBasedSettings.getColorThresholdForPath(folderStats.averageLines, uri.fsPath);
+            const avgEmoji = await this.pathBasedSettings.getFolderEmojiForPath(avgThreshold, uri.fsPath);
             
-            // Get max emoji (right side - file emojis)  
-            const maxThreshold = lineThresholdService.getColorThreshold(folderStats.maxLines);
-            const maxEmoji = lineThresholdService.getThemeEmoji(maxThreshold);
+            // Get max emoji (right side - file emojis) using path-based settings 
+            const maxThreshold = await this.pathBasedSettings.getColorThresholdForPath(folderStats.maxLines, folderStats.maxFilePath);
+            const maxEmoji = await this.pathBasedSettings.getThemeEmojiForPath(maxThreshold, folderStats.maxFilePath);
 
             // Use the higher threshold for the overall color
             const overallThreshold = folderStats.maxLines > folderStats.averageLines ? maxThreshold : avgThreshold;
@@ -230,20 +358,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         }
     }
 
-    private getFolderEmoji(threshold: string): string {
-        const config = vscode.workspace.getConfiguration('codeCounter.emojis.folders');
-        
-        switch (threshold) {
-            case 'normal':
-                return config.get<string>('normal', '🟩');
-            case 'warning':
-                return config.get<string>('warning', '🟨');
-            case 'danger':
-                return config.get<string>('danger', '🟥');
-            default:
-                return '⬜'; // White square for unknown
-        }
-    }
+
 
     private async calculateFolderStats(folderPath: string): Promise<{
         fileCount: number;
@@ -253,8 +368,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     } | undefined> {
         try {
             console.log('Calculating folder stats for:', folderPath);
-            const config = vscode.workspace.getConfiguration('codeCounter');
-            const excludePatterns = config.get<string[]>('excludePatterns', []);
+            const excludePatterns = await this.pathBasedSettings.getExcludePatternsForPath(folderPath);
 
             // Get all files in folder (limit depth to prevent timeout)
             const files = await this.getAllFilesInFolder(folderPath, excludePatterns, 2); // Max 2 levels deep
@@ -271,7 +385,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             let maxFilePath = '';
 
             for (const filePath of limitedFiles) {
-                if (this.shouldSkipFile(filePath)) {
+                if (await this.shouldSkipFile(filePath)) {
                     continue;
                 }
 

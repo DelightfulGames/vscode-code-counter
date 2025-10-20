@@ -2,15 +2,19 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { LineCountCacheService, CachedLineCount } from '../services/lineCountCache';
 import { lineThresholdService } from '../services/lineThresholdService';
+import { PathBasedSettingsService } from '../services/pathBasedSettingsService';
+import { WorkspaceSettingsService } from '../services/workspaceSettingsService';
 
 export class EditorTabDecorationProvider {
     private lineCountCache: LineCountCacheService;
+    private pathBasedSettings: PathBasedSettingsService;
     private disposables: vscode.Disposable[] = [];
     private statusBarItem: vscode.StatusBarItem;
     private currentDocument: vscode.TextDocument | undefined;
 
     constructor() {
         this.lineCountCache = new LineCountCacheService();
+        this.pathBasedSettings = new PathBasedSettingsService();
         this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         
         this.setupEventListeners();
@@ -39,7 +43,13 @@ export class EditorTabDecorationProvider {
             }
         });
 
-        this.disposables.push(configWatcher, editorWatcher, documentSaveWatcher);
+        // Listen for workspace settings changes (.code-counter.json file saves)
+        const workspaceSettingsWatcher = WorkspaceSettingsService.onDidChangeSettings((event) => {
+            console.log('Workspace settings changed - updating status bar:', event.configFilePath);
+            this.updateStatusBar();
+        });
+
+        this.disposables.push(configWatcher, editorWatcher, documentSaveWatcher, workspaceSettingsWatcher);
 
         // Initialize with current editor
         if (vscode.window.activeTextEditor) {
@@ -62,7 +72,7 @@ export class EditorTabDecorationProvider {
             }
 
             const fileName = path.basename(this.currentDocument.uri.fsPath);
-            const { text: formattedCount, emoji } = lineThresholdService.getStatusBarText(lineCount.lines);
+            const { text: formattedCount, emoji } = await this.pathBasedSettings.getStatusBarTextForPath(lineCount.lines, this.currentDocument.uri.fsPath);
             
             // Different display based on mode
             this.statusBarItem.text = `${emoji} ${formattedCount}`;

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2025-10-20
+
+### Added
+- **🏗️ Hierarchical Workspace Settings**: Revolutionary directory-specific configuration system
+  - **Nearest-Ancestor Inheritance**: Child directories inherit from their closest parent with settings
+  - **Copy-Then-Modify Pattern Management**: Add/remove exclusion patterns with automatic inheritance
+  - **Visual Directory Tree**: Interactive browser with settings indicators and inheritance chain display
+  - **Workspace Context Preservation**: Settings maintain directory context across operations
+  - **Reset to Parent**: Restore individual fields to inherited values with one click
+  - **Smart Pattern Operations**: Context-aware pattern addition and removal
+- **Enhanced Emoji Management**: Extended emoji picker with workspace-aware customization
+- **Visual Indicators**: Directory tree shows which folders have custom configurations
+- **Pattern Source Tracking**: See where each exclusion pattern originates (global/workspace/directory)
+
+### Technical Improvements
+- **WorkspaceSettingsService**: Complete rewrite with inheritance logic and caching
+- **PathBasedSettingsService**: Enhanced for hierarchical configuration resolution  
+- **Directory Tree Builder**: Interactive tree with settings state visualization
+- **Pattern Management API**: Context-aware operations with inheritance awareness
+- **Comprehensive Test Suite**: 160+ tests covering inheritance scenarios and edge cases
+
+### Use Cases
+- **Monorepos**: Different coding standards for frontend/backend/shared components
+- **Legacy Projects**: Gradual migration with relaxed rules for older code
+- **Team Collaboration**: Department-specific standards within the same project
+- **Third-party Integration**: Stricter rules for vendor/external directories
+
 ## [0.11.1] - 2025-10-16
 
 ### Fixed

@@ -2,6 +2,35 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+// Event payload for workspace settings changes
+export interface WorkspaceSettingsChangeEvent {
+    directoryPath: string;
+    configFilePath: string;
+    timestamp: number;
+}
+
+// Shared event emitter for workspace settings changes across all instances
+class WorkspaceSettingsEvents {
+    private static instance: WorkspaceSettingsEvents;
+    private _onDidChangeSettings: vscode.EventEmitter<WorkspaceSettingsChangeEvent> = new vscode.EventEmitter<WorkspaceSettingsChangeEvent>();
+    readonly onDidChangeSettings: vscode.Event<WorkspaceSettingsChangeEvent> = this._onDidChangeSettings.event;
+    
+    static getInstance(): WorkspaceSettingsEvents {
+        if (!WorkspaceSettingsEvents.instance) {
+            WorkspaceSettingsEvents.instance = new WorkspaceSettingsEvents();
+        }
+        return WorkspaceSettingsEvents.instance;
+    }
+    
+    fireSettingsChanged(directoryPath: string, configFilePath: string): void {
+        this._onDidChangeSettings.fire({
+            directoryPath,
+            configFilePath,
+            timestamp: Date.now()
+        });
+    }
+}
+
 export interface WorkspaceSettings {
     'codeCounter.lineThresholds.midThreshold'?: number;
     'codeCounter.lineThresholds.highThreshold'?: number;
@@ -37,14 +66,21 @@ export interface WorkspaceData {
     currentSettings?: WorkspaceSettings | null;
     parentSettings?: ResolvedSettings;
     workspacePath?: string; 
+    patternsWithSources?: Array<{ pattern: string; source: string; level: 'global' | 'workspace' | 'directory' }>;
 }
 
 export class WorkspaceSettingsService {
     private static readonly CONFIG_FILE_NAME = '.code-counter.json';
     private workspacePath: string;
+    private static events = WorkspaceSettingsEvents.getInstance();
 
     constructor(workspacePath: string) {
         this.workspacePath = workspacePath;
+    }
+
+    // Static getter for global event access
+    static get onDidChangeSettings(): vscode.Event<WorkspaceSettingsChangeEvent> {
+        return WorkspaceSettingsService.events.onDidChangeSettings;
     }
 
     /**
@@ -61,10 +97,10 @@ export class WorkspaceSettingsService {
             'codeCounter.emojis.normal': globalSettings['codeCounter.emojis.normal'] ?? '🟢',
             'codeCounter.emojis.warning': globalSettings['codeCounter.emojis.warning'] ?? '🟡',
             'codeCounter.emojis.danger': globalSettings['codeCounter.emojis.danger'] ?? '🔴',
-            'codeCounter.emojis.folders.normal': globalSettings['codeCounter.emojis.folders.normal'] ?? '�',
-            'codeCounter.emojis.folders.warning': globalSettings['codeCounter.emojis.folders.warning'] ?? '�',
-            'codeCounter.emojis.folders.danger': globalSettings['codeCounter.emojis.folders.danger'] ?? '�',
-            'codeCounter.excludePatterns': globalSettings['codeCounter.excludePatterns'] ?? [
+            'codeCounter.emojis.folders.normal': globalSettings['codeCounter.emojis.folders.normal'] ?? '🟩',
+            'codeCounter.emojis.folders.warning': globalSettings['codeCounter.emojis.folders.warning'] ?? '🟨',
+            'codeCounter.emojis.folders.danger': globalSettings['codeCounter.emojis.folders.danger'] ?? '🟥',
+            'codeCounter.excludePatterns': [...(globalSettings['codeCounter.excludePatterns'] ?? [
                 '**/node_modules/**',
                 '**/out/**',
                 '**/bin/**', 
@@ -74,12 +110,15 @@ export class WorkspaceSettingsService {
                 '**/*.vsix',
                 '**/.code-counter.json',
                 '**/**-lock.json'
-            ],
+            ])],
             'codeCounter.showNotificationOnAutoGenerate': globalSettings['codeCounter.showNotificationOnAutoGenerate'] ?? false,
             source: 'global'
         };
 
         // Apply settings from closest parent with .code-counter.json
+        // For excludePatterns, we want to use the nearest ancestor that defines it, not merge
+        let excludePatternsFound = false;
+        
         for (const { settings, source } of settingsChain.reverse()) {
             // Apply each setting if it exists in the workspace settings
             if (settings['codeCounter.lineThresholds.midThreshold'] !== undefined) {
@@ -106,8 +145,10 @@ export class WorkspaceSettingsService {
             if (settings['codeCounter.emojis.folders.danger'] !== undefined) {
                 resolved['codeCounter.emojis.folders.danger'] = settings['codeCounter.emojis.folders.danger'];
             }
-            if (settings['codeCounter.excludePatterns'] !== undefined) {
-                resolved['codeCounter.excludePatterns'] = settings['codeCounter.excludePatterns'];
+            // For excludePatterns, only use the first (nearest) ancestor that defines it
+            if (!excludePatternsFound && settings['codeCounter.excludePatterns'] !== undefined) {
+                resolved['codeCounter.excludePatterns'] = [...settings['codeCounter.excludePatterns']];
+                excludePatternsFound = true;
             }
             if (settings['codeCounter.showNotificationOnAutoGenerate'] !== undefined) {
                 resolved['codeCounter.showNotificationOnAutoGenerate'] = settings['codeCounter.showNotificationOnAutoGenerate'];
@@ -155,10 +196,10 @@ export class WorkspaceSettingsService {
                 'codeCounter.emojis.normal': globalSettings['codeCounter.emojis.normal'] ?? '🟢',
                 'codeCounter.emojis.warning': globalSettings['codeCounter.emojis.warning'] ?? '🟡',
                 'codeCounter.emojis.danger': globalSettings['codeCounter.emojis.danger'] ?? '🔴',
-                'codeCounter.emojis.folders.normal': globalSettings['codeCounter.emojis.folders.normal'] ?? '�',
-                'codeCounter.emojis.folders.warning': globalSettings['codeCounter.emojis.folders.warning'] ?? '�',
+                'codeCounter.emojis.folders.normal': globalSettings['codeCounter.emojis.folders.normal'] ?? '🟩',
+                'codeCounter.emojis.folders.warning': globalSettings['codeCounter.emojis.folders.warning'] ?? '🟨',
                 'codeCounter.emojis.folders.danger': globalSettings['codeCounter.emojis.folders.danger'] ?? '🟥',
-                'codeCounter.excludePatterns': globalSettings['codeCounter.excludePatterns'] ?? [
+                'codeCounter.excludePatterns': [...(globalSettings['codeCounter.excludePatterns'] ?? [
                     '**/node_modules/**',
                     '**/out/**',
                     '**/bin/**', 
@@ -168,7 +209,7 @@ export class WorkspaceSettingsService {
                     '**/*.vsix',
                     '**/.code-counter.json',
                     '**/**-lock.json'
-                ],
+                ])],
                 'codeCounter.showNotificationOnAutoGenerate': globalSettings['codeCounter.showNotificationOnAutoGenerate'] ?? false,
                 source: 'global'
             };
@@ -236,21 +277,29 @@ export class WorkspaceSettingsService {
     }
 
     /**
-     * Create or update workspace settings file
+     * Save workspace settings to a specific directory
+     * Creates .code-counter.json file on-demand when settings are provided
      */
-    async saveWorkspaceSettings(directoryPath: string, settings: WorkspaceSettings, skipCleanup: boolean = false): Promise<void> {
+    async saveWorkspaceSettings(directoryPath: string, settings: WorkspaceSettings): Promise<void> {
         const configPath = path.join(directoryPath, WorkspaceSettingsService.CONFIG_FILE_NAME);
         
         // Remove undefined values to keep file clean
         const cleanSettings = this.cleanSettings(settings);
         
-        // If all settings are empty and cleanup is not skipped, delete the file
-        if (!skipCleanup && this.isEmptySettings(cleanSettings)) {
-            await this.deleteSettingsFile(configPath);
-            return;
+        // Check if cleaned settings result in an empty object
+        if (Object.keys(cleanSettings).length === 0) {
+            // If empty, delete the file instead of creating an empty one
+            if (await this.fileExists(configPath)) {
+                await this.deleteSettingsFile(configPath);
+            }
+            // Note: If file doesn't exist and settings are empty, no action needed
+        } else {
+            // Write the file with the cleaned settings
+            await fs.promises.writeFile(configPath, JSON.stringify(cleanSettings, null, 2), 'utf8');
+            
+            // Fire event to notify decorators that settings changed
+            WorkspaceSettingsService.events.fireSettingsChanged(directoryPath, configPath);
         }
-
-        await fs.promises.writeFile(configPath, JSON.stringify(cleanSettings, null, 2), 'utf8');
     }
 
     /**
@@ -259,6 +308,35 @@ export class WorkspaceSettingsService {
     async deleteSettingsFile(configPath: string): Promise<void> {
         if (await this.fileExists(configPath)) {
             await fs.promises.unlink(configPath);
+            
+            // Fire event to notify decorators that settings file was deleted
+            const directoryPath = path.dirname(configPath);
+            WorkspaceSettingsService.events.fireSettingsChanged(directoryPath, configPath);
+        }
+    }
+
+    /**
+     * Clean up empty settings files in workspace
+     * Call this when webview closes to remove any empty .code-counter.json files
+     */
+    async cleanupEmptySettingsFiles(): Promise<void> {
+        const directoriesWithSettings = await this.getDirectoriesWithSettings();
+        
+        for (const dir of directoriesWithSettings) {
+            const configPath = path.join(dir, WorkspaceSettingsService.CONFIG_FILE_NAME);
+            
+            try {
+                const content = await fs.promises.readFile(configPath, 'utf-8');
+                const settings = JSON.parse(content);
+                
+                // If the settings object is empty or only has empty values, delete the file
+                if (this.isEmptySettings(settings)) {
+                    await this.deleteSettingsFile(configPath);
+                }
+            } catch (error) {
+                // If we can't read/parse the file, leave it alone to be safe
+                console.log(`Could not check settings file ${configPath} for cleanup:`, error);
+            }
         }
     }
 
@@ -305,6 +383,44 @@ export class WorkspaceSettingsService {
     async getDirectoryTree(): Promise<DirectoryNode[]> {
         const tree = await this.buildDirectoryTree(this.workspacePath);
         return tree;
+    }
+
+    /**
+     * Get exclude patterns with their inheritance source information
+     */
+    async getExcludePatternsWithSources(directoryPath: string): Promise<Array<{ pattern: string; source: string; level: 'global' | 'workspace' | 'directory' }>> {
+        const patterns: Array<{ pattern: string; source: string; level: 'global' | 'workspace' | 'directory' }> = [];
+        
+        // Get settings chain from current directory to workspace root
+        const settingsChain = await this.getSettingsChain(directoryPath);
+        
+        // Find the nearest ancestor that defines excludePatterns
+        let sourceFound = false;
+        for (const { settings, source } of settingsChain) {
+            const excludePatterns = settings['codeCounter.excludePatterns'];
+            if (excludePatterns && Array.isArray(excludePatterns)) {
+                // Found the nearest ancestor with exclude patterns defined
+                for (const pattern of excludePatterns) {
+                    const level: 'global' | 'workspace' | 'directory' = 
+                        source === 'workspace' ? 'workspace' : 'directory';
+                    const displaySource = source === 'workspace' ? '<workspace>' : source;
+                    patterns.push({ pattern, source: displaySource, level });
+                }
+                sourceFound = true;
+                break; // Stop at the first (nearest) ancestor that defines patterns
+            }
+        }
+        
+        // If no workspace settings define patterns, use global patterns
+        if (!sourceFound) {
+            const globalSettings = this.getGlobalSettings();
+            const globalPatterns = globalSettings['codeCounter.excludePatterns'] || [];
+            for (const pattern of globalPatterns) {
+                patterns.push({ pattern, source: '<global>', level: 'global' });
+            }
+        }
+        
+        return patterns;
     }
 
     private async buildDirectoryTree(rootPath: string): Promise<DirectoryNode[]> {
@@ -431,6 +547,22 @@ export class WorkspaceSettingsService {
             } else if (fieldPath === 'thresholds.mid') {
                 settingKey = 'codeCounter.lineThresholds.midThreshold';
             } else if (fieldPath === 'thresholds.high') {
+                settingKey = 'codeCounter.lineThresholds.highThreshold';
+            } else if (fieldPath === 'emojis.normal') {
+                settingKey = 'codeCounter.emojis.normal';
+            } else if (fieldPath === 'emojis.warning') {
+                settingKey = 'codeCounter.emojis.warning';
+            } else if (fieldPath === 'emojis.danger') {
+                settingKey = 'codeCounter.emojis.danger';
+            } else if (fieldPath === 'emojis.folders.normal') {
+                settingKey = 'codeCounter.emojis.folders.normal';
+            } else if (fieldPath === 'emojis.folders.warning') {
+                settingKey = 'codeCounter.emojis.folders.warning';
+            } else if (fieldPath === 'emojis.folders.danger') {
+                settingKey = 'codeCounter.emojis.folders.danger';
+            } else if (fieldPath === 'lineThresholds.midThreshold') {
+                settingKey = 'codeCounter.lineThresholds.midThreshold';
+            } else if (fieldPath === 'lineThresholds.highThreshold') {
                 settingKey = 'codeCounter.lineThresholds.highThreshold';
             }
             
