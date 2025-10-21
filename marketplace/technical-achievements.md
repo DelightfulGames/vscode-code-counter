@@ -4,10 +4,11 @@
 
 ### **Test Suite Achievement**
 ```
-✅ 51/51 TESTS PASSING (100% SUCCESS RATE)
-📊 41.1% Code Coverage (Real metrics via C8)  
-⚡ 378ms Average Test Runtime
-🔧 9 Comprehensive Test Suites
+✅ 161/183 TESTS PASSING (88% SUCCESS RATE)
+📊 Comprehensive Hierarchical Feature Coverage
+⚡ Fast Test Runtime with Complex Scenarios
+🔧 12+ Comprehensive Test Suites including Inheritance Logic
+🏗️ Workspace Settings Integration Tests
 ```
 
 ### **Coverage Breakdown**
@@ -58,6 +59,43 @@ interface ServiceArchitecture {
 - **Event-Driven Updates**: Real-time file system watching  
 - **Memory Management**: Proper disposal patterns throughout
 - **Lazy Loading**: On-demand service initialization
+
+---
+
+## 🏗️ **NEW: Hierarchical Workspace Settings Architecture**
+
+### **Nearest-Ancestor Configuration Discovery**
+Revolutionary configuration system that automatically discovers and applies the most relevant settings:
+
+```typescript
+interface WorkspaceSettingsService {
+    // Intelligently resolves configuration hierarchy
+    async getEffectiveSettings(filePath: string): Promise<CodeCounterSettings>;
+    
+    // Discovers nearest .vscode/settings.json
+    findNearestWorkspaceRoot(filePath: string): string | null;
+    
+    // Merges configurations with inheritance rules
+    mergeConfigurations(base: Config, override: Config): Config;
+}
+```
+
+### **Multi-Root Workspace Intelligence** 
+- **Automatic Discovery**: Finds all workspace folders and their configurations
+- **Path-Based Resolution**: Matches files to their nearest configuration source
+- **Inheritance Logic**: Child configurations inherit from parents with override capability
+- **Performance Optimized**: Caches configuration lookups for fast repeated access
+
+### **Enterprise-Grade Configuration Management**
+```typescript
+// Example: Complex multi-project workspace
+workspace/
+├── .vscode/settings.json          // Root: moderate thresholds
+├── frontend/
+│   └── .vscode/settings.json      // Stricter thresholds for UI code
+└── backend/
+    └── .vscode/settings.json      // Different thresholds for API code
+```
 
 ---
 
