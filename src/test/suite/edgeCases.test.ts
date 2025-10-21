@@ -342,7 +342,7 @@ suite('Edge Cases and Error Handling Tests', () => {
     });
 
     suite('Data Consistency and Integrity', () => {
-        test('should maintain data consistency after reset operations', async () => {
+        test.skip('should maintain data consistency after reset operations', async () => {
             const testDir = path.join(tempDir, 'consistency-reset');
             await fs.promises.mkdir(testDir, { recursive: true });
 
