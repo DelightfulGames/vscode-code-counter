@@ -147,6 +147,18 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         try {
             console.log('Refreshing immediate children for workspace settings change:', changedDirectoryUri.fsPath);
             
+            // Check if directory exists before trying to read it
+            try {
+                const stat = await vscode.workspace.fs.stat(changedDirectoryUri);
+                if (stat.type !== vscode.FileType.Directory) {
+                    console.log('Path is not a directory, skipping refresh:', changedDirectoryUri.fsPath);
+                    return;
+                }
+            } catch (error) {
+                console.log('Directory does not exist, skipping refresh:', changedDirectoryUri.fsPath);
+                return;
+            }
+            
             // Read the immediate children of the changed directory
             const entries = await vscode.workspace.fs.readDirectory(changedDirectoryUri);
             
@@ -368,6 +380,19 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     } | undefined> {
         try {
             console.log('Calculating folder stats for:', folderPath);
+            
+            // Check if directory exists before trying to read it
+            try {
+                const stat = await vscode.workspace.fs.stat(vscode.Uri.file(folderPath));
+                if (stat.type !== vscode.FileType.Directory) {
+                    console.log('Path is not a directory:', folderPath);
+                    return undefined;
+                }
+            } catch (error) {
+                console.log('Directory does not exist:', folderPath);
+                return undefined;
+            }
+            
             const excludePatterns = await this.pathBasedSettings.getExcludePatternsForPath(folderPath);
 
             // Get all files in folder (limit depth to prevent timeout)

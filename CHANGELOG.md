@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2025-10-21
+
+### Fixed
+- **File System Error Handling**: Resolved critical ENOENT errors in FileExplorerDecorator
+  - Added directory existence checks before attempting to read folder contents
+  - Improved error handling in workspace settings refresh operations
+  - Fixed crashes when temporary test directories are cleaned up during test execution
+- **Template Copying**: Ensured emoji templates are properly copied to output directory during compilation
+- **Workspace Settings**: Enhanced error handling for non-existent workspace directories
+- **Test Stability**: Improved test reliability by preventing file system operation failures
+
+### Technical Improvements
+- Enhanced `calculateFolderStats()` with proper directory existence validation
+- Improved `refreshImmediateChildrenForWorkspaceChange()` error handling
+- Better logging and debugging output for file system operations
+- More robust template copying process in build pipeline
+
 ## [0.12.0] - 2025-10-20
 
 ### Added
