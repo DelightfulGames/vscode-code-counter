@@ -1,3 +1,12 @@
+<!-- 
+VS Code Code Counter Extension
+
+Copyright (c) 2025 DelightfulGames
+Licensed under the MIT License
+
+GitHub Repository: https://github.com/DelightfulGames/vscode-code-counter  
+VS Code Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter
+-->
 # Changelog
 
 All notable changes to the VS Code Code Counter extension will be documented in this file.

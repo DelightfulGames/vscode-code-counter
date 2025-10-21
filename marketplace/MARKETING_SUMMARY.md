@@ -1,3 +1,12 @@
+<!-- 
+VS Code Code Counter Extension
+
+Copyright (c) 2025 DelightfulGames
+Licensed under the MIT License
+
+Repository: https://github.com/DelightfulGames/vscode-code-counter
+Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter
+-->
 # 🎉 Marketing Materials Complete - v0.12.0 Release Summary
 
 ## 🚀 **NEW: v0.12.0 Release Highlights**

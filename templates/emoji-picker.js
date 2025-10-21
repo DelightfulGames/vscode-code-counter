@@ -1,3 +1,31 @@
+/**
+ * VS Code Code Counter Extension
+ * 
+ * Copyright (c) 2025 DelightfulGames
+ * Licensed under the MIT License
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ * 
+ * Repository: https://github.com/DelightfulGames/vscode-code-counter
+ * Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter
+ */
+
 const vscode = acquireVsCodeApi();
 let currentColorKey = '';
 let currentEmojiType = 'file';
@@ -465,83 +493,6 @@ function updateFieldDisplay(field, resolvedSettings) {
         // with proper inheritance styling, so we don't need to manually rebuild the HTML here
     }
 }
-
-// function showEmptySettingsWarning(targetDirectory) {
-//     const modal = document.createElement('div');
-//     modal.style.cssText = `
-//         position: fixed;
-//         top: 0;
-//         left: 0;
-//         width: 100%;
-//         height: 100%;
-//         background: rgba(0, 0, 0, 0.8);
-//         z-index: 10000;
-//         display: flex;
-//         align-items: center;
-//         justify-content: center;
-//     `;
-    
-//     const dialog = document.createElement('div');
-//     dialog.style.cssText = `
-//         background: var(--vscode-editor-background);
-//         border: 2px solid var(--vscode-inputValidation-warningBorder);
-//         border-radius: 8px;
-//         width: 90%;
-//         max-width: 500px;
-//         padding: 20px;
-//         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-//     `;
-    
-//     dialog.innerHTML = `
-//         <h3 style="margin: 0 0 15px 0; color: var(--vscode-inputValidation-warningForeground);">
-//             ⚠️ Empty Settings File Warning
-//         </h3>
-//         <p style="margin: 0 0 20px 0; color: var(--vscode-editor-foreground); line-height: 1.5;">
-//             The current directory contains an empty <code>.code-counter.json</code> file that will be automatically removed when you change directories. 
-//             <br><br>
-//             <strong>Would you like to continue?</strong>
-//         </p>
-//         <div style="display: flex; gap: 10px; justify-content: flex-end;">
-//             <button id="warningCancel" style="
-//                 background: var(--vscode-button-secondaryBackground);
-//                 color: var(--vscode-button-secondaryForeground);
-//                 border: none;
-//                 padding: 8px 16px;
-//                 border-radius: 4px;
-//                 cursor: pointer;
-//             ">Cancel</button>
-//             <button id="warningProceed" style="
-//                 background: var(--vscode-inputValidation-warningBackground);
-//                 color: var(--vscode-inputValidation-warningForeground);
-//                 border: none;
-//                 padding: 8px 16px;
-//                 border-radius: 4px;
-//                 cursor: pointer;
-//             ">Continue & Remove File</button>
-//         </div>
-//     `;
-    
-//     modal.appendChild(dialog);
-//     document.body.appendChild(modal);
-    
-//     // Handle button clicks
-//     document.getElementById('warningCancel').onclick = () => {
-//         document.body.removeChild(modal);
-//     };
-    
-//     document.getElementById('warningProceed').onclick = () => {
-//         document.body.removeChild(modal);
-//         proceedWithDirectoryChange(targetDirectory);
-//     };
-    
-//     // Close on background click
-//     modal.onclick = (e) => {
-//         if (e.target === modal) {
-//             document.body.removeChild(modal);
-//         }
-//     };
-// }
-
 
 // Initialize workspace mode
 function initializeWorkspaceMode() {

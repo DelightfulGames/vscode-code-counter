@@ -1,4 +1,6 @@
 {
+  "_header": "VS Code Code Counter Extension - Copyright (c) 2025 DelightfulGames - Licensed under the MIT License",
+  "_repository": "https://github.com/DelightfulGames/vscode-code-counter",
   "😀": [ "grinning", "face", "smile", "happy", "joy", "cheerful" ],
   "😃": [ "grinning", "face", "big", "smile", "happy", "joy", "teeth" ],
   "😄": [ "grinning", "face", "smile", "happy", "joy", "laugh", "pleased" ],

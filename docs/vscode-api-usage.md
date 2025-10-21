@@ -1,3 +1,12 @@
+<!-- 
+VS Code Code Counter Extension
+
+Copyright (c) 2025 DelightfulGames
+Licensed under the MIT License
+
+Repository: https://github.com/DelightfulGames/vscode-code-counter
+Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter
+-->
 # VS Code API Usage
 
 This document provides a comprehensive overview of how the VS Code Code Counter extension leverages the VS Code API to deliver its functionality, from basic workspace interactions to advanced WebView implementations.
