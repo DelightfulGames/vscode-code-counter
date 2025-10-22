@@ -50,6 +50,11 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
     └── legacy.ts         🔴 # (2,847 lines)
 ```
 
+<video width="600" autoplay muted loop>
+  <source src="./marketplace/videos/SeeItWork.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
 ## 🎯 **Perfect For**
 | Role | Primary Benefit |
 |---|---|
@@ -249,6 +254,11 @@ The extension generates two files in the configured output directory:
 1. **`code-counter-report.html`**: Interactive HTML report with charts and tables
 - **Event-Driven Updates**: Real-time file system watching
 2. **`code-counter-data.xml`**: XML data source for integration with other tools
+
+<video width="900" controls>
+  <source src="./marketplace/videos/Reports.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 ## 📊 **Technical Excellence**
 ### **Testing & Quality**

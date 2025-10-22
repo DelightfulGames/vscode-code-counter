@@ -154,8 +154,19 @@ export class CountLinesCommand {
             const config = vscode.workspace.getConfiguration('codeCounter');
             const excludePatterns = config.get<string[]>('excludePatterns', []);
             const showNotification = config.get<boolean>('showNotificationOnAutoGenerate', false);
+            const outputDirectory = config.get<string>('outputDirectory', './reports');
 
-            // Count lines for the first workspace folder
+            // Generate HTML/XML files for all workspace folders
+            for (const folder of workspaceFolders) {
+                const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
+                const xmlData = this.xmlGenerator.generateXml(results);
+                await this.htmlGenerator.generateHtmlReport(xmlData, folder.uri.fsPath, outputDirectory);
+            }
+            
+            // Log for debugging auto-generation
+            console.log(`Auto-generated reports saved to: ${outputDirectory}`);
+
+            // Count lines for notification (use first workspace folder for summary)
             const folder = workspaceFolders[0];
             const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
             const reportData = this.convertToReportData(results, folder.uri.fsPath);
@@ -164,7 +175,7 @@ export class CountLinesCommand {
             if (showNotification) {
                 // Show notification with button to view report
                 const action = await vscode.window.showInformationMessage(
-                    `📊 Code analysis complete: ${reportData.summary.totalFiles} files, ${reportData.summary.totalLines.toLocaleString()} lines`,
+                    `📊 Reports auto-generated: ${reportData.summary.totalFiles} files, ${reportData.summary.totalLines.toLocaleString()} lines`,
                     {
                         modal: false
                     },

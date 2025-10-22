@@ -70,7 +70,7 @@ function getCurrentConfiguration() {
     };
 }
 
-async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecorationProvider): Promise<void> {
+async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecorationProvider, context: vscode.ExtensionContext): Promise<void> {
     // Create a webview panel for the emoji picker
     const panel = vscode.window.createWebviewPanel(
         'emojiPicker',
@@ -91,7 +91,9 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
         const workspaceService = new WorkspaceSettingsService(workspacePath);
         
         const directoryTree = await workspaceService.getDirectoryTree();
-        const inheritanceInfo = await workspaceService.getSettingsWithInheritance(workspacePath);
+        
+        // Get inheritance info for the initial directory first (before we determine what it should be)
+        let inheritanceInfo = await workspaceService.getSettingsWithInheritance(workspacePath);
         
         // Use resolved workspace settings for initial display (workspace + global merged)
         const resolvedSettings = inheritanceInfo.resolvedSettings;
@@ -111,13 +113,64 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
         };
         excludePatterns = resolvedSettings['codeCounter.excludePatterns'];
         
-        // Get patterns with source information
-        const patternsWithSources = await workspaceService.getExcludePatternsWithSources(workspacePath);
+        // Determine the initial directory based on workspace configuration
+        const hasWorkspaceSettings = await workspaceService.hasSettings(workspacePath);
+        const hasAnySubdirectorySettings = directoryTree.some(node => node.hasSettings);
         
+        // Get last viewed directory from extension state (if available)
+        const lastViewedDirectory = context.globalState.get<string>('codeCounter.lastViewedDirectory');
+        
+        let initialDirectory = '<global>'; // Default to global
+        let initialMode = 'global';
+        
+        if (hasWorkspaceSettings || hasAnySubdirectorySettings) {
+            // If workspace or subdirectory settings exist, prefer last viewed or default to workspace
+            if (lastViewedDirectory && lastViewedDirectory !== '<global>') {
+                // Validate that the last viewed directory still exists or has settings
+                if (lastViewedDirectory === '<workspace>' && hasWorkspaceSettings) {
+                    initialDirectory = '<workspace>';
+                    initialMode = 'workspace';
+                } else if (lastViewedDirectory !== '<workspace>') {
+                    // Check if the subdirectory still exists in the directory tree and has settings
+                    const lastViewedPath = path.join(workspacePath, lastViewedDirectory);
+                    const lastViewedHasSettings = await workspaceService.hasSettings(lastViewedPath);
+                    const pathExists = directoryTree.some(node => 
+                        node.relativePath === lastViewedDirectory || 
+                        node.relativePath.startsWith(lastViewedDirectory + path.sep)
+                    );
+                    
+                    if (lastViewedHasSettings && pathExists) {
+                        initialDirectory = lastViewedDirectory;
+                        initialMode = 'workspace';
+                    } else {
+                        // Fall back to workspace if it has settings, otherwise global
+                        initialDirectory = hasWorkspaceSettings ? '<workspace>' : '<global>';
+                        initialMode = hasWorkspaceSettings ? 'workspace' : 'global';
+                    }
+                }
+            } else {
+                // Default to workspace if no last viewed or last viewed was global
+                initialDirectory = hasWorkspaceSettings ? '<workspace>' : '<global>';
+                initialMode = hasWorkspaceSettings ? 'workspace' : 'global';
+            }
+        }
+
+        // Update inheritance info to match the initial directory
+        if (initialDirectory !== '<workspace>' && initialDirectory !== '<global>') {
+            const initialDirectoryPath = path.join(workspacePath, initialDirectory);
+            inheritanceInfo = await workspaceService.getSettingsWithInheritance(initialDirectoryPath);
+        }
+        
+        // Get patterns with source information for the initial directory
+        const initialDirectoryPath = initialDirectory === '<workspace>' ? workspacePath : 
+                                   initialDirectory === '<global>' ? workspacePath :
+                                   path.join(workspacePath, initialDirectory);
+        const patternsWithSources = await workspaceService.getExcludePatternsWithSources(initialDirectoryPath);
+
         workspaceData = {
-            mode: 'workspace', // Start in workspace mode since we have workspace data
+            mode: initialMode,
             directoryTree,
-            currentDirectory: '<workspace>', // Show workspace settings initially
+            currentDirectory: initialDirectory,
             resolvedSettings: inheritanceInfo.resolvedSettings,
             currentSettings: inheritanceInfo.currentSettings,
             parentSettings: inheritanceInfo.parentSettings,
@@ -767,6 +820,46 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                     const statusText = message.enabled ? 'enabled' : 'disabled';
                     vscode.window.showInformationMessage(`Popup notifications on auto-generate ${statusText}`);
                     break;
+                case 'updateOutputDirectory':
+                    const outputConfig = vscode.workspace.getConfiguration('codeCounter');
+                    await outputConfig.update('outputDirectory', message.directory, vscode.ConfigurationTarget.Global);
+                    vscode.window.showInformationMessage(`Output directory updated to: ${message.directory}`);
+                    break;
+                case 'browseOutputDirectory':
+                    const selectedFolder = await vscode.window.showOpenDialog({
+                        canSelectFiles: false,
+                        canSelectFolders: true,
+                        canSelectMany: false,
+                        openLabel: 'Select Output Directory'
+                    });
+                    
+                    if (selectedFolder && selectedFolder[0]) {
+                        const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                        let relativePath = selectedFolder[0].fsPath;
+                        
+                        // Make path relative to workspace if possible
+                        if (workspacePath && relativePath.startsWith(workspacePath)) {
+                            relativePath = './' + path.relative(workspacePath, relativePath).replace(/\\/g, '/');
+                        }
+                        
+                        const browseOutputConfig = vscode.workspace.getConfiguration('codeCounter');
+                        await browseOutputConfig.update('outputDirectory', relativePath, vscode.ConfigurationTarget.Global);
+                        
+                        // Update the input field in the webview
+                        panel.webview.postMessage({
+                            command: 'updateOutputDirectoryField',
+                            directory: relativePath
+                        });
+                        
+                        vscode.window.showInformationMessage(`Output directory updated to: ${relativePath}`);
+                    }
+                    break;
+                case 'updateAutoGenerate':
+                    const autoGenerateConfig = vscode.workspace.getConfiguration('codeCounter');
+                    await autoGenerateConfig.update('autoGenerate', message.enabled, vscode.ConfigurationTarget.Global);
+                    const autoGenerateStatusText = message.enabled ? 'enabled' : 'disabled';
+                    vscode.window.showInformationMessage(`Auto-generation ${autoGenerateStatusText}`);
+                    break;
                 case 'createWorkspaceSettings':
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
@@ -774,6 +867,9 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         
                         // Create empty workspace settings file to enable workspace mode
                         await workspaceService.saveWorkspaceSettings(workspacePath, {});
+                        
+                        // Store workspace as the last viewed directory
+                        await context.globalState.update('codeCounter.lastViewedDirectory', '<workspace>');
 
                         // Get directory tree and workspace data
                         const directoryTree = await workspaceService.getDirectoryTree();
@@ -831,6 +927,9 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
                         const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        
+                        // Store the selected directory as the last viewed directory
+                        await context.globalState.update('codeCounter.lastViewedDirectory', message.directoryPath);
                         
                         // Get the previous directory path if it exists and track if cleanup happened
                         const previousDirectory = message.previousDirectory;
@@ -959,6 +1058,9 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         
                         // Create empty settings file in subdirectory
                         await workspaceService.saveWorkspaceSettings(targetPath, {});
+                        
+                        // Store the subdirectory as the last viewed directory
+                        await context.globalState.update('codeCounter.lastViewedDirectory', message.directoryPath);
                         
                         // Refresh with updated tree
                         const directoryTree = await workspaceService.getDirectoryTree();
@@ -1202,12 +1304,25 @@ function getEmojiPickerWebviewContent(badges: any,
         
         console.log('Debug: useInlineScript =', useInlineScript, 'webview =', !!webview, 'scriptUri =', !!scriptUri);
         
+        // Cleanup metadata entries from emoji search data
+        let emojiDB = JSON.parse(emojiData);
+        let emojiSearchDB = JSON.parse(emojiSearchData);
+        Object.keys(emojiSearchDB).forEach(key => {
+            if (key.startsWith('_'))
+                delete emojiSearchDB[key];            
+        });
+
+        Object.keys(emojiDB).forEach(key => {
+            if (key.startsWith('_'))
+                delete emojiDB[key];
+        });
+
         // We'll embed only the data, not the script content
         let embeddedData;
         try {
             embeddedData = {
-                emojiData: JSON.parse(emojiData),
-                emojiSearchData: JSON.parse(emojiSearchData),
+                emojiData: emojiDB,
+                emojiSearchData: emojiSearchDB,
                 workspaceData: workspaceData || null
             };
         } catch (parseError) {
@@ -1249,6 +1364,15 @@ function getEmojiPickerWebviewContent(badges: any,
         htmlContent = htmlContent.replace(/{{highFolderMax}}/g, highFolderMax.toString());
         htmlContent = htmlContent.replace(/{{excludePatterns}}/g, excludePatternsHtml);
         htmlContent = htmlContent.replace(/{{showNotificationChecked}}/g, showNotificationChecked);
+        
+        // Output Directory and Auto-Generate settings
+        const settingsConfig = vscode.workspace.getConfiguration('codeCounter');
+        const outputDirectory = settingsConfig.get<string>('outputDirectory', './reports');
+        const autoGenerate = settingsConfig.get<boolean>('autoGenerate', true);
+        const autoGenerateChecked = autoGenerate ? 'checked' : '';
+        
+        htmlContent = htmlContent.replace(/{{outputDirectory}}/g, outputDirectory);
+        htmlContent = htmlContent.replace(/{{autoGenerateChecked}}/g, autoGenerateChecked);
         
         // Inheritance information placeholders
         let parentFileNormal = 'N/A';
@@ -1442,7 +1566,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const openColorSettingsDisposable = vscode.commands.registerCommand('codeCounter.openSettings', async () => {
-        await showCodeCounterSettings(fileExplorerDecorator);
+        await showCodeCounterSettings(fileExplorerDecorator, context);
     });
 
     const showReportPanelDisposable = vscode.commands.registerCommand('codeCounter.showReportPanel', async () => {

@@ -622,6 +622,58 @@ body.workspace-mode .workspace-only {
     font-style: italic;
 }
 
+/* Output Directory Styles */
+.output-directory-container {
+    margin: 15px 0;
+}
+
+.input-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.input-group input[type="text"] {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    color: var(--vscode-input-foreground);
+    font-family: var(--vscode-font-family);
+    font-size: 13px;
+}
+
+.input-group input[type="text"]:focus {
+    outline: none;
+    border-color: var(--vscode-focusBorder);
+    box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.browse-button {
+    padding: 8px 12px;
+    background: var(--vscode-button-secondaryBackground);
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 4px;
+    color: var(--vscode-button-secondaryForeground);
+    cursor: pointer;
+    font-size: 14px;
+    min-width: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.browse-button:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* Auto-Generation Styles */
+.auto-generate-container {
+    margin: 15px 0;
+}
+
 /* Workspace Settings Styles */
 .workspace-settings-container {
     margin: 20px 0;

@@ -415,6 +415,12 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (message.command === 'fieldReset') {
             // Handle individual field reset - update the UI without full refresh
             handleFieldReset(message.field, message.directory, message.resolvedSettings);
+        } else if (message.command === 'updateOutputDirectoryField') {
+            // Update the output directory input field
+            const outputDirectoryInput = document.getElementById('outputDirectory');
+            if (outputDirectoryInput) {
+                outputDirectoryInput.value = message.directory;
+            }
         }
     });
 });
@@ -1034,6 +1040,29 @@ function resetField(event, fieldType, fieldKey) {
             });
         }
     }
+}
+
+// Update output directory setting
+function updateOutputDirectory(value) {
+    vscode.postMessage({
+        command: 'updateOutputDirectory',
+        directory: value || './reports'
+    });
+}
+
+// Browse for output directory
+function browseOutputDirectory() {
+    vscode.postMessage({
+        command: 'browseOutputDirectory'
+    });
+}
+
+// Update auto-generate setting
+function updateAutoGenerate(enabled) {
+    vscode.postMessage({
+        command: 'updateAutoGenerate',
+        enabled: enabled
+    });
 }
 
 //# sourceURL=emoji-picker.js

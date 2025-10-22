@@ -66,6 +66,8 @@ export class FileWatcherProvider implements vscode.Disposable {
         const config = vscode.workspace.getConfiguration('codeCounter');
         const autoGenerate = config.get<boolean>('autoGenerate', true);
 
+        console.log(`File changed: ${uri.fsPath}, autoGenerate: ${autoGenerate}`);
+
         if (!autoGenerate) {
             return;
         }
@@ -81,6 +83,7 @@ export class FileWatcherProvider implements vscode.Disposable {
         }
 
         // Debounce the regeneration to avoid too frequent updates
+        console.log(`Triggering auto-generation for: ${relativePath}`);
         this.debounceRegenerate();
     }
 

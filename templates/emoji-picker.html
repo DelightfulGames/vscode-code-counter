@@ -198,6 +198,34 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 {{workspaceSettings}}
 
                 <div class="color-section">
+                    <h3>📤 Output Directory</h3>
+                    <p>Directory where HTML and XML reports will be generated:</p>
+                    <div class="output-directory-container">
+                        <div class="input-group">
+                            <input type="text" id="outputDirectory" placeholder="./reports" onchange="updateOutputDirectory(this.value)" value="{{outputDirectory}}">
+                            <button onclick="browseOutputDirectory()" class="browse-button" title="Browse for directory">📂</button>
+                        </div>
+                        <div class="setting-description">
+                            Relative to workspace root. Reports include detailed HTML views and XML data files with line count statistics.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="color-section">
+                    <h3>🔄 Auto-Generation</h3>
+                    <p>Automatically generate reports when files are saved:</p>
+                    <div class="auto-generate-container">
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="autoGenerate" {{autoGenerateChecked}} onchange="updateAutoGenerate(this.checked)">
+                            <label for="autoGenerate">Auto-generate reports on file save</label>
+                        </div>
+                        <div class="setting-description">
+                            When enabled, the extension will automatically regenerate HTML and XML reports whenever you save a file in the workspace. This keeps your code metrics up-to-date in real-time.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="color-section">
                     <h3>💬 Notification Settings</h3>
                     <p>Control when the extension shows popup notifications:</p>
                     <div class="notification-settings-container">
