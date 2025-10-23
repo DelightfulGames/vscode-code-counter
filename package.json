@@ -2,7 +2,7 @@
   "name": "vscode-code-counter",
   "displayName": "Code Counter Pro",
   "description": "Visual line counting with customizable emoji indicators and comprehensive project reports",
-  "version": "0.12.2",
+  "version": "0.12.3",
   "publisher": "DelightfulGames",
   "icon": "marketplace/images/codeCounter-icon.png",
   "galleryBanner": {
@@ -37,6 +37,18 @@
       {
         "command": "codeCounter.openSettings",
         "title": "CodeCounter: Settings"
+      },
+      {
+        "command": "codeCounter.excludeRelativePath",
+        "title": "CodeCounter: Exclude This File/Folder"
+      },
+      {
+        "command": "codeCounter.excludeFileFolderPattern",
+        "title": "CodeCounter: Exclude Files/Folders with Same Name"
+      },
+      {
+        "command": "codeCounter.excludeExtension",
+        "title": "CodeCounter: Exclude Files with Same Extension"
       }
     ],
     "configuration": {
@@ -50,16 +62,15 @@
             "**/bin/**",
             "**/dist/**",
             "**/.git/**",
-            "**/.**/**",
-            "**/*.vsix",
-            "**/.code-counter.json",
+            "**/.*/**",
+            "**/.*",
             "**/**-lock.json"
           ],
           "description": "Glob patterns for files to exclude from counting"
         },
         "codeCounter.outputDirectory": {
           "type": "string",
-          "default": "./reports",
+          "default": "./.cc/reports",
           "description": "Directory where reports will be generated"
         },
         "codeCounter.autoGenerate": {
@@ -149,6 +160,38 @@
         },
         {
           "command": "codeCounter.openSettings"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "codeCounter.excludeRelativePath",
+          "group": "CodeCounter@1"
+        },
+        {
+          "command": "codeCounter.excludeFileFolderPattern",
+          "group": "CodeCounter@2"
+        },
+        {
+          "command": "codeCounter.excludeExtension",
+          "when": "!explorerResourceIsFolder",
+          "group": "CodeCounter@3"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "codeCounter.excludeRelativePath",
+          "when": "editorIsOpen",
+          "group": "CodeCounter@1"
+        },
+        {
+          "command": "codeCounter.excludeFileFolderPattern",
+          "when": "editorIsOpen",
+          "group": "CodeCounter@2"
+        },
+        {
+          "command": "codeCounter.excludeExtension",
+          "when": "editorIsOpen",
+          "group": "CodeCounter@3"
         }
       ]
     }

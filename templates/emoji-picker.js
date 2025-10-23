@@ -1046,7 +1046,7 @@ function resetField(event, fieldType, fieldKey) {
 function updateOutputDirectory(value) {
     vscode.postMessage({
         command: 'updateOutputDirectory',
-        directory: value || './reports'
+        directory: value || './.cc/reports'
     });
 }
 

@@ -16,7 +16,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.12.2] - 2025-10-21
+## [0.12.3] - 2025-01-25
+
+### Added
+- **Context Menu Integration**: Added exclusion commands to File Explorer and Editor Tab context menus
+  - Right-click any file or folder to access exclusion options
+  - **Exclude This File/Folder Path**: Adds relative path exclusion pattern
+  - **Exclude Files/Folders Like This Name**: Adds global name pattern (e.g., `**/README.md`, `**/folder/**`)
+  - **Exclude Files with This Extension**: Adds global extension pattern (e.g., `**/*.log`)
+  - Smart configuration management - patterns added to nearest ancestor `.code-counter.json` file
+  - Automatic webview and decorator refresh when exclusion patterns are added
+  - Comprehensive test suite for context menu functionality
+
+### Enhanced
+- **Pattern Management**: Improved exclusion pattern workflow with intelligent file placement
+  - Finds or creates appropriate `.code-counter.json` file for exclusion patterns
+  - Validates existing patterns to prevent duplicates
+  - Clear user feedback with confirmation messages showing target configuration file
+- **User Experience**: Streamlined exclusion management directly from file explorer
+  - No need to manually edit configuration files or remember glob pattern syntax
+  - Context-sensitive commands (extension exclusion only available for files with extensions)
+  - Professional menu grouping and command organization
+- **Automatic Refresh System**: Enhanced decorator refresh mechanism for configuration changes
+  - Added dedicated file system watcher for `.code-counter.json` files
+  - Decorators automatically refresh when configuration files are modified, created, or deleted externally
+  - Works with manual file editing, Git operations, and external tools
+  - Comprehensive test coverage for configuration file watching functionality
+
+### Fixed
+- **Report Exclusion Patterns**: Fixed critical issue where reports weren't respecting `.code-counter.json` exclusion patterns
+  - `CountLinesCommand` now uses hierarchical workspace settings instead of only global VS Code configuration
+  - Reports properly exclude files based on workspace-specific `.code-counter.json` patterns
+  - Each workspace folder uses its own exclusion patterns for accurate reporting
+  - Fallback to global settings if workspace settings fail to load
+  - Added comprehensive test coverage for exclusion pattern integration
+
+## [0.12.2] - 2025-01-21
 
 ### Added
 - **Professional Branding**: Added comprehensive DelightfulGames copyright headers across all source files

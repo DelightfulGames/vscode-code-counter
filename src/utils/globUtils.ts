@@ -66,11 +66,9 @@ export class GlobUtils {
             '**/out/**',
             '**/dist/**',
             '**/.git/**',
-            '**/.vscode/**',
-            '**/coverage/**',
-            '**/*.log',
-            '**/.DS_Store',
-            '**/Thumbs.db'
+            '**/.*/**',
+            '**/.*',
+            '**/**-lock.json'
         ];
     }
 }

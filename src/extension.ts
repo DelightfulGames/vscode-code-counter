@@ -62,9 +62,8 @@ function getCurrentConfiguration() {
             '**/bin/**', 
             '**/dist/**',
             '**/.git/**',
-            '**/.**/**',
-            '**/*.vsix',
-            '**/.code-counter.json',
+            '**/.*/**',
+            '**/.*',
             '**/**-lock.json'            
         ])
     };
@@ -634,9 +633,8 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                             '**/bin/**', 
                             '**/dist/**',
                             '**/.git/**',
-                            '**/.**/**',
-                            '**/*.vsix',
-                            '**/.code-counter.json',
+                            '**/.*/**',
+                            '**/.*',
                             '**/**-lock.json'
                         ];
                         await resetConfig.update('excludePatterns', defaultPatterns, vscode.ConfigurationTarget.Global);
@@ -1367,7 +1365,7 @@ function getEmojiPickerWebviewContent(badges: any,
         
         // Output Directory and Auto-Generate settings
         const settingsConfig = vscode.workspace.getConfiguration('codeCounter');
-        const outputDirectory = settingsConfig.get<string>('outputDirectory', './reports');
+        const outputDirectory = settingsConfig.get<string>('outputDirectory', './.cc/reports');
         const autoGenerate = settingsConfig.get<boolean>('autoGenerate', true);
         const autoGenerateChecked = autoGenerate ? 'checked' : '';
         
@@ -1536,6 +1534,168 @@ function generateDirectoryTreeHtml(directories: any[], currentDirectory: string,
     }).join('');
 }
 
+/**
+ * Find the nearest directory to a file path for adding exclusion patterns
+ */
+async function findNearestConfigDirectory(filePath: string): Promise<string> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        throw new Error('No workspace folder is open');
+    }
+
+    const workspacePath = workspaceFolders[0].uri.fsPath;
+    const workspaceService = new WorkspaceSettingsService(workspacePath);
+    
+    // For files, use the directory; for directories, use the directory itself
+    const stats = await fs.promises.stat(filePath);
+    let directoryPath = stats.isFile() ? path.dirname(filePath) : filePath;
+
+    let dirsWithSettings = (await workspaceService.getDirectoriesWithSettings()).reverse();
+    
+    if (dirsWithSettings.length === 0) 
+        directoryPath = workspacePath;
+    else
+        directoryPath = dirsWithSettings[dirsWithSettings.indexOf(directoryPath)];
+
+    // If the directory is outside workspace, use workspace root
+    if (!directoryPath.startsWith(workspacePath) || dirsWithSettings.length === 0) {
+        directoryPath = workspacePath;
+    }
+
+    return directoryPath;
+}
+
+/**
+ * Add an exclusion pattern to the nearest appropriate .code-counter.json file
+ */
+async function addExclusionPattern(filePath: string, pattern: string): Promise<void> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        throw new Error('No workspace folder is open');
+    }
+
+    const workspacePath = workspaceFolders[0].uri.fsPath;
+    const workspaceService = new WorkspaceSettingsService(workspacePath);
+    
+    // Find the appropriate directory for this file
+    const targetDirectory = await findNearestConfigDirectory(filePath);
+    
+    // Get current settings for this directory
+    const configPath = path.join(targetDirectory, '.code-counter.json');
+    let existingSettings: WorkspaceSettings = await workspaceService.getResolvedSettings(targetDirectory);
+
+    //Remove all inherited settings except excludePatterns
+    Object.keys(existingSettings).forEach(key => {
+        if (key !== 'codeCounter.excludePatterns')
+        delete (existingSettings as any)[key];
+    });
+
+    try {
+        if (fs.existsSync(configPath)) {
+            const content = await fs.promises.readFile(configPath, 'utf8');
+            existingSettings = JSON.parse(content);
+        }
+    } catch (error) {
+        console.warn('Failed to read existing settings, creating new file:', error);
+        existingSettings = {};
+    }
+
+    // Get existing exclude patterns or initialize empty array
+    const excludePatterns = existingSettings['codeCounter.excludePatterns'] || [];
+    
+    // Check if pattern already exists
+    if (excludePatterns.includes(pattern)) {
+        vscode.window.showInformationMessage(`Pattern "${pattern}" is already excluded`);
+        return;
+    }
+
+    // Add the new pattern
+    excludePatterns.push(pattern);
+    existingSettings['codeCounter.excludePatterns'] = excludePatterns;
+
+    // Save the settings
+    await workspaceService.saveWorkspaceSettings(targetDirectory, existingSettings);
+    
+    // Show confirmation
+    const relativePath = path.relative(workspacePath, targetDirectory);
+    const displayPath = relativePath || '<workspace>';
+    vscode.window.showInformationMessage(`Added exclusion pattern "${pattern}" to ${displayPath}/.code-counter.json`);
+    
+    // The WorkspaceSettingsService.saveWorkspaceSettings() method automatically fires 
+    // events that will refresh the file decorators and any open settings webview
+}
+
+/**
+ * Handle excluding a file/folder by relative path
+ */
+async function handleExcludeRelativePath(resource: vscode.Uri): Promise<void> {
+    try {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            vscode.window.showErrorMessage('No workspace folder is open');
+            return;
+        }
+
+        const workspacePath = workspaceFolders[0].uri.fsPath;
+        const filePath = resource.fsPath;
+        
+        const stats = await fs.promises.stat(filePath);
+        
+        // Create relative path pattern
+        let  relativePath = path.relative(workspacePath, filePath);
+        relativePath = stats.isDirectory() ? relativePath + '/**' : relativePath;
+        const pattern = relativePath.replace(/\\/g, '/'); // Use forward slashes for consistency        
+        
+        await addExclusionPattern(filePath, pattern);
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to exclude path: ${error}`);
+    }
+}
+
+/**
+ * Handle excluding files by name pattern (basename)
+ */
+async function handleExcludeFilePattern(resource: vscode.Uri): Promise<void> {
+    try {
+        const filePath = resource.fsPath;
+        const fileName = path.basename(filePath);
+        
+        const stats = await fs.promises.stat(filePath);
+        let directoryPath = stats.isFile() ? path.dirname(filePath) : filePath;
+
+        // Create a global pattern for this filename
+        let pattern = `**/${fileName}`;
+        if (stats.isDirectory())
+            pattern += '/**';
+        
+        await addExclusionPattern(filePath, pattern);
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to exclude file pattern: ${error}`);
+    }
+}
+
+/**
+ * Handle excluding files by extension
+ */
+async function handleExcludeExtension(resource: vscode.Uri): Promise<void> {
+    try {
+        const filePath = resource.fsPath;
+        const extension = path.extname(filePath);
+        
+        if (!extension) {
+            vscode.window.showWarningMessage('Selected file has no extension to exclude');
+            return;
+        }
+        
+        // Create a global pattern for this extension
+        const pattern = `**/*${extension}`;
+        
+        await addExclusionPattern(filePath, pattern);
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to exclude extension: ${error}`);
+    }
+}
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('Code Counter extension is now active!');
 
@@ -1544,6 +1704,32 @@ export function activate(context: vscode.ExtensionContext) {
     const countLinesCommand = new CountLinesCommand();
     const fileExplorerDecorator = new FileExplorerDecorationProvider();
     const editorTabDecorator = new EditorTabDecorationProvider();
+
+    // Create a dedicated file system watcher for .code-counter.json files
+    // This ensures decorators refresh when configuration files are modified/deleted externally
+    const configFileWatcher = vscode.workspace.createFileSystemWatcher('**/.code-counter.json');
+    
+    // Handle .code-counter.json file changes (creation, modification, deletion)
+    const onConfigFileChange = configFileWatcher.onDidChange(async (uri) => {
+        console.log('Configuration file changed:', uri.fsPath);
+        // Refresh decorators when config files are modified
+        fileExplorerDecorator.refresh();
+        // EditorTabDecorator will refresh automatically through workspace settings events
+    });
+    
+    const onConfigFileCreate = configFileWatcher.onDidCreate(async (uri) => {
+        console.log('Configuration file created:', uri.fsPath);
+        // Refresh decorators when new config files are created
+        fileExplorerDecorator.refresh();
+        // EditorTabDecorator will refresh automatically through workspace settings events
+    });
+    
+    const onConfigFileDelete = configFileWatcher.onDidDelete(async (uri) => {
+        console.log('Configuration file deleted:', uri.fsPath);
+        // Refresh decorators when config files are deleted
+        fileExplorerDecorator.refresh();
+        // EditorTabDecorator will refresh automatically through workspace settings events
+    });
 
     // Register file decoration provider for explorer
     const decorationProvider = vscode.window.registerFileDecorationProvider(fileExplorerDecorator);
@@ -1573,16 +1759,36 @@ export function activate(context: vscode.ExtensionContext) {
         await countLinesCommand.executeAndShowPanel();
     });
 
+    // Context menu exclusion commands
+    const excludeRelativePathDisposable = vscode.commands.registerCommand('codeCounter.excludeRelativePath', async (resource: vscode.Uri) => {
+        await handleExcludeRelativePath(resource);
+    });
+
+    const excludeFilePatternDisposable = vscode.commands.registerCommand('codeCounter.excludeFileFolderPattern', async (resource: vscode.Uri) => {
+        await handleExcludeFilePattern(resource);
+    });
+
+    const excludeExtensionDisposable = vscode.commands.registerCommand('codeCounter.excludeExtension', async (resource: vscode.Uri) => {
+        await handleExcludeExtension(resource);
+    });
+
     // Add all disposables to context
     context.subscriptions.push(
         countLinesDisposable,
         resetColorsDisposable,
         openColorSettingsDisposable,
         showReportPanelDisposable,
+        excludeRelativePathDisposable,
+        excludeFilePatternDisposable,
+        excludeExtensionDisposable,
         decorationProvider,
         fileWatcher,
         fileExplorerDecorator,
-        editorTabDecorator
+        editorTabDecorator,
+        configFileWatcher,
+        onConfigFileChange,
+        onConfigFileCreate,
+        onConfigFileDelete
     );
 }
 

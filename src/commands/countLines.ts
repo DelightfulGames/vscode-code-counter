@@ -31,6 +31,7 @@ import { LineCounterService } from '../services/lineCounter';
 import { XmlGeneratorService } from '../services/xmlGenerator';
 import { HtmlGeneratorService } from '../services/htmlGenerator';
 import { WebViewReportService, ReportData } from '../services/webViewReportService';
+import { WorkspaceSettingsService } from '../services/workspaceSettingsService';
 
 export class CountLinesCommand {
     private lineCounter: LineCounterService;
@@ -41,6 +42,22 @@ export class CountLinesCommand {
         this.lineCounter = new LineCounterService();
         this.xmlGenerator = new XmlGeneratorService();
         this.htmlGenerator = new HtmlGeneratorService();
+    }
+
+    /**
+     * Get exclusion patterns for a workspace folder using hierarchical settings
+     */
+    private async getExclusionPatterns(workspacePath: string): Promise<string[]> {
+        try {
+            const workspaceService = new WorkspaceSettingsService(workspacePath);
+            const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(workspacePath);
+            return settingsWithInheritance.resolvedSettings['codeCounter.excludePatterns'] || [];
+        } catch (error) {
+            console.warn('Failed to get workspace exclusion patterns, falling back to global settings:', error);
+            // Fallback to global settings if workspace settings fail
+            const config = vscode.workspace.getConfiguration('codeCounter');
+            return config.get<string[]>('excludePatterns', []);
+        }
     }
 
     async execute(): Promise<void> {
@@ -74,13 +91,12 @@ export class CountLinesCommand {
         try {
             vscode.window.showInformationMessage('Counting lines of code...');
             
-            // Get configuration
-            const config = vscode.workspace.getConfiguration('codeCounter');
-            const excludePatterns = config.get<string[]>('excludePatterns', []);
+            // Get exclusion patterns using hierarchical workspace settings
+            const folder = workspaceFolders[0];
+            const excludePatterns = await this.getExclusionPatterns(folder.uri.fsPath);
 
             if (choice.label.includes('Panel')) {
                 // Show in WebView panel
-                const folder = workspaceFolders[0];
                 const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
                 const reportData = this.convertToReportData(results, folder.uri.fsPath);
                 
@@ -90,10 +106,12 @@ export class CountLinesCommand {
                 vscode.window.showInformationMessage('Line counting completed! Report opened in panel.');
             } else {
                 // Generate HTML/XML files
-                const outputDirectory = config.get<string>('outputDirectory', './reports');
+                const config = vscode.workspace.getConfiguration('codeCounter');
+                const outputDirectory = config.get<string>('outputDirectory', './.cc/reports');
                 
                 for (const folder of workspaceFolders) {
-                    const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
+                    const folderExcludePatterns = await this.getExclusionPatterns(folder.uri.fsPath);
+                    const results = await this.lineCounter.countLines(folder.uri.fsPath, folderExcludePatterns);
                     const xmlData = this.xmlGenerator.generateXml(results);
                     await this.htmlGenerator.generateHtmlReport(xmlData, folder.uri.fsPath, outputDirectory);
                 }
@@ -117,12 +135,9 @@ export class CountLinesCommand {
         try {
             vscode.window.showInformationMessage('Counting lines of code...');
             
-            // Get configuration
-            const config = vscode.workspace.getConfiguration('codeCounter');
-            const excludePatterns = config.get<string[]>('excludePatterns', []);
-
             // Count lines for the first workspace folder (or combine if multiple)
             const folder = workspaceFolders[0];
+            const excludePatterns = await this.getExclusionPatterns(folder.uri.fsPath);
             const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
             
             // Convert to WebView report data format
@@ -152,12 +167,12 @@ export class CountLinesCommand {
         try {
             // Get configuration
             const config = vscode.workspace.getConfiguration('codeCounter');
-            const excludePatterns = config.get<string[]>('excludePatterns', []);
             const showNotification = config.get<boolean>('showNotificationOnAutoGenerate', false);
-            const outputDirectory = config.get<string>('outputDirectory', './reports');
+            const outputDirectory = config.get<string>('outputDirectory', './.cc/reports');
 
             // Generate HTML/XML files for all workspace folders
             for (const folder of workspaceFolders) {
+                const excludePatterns = await this.getExclusionPatterns(folder.uri.fsPath);
                 const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
                 const xmlData = this.xmlGenerator.generateXml(results);
                 await this.htmlGenerator.generateHtmlReport(xmlData, folder.uri.fsPath, outputDirectory);
@@ -168,6 +183,7 @@ export class CountLinesCommand {
 
             // Count lines for notification (use first workspace folder for summary)
             const folder = workspaceFolders[0];
+            const excludePatterns = await this.getExclusionPatterns(folder.uri.fsPath);
             const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
             const reportData = this.convertToReportData(results, folder.uri.fsPath);
 

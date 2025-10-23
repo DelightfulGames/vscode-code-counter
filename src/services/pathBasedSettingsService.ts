@@ -244,9 +244,8 @@ export class PathBasedSettingsService {
             '**/bin/**', 
             '**/dist/**',
             '**/.git/**',
-            '**/.**/**',
-            '**/*.vsix',
-            '**/.code-counter.json',
+            '**/.*/**',
+            '**/.*',
             '**/**-lock.json'
         ]);
     }

@@ -133,9 +133,8 @@ export class WorkspaceSettingsService {
                 '**/bin/**', 
                 '**/dist/**',
                 '**/.git/**',
-                '**/.**/**',
-                '**/*.vsix',
-                '**/.code-counter.json',
+                '**/.*/**',
+                '**/.*',
                 '**/**-lock.json'
             ])],
             'codeCounter.showNotificationOnAutoGenerate': globalSettings['codeCounter.showNotificationOnAutoGenerate'] ?? false,
@@ -232,9 +231,8 @@ export class WorkspaceSettingsService {
                     '**/bin/**', 
                     '**/dist/**',
                     '**/.git/**',
-                    '**/.**/**',
-                    '**/*.vsix',
-                    '**/.code-counter.json',
+                    '**/.*/**',
+                    '**/.*',
                     '**/**-lock.json'
                 ])],
                 'codeCounter.showNotificationOnAutoGenerate': globalSettings['codeCounter.showNotificationOnAutoGenerate'] ?? false,

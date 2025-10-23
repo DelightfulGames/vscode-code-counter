@@ -106,7 +106,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 - 🎯 **127-Line Rule**: Based on proven software engineering principles
 - 🎨 **Theme Integration**: Respects VS Code's color schemes
 
-# Backstory
+## Backstory
 ## 🎨 A long time ago (in technology generations), someone ran a statistical test to see how many lines of code a single file could contain that a single developer could "eyeball" and ensure working code; that number was about **127** lines. In other words, a single developer could ensure "bug-free" code by segmenting code and organizing it so that files have **~127** lines on average. It's one of those good "rules of thumb" behaviors that's learned (typically through debug hell) the hard way. That's where CodeCounter comes in. Simply, it counts lines in files, and alerts users that documents are getting too large for human consumption. It's not meant as a strict limitation for files, but is useful metadata about the file that coders/writers can use to organize their data in the best possible manner.
 
 ## **Features**
@@ -198,6 +198,14 @@ install-extension DelightfulGames.vscode-code-counter
 - Reset the plugin to the defaults
   - → **Code Counter: Reset Emoji Indicators to Defaults** (`codeCounter.resetBadgeSettings`)
 
+### **Context Menu Commands**
+Right-click on files or folders in the File Explorer or Editor Tab to access exclusion commands:
+- **Exclude This File/Folder Path**: Adds the relative path to the nearest `.code-counter.json` file
+- **Exclude Files Like This Name**: Adds a global pattern (e.g., `**/README.md`) to exclude all files with the same name
+- **Exclude Files with This Extension**: Adds a global pattern (e.g., `**/*.log`) to exclude all files with the same extension
+
+> 💡 **Smart Configuration**: Exclusion patterns are added to the nearest ancestor directory's `.code-counter.json` file. If none exists, a new one is created in the appropriate location. The settings webview and file decorators automatically refresh when exclusion patterns are added.
+
 ### **UI Integration**
 #### File Explorer Integration
 - **Emoji Badge Indicators**: Visual badges (🟢🟡🔴🟩🟨🟥) that don't interfere with Git status colors
@@ -254,11 +262,6 @@ The extension generates two files in the configured output directory:
 1. **`code-counter-report.html`**: Interactive HTML report with charts and tables
 - **Event-Driven Updates**: Real-time file system watching
 2. **`code-counter-data.xml`**: XML data source for integration with other tools
-
-<video width="900" controls>
-  <source src="./marketplace/videos/Reports.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
 
 ## 📊 **Technical Excellence**
 ### **Testing & Quality**
@@ -327,6 +330,11 @@ If you find the emoji badges (🟢🟡🔴) in the File Explorer too small or ha
 > **New in v0.10.0**: Revolutionary file path visibility controls
 
 The HTML reports now feature an intelligent path display system designed for large codebases:
+
+<video width="900" controls>
+  <source src="./marketplace/videos/Reports.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 #### **🔄 Interactive Toggle Controls**
 - **📁 Compact View** (default): Shows only filenames for clean, readable reports
