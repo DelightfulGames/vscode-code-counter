@@ -362,9 +362,13 @@ function resetEmojis() {
 }
 
 function updateNotificationSetting(isEnabled) {
+    if (isEnabled === null || isEnabled === undefined) {
+        console.warn('updateNotificationSetting called with null/undefined parameter:', isEnabled);
+        isEnabled = false; // Default to false if null/undefined
+    }
     vscode.postMessage({
         command: 'updateNotificationSetting',
-        enabled: isEnabled
+        enabled: Boolean(isEnabled)
     });
 }
 
@@ -691,6 +695,15 @@ function initializeWorkspaceSettings() {
         const resetBtn = document.querySelector('button[onclick*="resetField(event, \'threshold\', \'warning\')"]');
         const currentValue = warningThresholdEl.value;
         const parentValue = parentSettings['codeCounter.lineThresholds.midThreshold'];
+        
+        // Debug threshold placeholder values
+        console.log('Debug - JavaScript threshold values:', {
+            parentSettingsKeys: Object.keys(parentSettings || {}),
+            currentSettingsKeys: Object.keys(currentSettings || {}),
+            parentValueMid: parentValue,
+            parentValueMidType: typeof parentValue,
+            allParentSettings: parentSettings
+        });
         
         // Only show reset button if this threshold is actually set in the current directory
         const isSetInCurrentDirectory = currentSettings && currentSettings['codeCounter.lineThresholds.midThreshold'] !== undefined;

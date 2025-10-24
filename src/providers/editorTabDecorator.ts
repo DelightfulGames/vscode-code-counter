@@ -31,7 +31,7 @@ import * as path from 'path';
 import { LineCountCacheService, CachedLineCount } from '../services/lineCountCache';
 import { lineThresholdService } from '../services/lineThresholdService';
 import { PathBasedSettingsService } from '../services/pathBasedSettingsService';
-import { WorkspaceSettingsService } from '../services/workspaceSettingsService';
+import { WorkspaceDatabaseService } from '../services/workspaceDatabaseService';
 
 export class EditorTabDecorationProvider {
     private lineCountCache: LineCountCacheService;
@@ -40,9 +40,9 @@ export class EditorTabDecorationProvider {
     private statusBarItem: vscode.StatusBarItem;
     private currentDocument: vscode.TextDocument | undefined;
 
-    constructor() {
+    constructor(pathBasedSettings?: PathBasedSettingsService) {
         this.lineCountCache = new LineCountCacheService();
-        this.pathBasedSettings = new PathBasedSettingsService();
+        this.pathBasedSettings = pathBasedSettings || new PathBasedSettingsService();
         this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         
         this.setupEventListeners();
@@ -71,13 +71,13 @@ export class EditorTabDecorationProvider {
             }
         });
 
-        // Listen for workspace settings changes (.code-counter.json file saves)
-        const workspaceSettingsWatcher = WorkspaceSettingsService.onDidChangeSettings((event) => {
-            console.log('Workspace settings changed - updating status bar:', event.configFilePath);
+        // Listen for database settings changes
+        const dbSettingsWatcher = this.pathBasedSettings.onDidChangeSettings(() => {
+            console.log('Database settings changed - updating status bar');
             this.updateStatusBar();
         });
 
-        this.disposables.push(configWatcher, editorWatcher, documentSaveWatcher, workspaceSettingsWatcher);
+        this.disposables.push(configWatcher, editorWatcher, documentSaveWatcher, dbSettingsWatcher);
 
         // Initialize with current editor
         if (vscode.window.activeTextEditor) {
@@ -123,5 +123,6 @@ export class EditorTabDecorationProvider {
         this.disposables.forEach(d => d.dispose());
         this.statusBarItem.dispose();
         this.lineCountCache.dispose();
+        this.pathBasedSettings.dispose();
     }
 }

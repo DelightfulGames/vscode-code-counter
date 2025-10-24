@@ -6,14 +6,16 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import { FileExplorerDecorationProvider } from '../../providers/fileExplorerDecorator';
 import { EditorTabDecorationProvider } from '../../providers/editorTabDecorator';
-import { WorkspaceSettingsService, WorkspaceSettings } from '../../services/workspaceSettingsService';
+import { PathBasedSettingsService } from '../../services/pathBasedSettingsService';
+import { WorkspaceDatabaseService, WorkspaceSettings } from '../../services/workspaceDatabaseService';
 
-suite.skip('Decorator Integration Tests', () => {
+suite('Decorator Integration Tests', () => {
     let tempDir: string;
-    let workspaceSettingsService: WorkspaceSettingsService;
+    let workspaceSettingsService: WorkspaceDatabaseService;
     let vscodeMock: sinon.SinonSandbox;
     let fileExplorerDecorator: FileExplorerDecorationProvider;
     let editorTabDecorator: EditorTabDecorationProvider;
+    let pathBasedSettings: PathBasedSettingsService;
     
     suiteSetup(async () => {
         tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'decorator-integration-test-'));
@@ -29,21 +31,32 @@ suite.skip('Decorator Integration Tests', () => {
         
         // Create test files with different line counts
         const shortFile = path.join(srcDir, 'short.ts');
-        const mediumFile = path.join(componentsDir, 'medium.tsx');
+        const mediumFile = path.join(componentsDir, 'medium.ts'); // Changed from .tsx to .ts
         const longFile = path.join(testsDir, 'long.spec.ts');
         
         await fs.promises.writeFile(shortFile, 'const x = 1;\nconst y = 2;\n'); // 2 lines
         await fs.promises.writeFile(mediumFile, new Array(150).fill('console.log("test");').join('\n')); // 150 lines
         await fs.promises.writeFile(longFile, new Array(800).fill('// test comment').join('\n')); // 800 lines
         
-        workspaceSettingsService = new WorkspaceSettingsService(tempDir);
+        // Use WorkspaceDatabaseService for consistency with PathBasedSettingsService
+        workspaceSettingsService = new WorkspaceDatabaseService(tempDir);
+        
+        // Initialize the database by calling a method that properly waits for initialization
+        await workspaceSettingsService.saveWorkspaceSettings(tempDir, {});
+        
+        // Each test will set up its own settings as needed
+        console.log('[SETUP] Database initialized and ready for tests');
     });
+    
     
     suiteTeardown(async () => {
         await fs.promises.rm(tempDir, { recursive: true, force: true });
+        if (vscodeMock) {
+            vscodeMock.restore();
+        }
     });
 
-    setup(() => {
+    setup(async () => {
         vscodeMock = sinon.createSandbox();
         
         // Mock workspace folders
@@ -54,20 +67,8 @@ suite.skip('Decorator Integration Tests', () => {
             index: 0
         }]);
         
-        // Mock workspace.fs for file operations
-        vscodeMock.stub(vscode.workspace.fs, 'stat').callsFake(async (uri: vscode.Uri) => {
-            try {
-                const stats = await fs.promises.stat(uri.fsPath);
-                return {
-                    type: stats.isDirectory() ? vscode.FileType.Directory : vscode.FileType.File,
-                    ctime: stats.ctimeMs,
-                    mtime: stats.mtimeMs,
-                    size: stats.size
-                };
-            } catch (error) {
-                throw new vscode.FileSystemError('File not found');
-            }
-        });
+        // Note: workspace.fs.stat is provided by vscode-mock and cannot be stubbed directly
+        // The mock provides a basic stat implementation that should work for most tests
         
         // Mock asRelativePath
         vscodeMock.stub(vscode.workspace, 'asRelativePath').callsFake((pathOrUri: string | vscode.Uri) => {
@@ -107,6 +108,7 @@ suite.skip('Decorator Integration Tests', () => {
         // Mock createFileSystemWatcher to prevent real file watching
         vscodeMock.stub(vscode.workspace, 'createFileSystemWatcher').returns({
             onDidCreate: () => ({ dispose: () => {} }),
+            onDidChange: () => ({ dispose: () => {} }),
             onDidDelete: () => ({ dispose: () => {} }),
             dispose: () => {}
         } as any);
@@ -115,18 +117,32 @@ suite.skip('Decorator Integration Tests', () => {
         vscodeMock.stub(vscode.workspace, 'onDidChangeConfiguration').returns({ dispose: () => {} });
         vscodeMock.stub(vscode.workspace, 'onDidSaveTextDocument').returns({ dispose: () => {} });
         
-        fileExplorerDecorator = new FileExplorerDecorationProvider();
-        editorTabDecorator = new EditorTabDecorationProvider();
+        // Create a shared PathBasedSettingsService that uses the test's workspace database
+        pathBasedSettings = new PathBasedSettingsService();
+        // Clear any cached services from previous tests  
+        (pathBasedSettings as any).clearWorkspaceServices();
+        
+        // Configure the PathBasedSettingsService to use the same workspace database as our tests
+        pathBasedSettings.setWorkspaceSettingsService(workspaceSettingsService);
+        
+        fileExplorerDecorator = new FileExplorerDecorationProvider(pathBasedSettings);
+        editorTabDecorator = new EditorTabDecorationProvider(pathBasedSettings);
     });
     
     teardown(() => {
-        fileExplorerDecorator.dispose();
-        editorTabDecorator.dispose();
-        vscodeMock.restore();
+        if (fileExplorerDecorator) {
+            fileExplorerDecorator.dispose();
+        }
+        if (editorTabDecorator) {
+            editorTabDecorator.dispose();
+        }
+        if (vscodeMock) {
+            vscodeMock.restore();
+        }
     });
 
-    suite.skip('FileExplorerDecorationProvider - Path-Based Settings', () => {
-        test.skip('should use global settings when no workspace settings exist', async () => {
+    suite('FileExplorerDecorationProvider - Path-Based Settings', () => {
+        test('should use global settings when no workspace settings exist', async () => {
             const fileUri = vscode.Uri.file(path.join(tempDir, 'src', 'short.ts'));
             
             const decoration = await fileExplorerDecorator.provideFileDecoration(fileUri);
@@ -147,7 +163,7 @@ suite.skip('Decorator Integration Tests', () => {
             await workspaceSettingsService.saveWorkspaceSettings(tempDir, rootSettings);
             
             const shortFileUri = vscode.Uri.file(path.join(tempDir, 'src', 'short.ts')); // 2 lines
-            const mediumFileUri = vscode.Uri.file(path.join(tempDir, 'src', 'components', 'medium.tsx')); // 150 lines
+            const mediumFileUri = vscode.Uri.file(path.join(tempDir, 'src', 'components', 'medium.ts')); // 150 lines
             const longFileUri = vscode.Uri.file(path.join(tempDir, 'tests', 'long.spec.ts')); // 800 lines
             
             const shortDecoration = await fileExplorerDecorator.provideFileDecoration(shortFileUri);
@@ -178,7 +194,7 @@ suite.skip('Decorator Integration Tests', () => {
             };
             await workspaceSettingsService.saveWorkspaceSettings(testsDir, testSettings);
             
-            const srcFileUri = vscode.Uri.file(path.join(srcDir, 'components', 'medium.tsx')); // 150 lines in src
+            const srcFileUri = vscode.Uri.file(path.join(srcDir, 'components', 'medium.ts')); // 150 lines in src
             const testFileUri = vscode.Uri.file(path.join(testsDir, 'long.spec.ts')); // 800 lines in tests
             
             const srcDecoration = await fileExplorerDecorator.provideFileDecoration(srcFileUri);
@@ -257,19 +273,24 @@ suite.skip('Decorator Integration Tests', () => {
             };
             await workspaceSettingsService.saveWorkspaceSettings(srcDir, srcSettings);
             
+            // Create the actual file that the document references
+            const mediumFilePath = path.join(srcDir, 'medium.ts');
+            await fs.promises.mkdir(srcDir, { recursive: true });
+            await fs.promises.writeFile(mediumFilePath, new Array(150).fill('console.log("test");').join('\n'));
+            
             // Mock document with medium line count
             const mockDocument = {
-                uri: vscode.Uri.file(path.join(srcDir, 'medium.tsx')),
+                uri: vscode.Uri.file(mediumFilePath),
                 lineCount: 150,
-                fileName: 'medium.tsx'
+                fileName: 'medium.ts'
             } as vscode.TextDocument;
             
             vscodeMock.stub(vscode.window, 'activeTextEditor').value({
                 document: mockDocument
             });
             
-            // Create new decorator to test
-            const tabDecorator = new EditorTabDecorationProvider();
+            // Create new decorator to test with the same pathBasedSettings
+            const tabDecorator = new EditorTabDecorationProvider(pathBasedSettings);
             
             // Give it time to initialize
             await new Promise(resolve => setTimeout(resolve, 10));
@@ -305,18 +326,22 @@ suite.skip('Decorator Integration Tests', () => {
             await workspaceSettingsService.saveWorkspaceSettings(path.join(tempDir, 'src', 'components'), componentSettings);
             
             // Test file in deeply nested directory
-            const deepFileUri = vscode.Uri.file(path.join(tempDir, 'src', 'components', 'button.tsx'));
+            const deepFileUri = vscode.Uri.file(path.join(tempDir, 'src', 'components', 'button.ts'));
             
             // Create a file with line count that should trigger warning (150 lines, mid=100, high=800)
+            await fs.promises.mkdir(path.dirname(deepFileUri.fsPath), { recursive: true });
             await fs.promises.writeFile(deepFileUri.fsPath, new Array(150).fill('// line').join('\n'));
             
             const decoration = await fileExplorerDecorator.provideFileDecoration(deepFileUri);
+            
+
             
             expect(decoration).to.not.be.undefined;
             expect(decoration!.badge).to.equal('⚠️'); // Should use components warning emoji
             
             // Test that it would use inherited settings for normal
-            const shortDeepFileUri = vscode.Uri.file(path.join(tempDir, 'src', 'components', 'icon.tsx'));
+            const shortDeepFileUri = vscode.Uri.file(path.join(tempDir, 'src', 'components', 'icon.ts'));
+            await fs.promises.mkdir(path.dirname(shortDeepFileUri.fsPath), { recursive: true });
             await fs.promises.writeFile(shortDeepFileUri.fsPath, '// short file\nconst x = 1;');
             
             const shortDecoration = await fileExplorerDecorator.provideFileDecoration(shortDeepFileUri);
@@ -324,6 +349,8 @@ suite.skip('Decorator Integration Tests', () => {
         });
 
         test('should handle missing intermediate settings gracefully', async () => {
+            console.log('DEBUG: Starting missing intermediate test, cache keys:', Array.from((pathBasedSettings as any).workspaceServices.keys()));
+            
             // Only create root and deep directory settings, skip intermediate
             const rootSettings: WorkspaceSettings = {
                 'codeCounter.emojis.normal': '🔵',
@@ -337,8 +364,15 @@ suite.skip('Decorator Integration Tests', () => {
             };
             await workspaceSettingsService.saveWorkspaceSettings(path.join(tempDir, 'src', 'components'), deepSettings);
             
-            const deepFileUri = vscode.Uri.file(path.join(tempDir, 'src', 'components', 'test.tsx'));
+            const deepFileUri = vscode.Uri.file(path.join(tempDir, 'src', 'components', 'test.ts'));
+            await fs.promises.mkdir(path.dirname(deepFileUri.fsPath), { recursive: true });
             await fs.promises.writeFile(deepFileUri.fsPath, '// test\nconst x = 1;');
+            
+            console.log('DEBUG: Before getResolvedSettings, cache keys:', Array.from((pathBasedSettings as any).workspaceServices.keys()));
+            
+            // Debug: Check what settings are actually being resolved
+            const resolvedSettings = await pathBasedSettings.getResolvedSettings(deepFileUri.fsPath);
+            console.log('Resolved settings for', deepFileUri.fsPath, ':', resolvedSettings['codeCounter.emojis.normal']);
             
             const decoration = await fileExplorerDecorator.provideFileDecoration(deepFileUri);
             

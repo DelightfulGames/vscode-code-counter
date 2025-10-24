@@ -31,7 +31,7 @@ import * as path from 'path';
 import { LineCountCacheService, CachedLineCount } from '../services/lineCountCache';
 import { lineThresholdService } from '../services/lineThresholdService';
 import { PathBasedSettingsService } from '../services/pathBasedSettingsService';
-import { WorkspaceSettingsService } from '../services/workspaceSettingsService';
+import { WorkspaceDatabaseService } from '../services/workspaceDatabaseService';
 import { GlobUtils } from '../utils/globUtils';
 
 export class FileExplorerDecorationProvider implements vscode.FileDecorationProvider {
@@ -42,9 +42,9 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     private pathBasedSettings: PathBasedSettingsService;
     private disposables: vscode.Disposable[] = [];
 
-    constructor() {
+    constructor(pathBasedSettings?: PathBasedSettingsService) {
         this.lineCountCache = new LineCountCacheService();
-        this.pathBasedSettings = new PathBasedSettingsService();
+        this.pathBasedSettings = pathBasedSettings || new PathBasedSettingsService();
         this.setupConfigurationWatcher();
     }
 
@@ -100,27 +100,15 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
         this.disposables.push(fileWatcher, onFileCreate, onFileDelete);
 
-        // Listen for workspace settings changes (.code-counter.json file saves)
-        const workspaceSettingsWatcher = WorkspaceSettingsService.onDidChangeSettings((event) => {
-            console.log('Workspace settings changed:', event.configFilePath);
-            // Clear cache since settings (emojis, thresholds, excludes) may have changed
-            // Settings changes can affect inheritance throughout the directory tree
+        // Note: Database service handles settings changes internally
+        // Settings changes will trigger cache invalidation through file watchers
+        // Listen for database settings changes
+        const dbSettingsWatcher = this.pathBasedSettings.onDidChangeSettings(() => {
+            console.log('Database settings changed - refreshing all decorations');
             this.lineCountCache.clearCache();
-            
-            // Refresh the specific directory that changed
-            const changedDirectoryUri = vscode.Uri.file(event.directoryPath);
-            this._onDidChangeFileDecorations.fire(changedDirectoryUri);
-            
-            // Also refresh all parent directories up to workspace root since inheritance affects them
-            this.refreshParentDirectoriesForWorkspaceChange(changedDirectoryUri);
-            
-            // Refresh immediate files in the changed directory
-            this.refreshImmediateChildrenForWorkspaceChange(changedDirectoryUri);
-            
-            // Additionally refresh all subdirectories and their contents since they inherit from this directory
-            this.refreshSubdirectoriesForWorkspaceChange(changedDirectoryUri);
+            this._onDidChangeFileDecorations.fire(undefined);
         });
-        this.disposables.push(workspaceSettingsWatcher);
+        this.disposables.push(dbSettingsWatcher);
     }
 
     private refreshParentFolders(uri: vscode.Uri): void {
@@ -538,6 +526,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     dispose(): void {
         this.disposables.forEach(d => d.dispose());
         this.lineCountCache.dispose();
+        this.pathBasedSettings.dispose();
         this._onDidChangeFileDecorations.dispose();
     }
 }

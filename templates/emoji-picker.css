@@ -511,6 +511,15 @@ body.workspace-mode .workspace-only {
     font-size: 12px
 }
 
+.parent-emoji {
+    font-size: 24px;
+    opacity: 0.6;
+    margin-top: 4px;
+    text-align: center;
+    pointer-events: none;
+    user-select: none;
+}
+
 /* Responsive breakpoints */
 @media (max-width: 600px) {
     .emoji-horizontal-container {

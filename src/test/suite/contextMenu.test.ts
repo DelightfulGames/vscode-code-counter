@@ -41,7 +41,7 @@ suite('Context Menu Exclusion Commands', function() {
         
         // Check that our exclusion commands are registered
         assert.ok(commands.includes('codeCounter.excludeRelativePath'), 'excludeRelativePath command should be registered');
-        assert.ok(commands.includes('codeCounter.excludeFilePattern'), 'excludeFilePattern command should be registered');
+        assert.ok(commands.includes('codeCounter.excludeFileFolderPattern'), 'excludeFileFolderPattern command should be registered');
         assert.ok(commands.includes('codeCounter.excludeExtension'), 'excludeExtension command should be registered');
     });
 
@@ -77,7 +77,7 @@ suite('Context Menu Exclusion Commands', function() {
         const uri = vscode.Uri.file(testFile);
         
         // Execute the command
-        await vscode.commands.executeCommand('codeCounter.excludeFilePattern', uri);
+        await vscode.commands.executeCommand('codeCounter.excludeFileFolderPattern', uri);
         
         // Check if pattern was added
         const configFile = path.join(tempDir, '.code-counter.json');

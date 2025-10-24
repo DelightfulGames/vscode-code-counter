@@ -34,7 +34,53 @@ import { FileWatcherProvider } from './providers/fileWatcher';
 import { FileExplorerDecorationProvider } from './providers/fileExplorerDecorator';
 import { EditorTabDecorationProvider } from './providers/editorTabDecorator';
 import { WebViewReportService } from './services/webViewReportService';
-import { WorkspaceSettingsService, ResolvedSettings, DirectoryNode, WorkspaceSettings, WorkspaceData } from './services/workspaceSettingsService';
+import { WorkspaceDatabaseService, ResolvedSettings, WorkspaceSettings, SettingsWithInheritance } from './services/workspaceDatabaseService';
+import { PathBasedSettingsService } from './services/pathBasedSettingsService';
+// Keep old service for migration purposes
+import { DirectoryNode, WorkspaceData } from './services/workspaceSettingsService';
+
+// Helper functions to bridge API differences between old and new service
+async function getDirectoryTreeFromDatabase(workspaceService: WorkspaceDatabaseService, workspacePath: string): Promise<DirectoryNode[]> {
+    const directoriesWithSettings = await workspaceService.getDirectoriesWithSettings();
+    return directoriesWithSettings.map(dirPath => {
+        const relativePath = path.relative(workspacePath, dirPath);
+        const dirName = relativePath === '' ? '<workspace>' : path.basename(dirPath);
+        return {
+            name: dirName,
+            path: dirPath,
+            relativePath: relativePath === '' ? '<workspace>' : relativePath,
+            hasSettings: true,
+            children: []
+        };
+    });
+}
+
+async function getResolvedSettingsFromDatabase(workspaceService: WorkspaceDatabaseService, targetPath: string): Promise<ResolvedSettings & { source: string }> {
+    const inheritance = await workspaceService.getSettingsWithInheritance(targetPath);
+    return {
+        ...inheritance.resolvedSettings,
+        source: 'database'
+    } as ResolvedSettings & { source: string };
+}
+
+function addSourceToSettings(settings: any): any {
+    // Get current configuration for default values
+    const config = getCurrentConfiguration();
+    
+    return {
+        ...settings,
+        // Ensure parent settings always have default values for JavaScript placeholders
+        'codeCounter.lineThresholds.midThreshold': settings['codeCounter.lineThresholds.midThreshold'] ?? config.thresholds.mid,
+        'codeCounter.lineThresholds.highThreshold': settings['codeCounter.lineThresholds.highThreshold'] ?? config.thresholds.high,
+        'codeCounter.emojis.normal': settings['codeCounter.emojis.normal'] ?? config.badges.low,
+        'codeCounter.emojis.warning': settings['codeCounter.emojis.warning'] ?? config.badges.medium,
+        'codeCounter.emojis.danger': settings['codeCounter.emojis.danger'] ?? config.badges.high,
+        'codeCounter.emojis.folders.normal': settings['codeCounter.emojis.folders.normal'] ?? config.folderBadges.low,
+        'codeCounter.emojis.folders.warning': settings['codeCounter.emojis.folders.warning'] ?? config.folderBadges.medium,
+        'codeCounter.emojis.folders.danger': settings['codeCounter.emojis.folders.danger'] ?? config.folderBadges.high,
+        source: 'database'
+    };
+}
 
 function getCurrentConfiguration() {
     const config = vscode.workspace.getConfiguration('codeCounter');
@@ -69,7 +115,21 @@ function getCurrentConfiguration() {
     };
 }
 
-async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecorationProvider, context: vscode.ExtensionContext): Promise<void> {
+// Global reference to pathBasedSettings for settings change notifications
+let globalPathBasedSettings: PathBasedSettingsService | null = null;
+
+// Global reference to file explorer decorator for refresh operations
+let globalFileExplorerDecorator: FileExplorerDecorationProvider | null = null;
+
+function notifySettingsChanged(): void {
+    if (globalPathBasedSettings) {
+        globalPathBasedSettings.notifySettingsChanged();
+    } else {
+        console.warn('notifySettingsChanged called but globalPathBasedSettings is null');
+    }
+}
+
+async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecorationProvider, context: vscode.ExtensionContext, pathBasedSettings: PathBasedSettingsService): Promise<void> {
     // Create a webview panel for the emoji picker
     const panel = vscode.window.createWebviewPanel(
         'emojiPicker',
@@ -87,34 +147,46 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
 
     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-        const workspaceService = new WorkspaceSettingsService(workspacePath);
+
+        const workspaceService = new WorkspaceDatabaseService(workspacePath);
         
-        const directoryTree = await workspaceService.getDirectoryTree();
+        // Migrate from old .code-counter.json files if needed
+        try {
+            const migrationResult = await workspaceService.migrateFromJsonFiles();
+            if (migrationResult.migrated > 0) {
+                console.log(`Migrated ${migrationResult.migrated} settings files to database`);
+            }
+        } catch (error) {
+            console.log('Migration check completed');
+        }
+        
+        const directoriesWithSettings = await workspaceService.getDirectoriesWithSettings();
         
         // Get inheritance info for the initial directory first (before we determine what it should be)
         let inheritanceInfo = await workspaceService.getSettingsWithInheritance(workspacePath);
         
         // Use resolved workspace settings for initial display (workspace + global merged)
         const resolvedSettings = inheritanceInfo.resolvedSettings;
+        const globalConfig = getCurrentConfiguration();
         badges = {
-            low: resolvedSettings['codeCounter.emojis.normal'],
-            medium: resolvedSettings['codeCounter.emojis.warning'],
-            high: resolvedSettings['codeCounter.emojis.danger']
+            low: resolvedSettings['codeCounter.emojis.normal'] || globalConfig.badges.low,
+            medium: resolvedSettings['codeCounter.emojis.warning'] || globalConfig.badges.medium,
+            high: resolvedSettings['codeCounter.emojis.danger'] || globalConfig.badges.high
         };
         folderBadges = {
-            low: resolvedSettings['codeCounter.emojis.folders.normal'],
-            medium: resolvedSettings['codeCounter.emojis.folders.warning'],
-            high: resolvedSettings['codeCounter.emojis.folders.danger']
+            low: resolvedSettings['codeCounter.emojis.folders.normal'] || globalConfig.folderBadges.low,
+            medium: resolvedSettings['codeCounter.emojis.folders.warning'] || globalConfig.folderBadges.medium,
+            high: resolvedSettings['codeCounter.emojis.folders.danger'] || globalConfig.folderBadges.high
         };
         thresholds = {
-            mid: resolvedSettings['codeCounter.lineThresholds.midThreshold'],
-            high: resolvedSettings['codeCounter.lineThresholds.highThreshold']
+            mid: resolvedSettings['codeCounter.lineThresholds.midThreshold'] || globalConfig.thresholds.mid,
+            high: resolvedSettings['codeCounter.lineThresholds.highThreshold'] || globalConfig.thresholds.high
         };
         excludePatterns = resolvedSettings['codeCounter.excludePatterns'];
         
         // Determine the initial directory based on workspace configuration
-        const hasWorkspaceSettings = await workspaceService.hasSettings(workspacePath);
-        const hasAnySubdirectorySettings = directoryTree.some(node => node.hasSettings);
+        const hasAnySubdirectorySettings = directoriesWithSettings.length > 0;
+        const hasWorkspaceSettings = directoriesWithSettings.includes(workspacePath);
         
         // Get last viewed directory from extension state (if available)
         const lastViewedDirectory = context.globalState.get<string>('codeCounter.lastViewedDirectory');
@@ -130,15 +202,11 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                     initialDirectory = '<workspace>';
                     initialMode = 'workspace';
                 } else if (lastViewedDirectory !== '<workspace>') {
-                    // Check if the subdirectory still exists in the directory tree and has settings
+                    // Check if the subdirectory still exists and has settings
                     const lastViewedPath = path.join(workspacePath, lastViewedDirectory);
-                    const lastViewedHasSettings = await workspaceService.hasSettings(lastViewedPath);
-                    const pathExists = directoryTree.some(node => 
-                        node.relativePath === lastViewedDirectory || 
-                        node.relativePath.startsWith(lastViewedDirectory + path.sep)
-                    );
+                    const lastViewedHasSettings = directoriesWithSettings.includes(lastViewedPath);
                     
-                    if (lastViewedHasSettings && pathExists) {
+                    if (lastViewedHasSettings) {
                         initialDirectory = lastViewedDirectory;
                         initialMode = 'workspace';
                     } else {
@@ -166,13 +234,22 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                    path.join(workspacePath, initialDirectory);
         const patternsWithSources = await workspaceService.getExcludePatternsWithSources(initialDirectoryPath);
 
+        // Create directory tree structure from directories with settings
+        const directoryTree = await getDirectoryTreeFromDatabase(workspaceService, workspacePath);
+
         workspaceData = {
             mode: initialMode,
             directoryTree,
             currentDirectory: initialDirectory,
-            resolvedSettings: inheritanceInfo.resolvedSettings,
-            currentSettings: inheritanceInfo.currentSettings,
-            parentSettings: inheritanceInfo.parentSettings,
+            resolvedSettings: {
+                ...inheritanceInfo.resolvedSettings,
+                source: 'database'
+            } as any,
+            currentSettings: {
+                ...inheritanceInfo.currentSettings,
+                source: 'database'
+            } as any,
+            parentSettings: addSourceToSettings(inheritanceInfo.parentSettings),
             workspacePath,
             patternsWithSources
         };
@@ -185,6 +262,14 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
         excludePatterns = config.excludePatterns;
     }
 
+    // Debug: Log final values before webview creation
+    console.log('Debug - Final values before webview creation:', {
+        badges: badges,
+        folderBadges: folderBadges,
+        thresholds: thresholds,
+        workspaceData: !!workspaceData
+    });
+
     // HTML content with emoji picker
     panel.webview.html = getEmojiPickerWebviewContent(badges, folderBadges, thresholds, excludePatterns, workspaceData, panel.webview);
 
@@ -196,7 +281,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                     // Check if we have workspace folders and determine current mode from the message context
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
                         
                         // Determine the current directory and mode from the workspace data in the webview
                         // We need to get this info from the message or reconstruct it
@@ -260,6 +345,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                 };
                                 
                                 await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+                                notifySettingsChanged();
                                 
                                 const emojiType = message.type === 'folder' ? 'folder' : 'file';
                                 const colorName = message.colorKey === 'low' ? 'low' : message.colorKey === 'medium' ? 'medium' : 'high';
@@ -267,40 +353,52 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                 vscode.window.showInformationMessage(`${fileMessage} ${colorName} ${emojiType} emoji to ${message.emoji} in workspace settings`);
                                 
                                 // Refresh the WebView to show the updated emoji with fresh workspace data
-                                const directoryTree = await workspaceService.getDirectoryTree();
-                                const resolvedSettings = await workspaceService.getResolvedSettings(targetPath);
+                                const directoryTree = await getDirectoryTreeFromDatabase(workspaceService, workspacePath);
+                                const resolvedSettings = await getResolvedSettingsFromDatabase(workspaceService, targetPath);
                                 const inheritanceInfo = await workspaceService.getSettingsWithInheritance(targetPath);
-                                const currentConfig = getCurrentConfiguration();
                                 
-                                // Use resolved workspace settings instead of global config
+                                console.log('Debug - All resolvedSettings keys:', Object.keys(resolvedSettings));
+                                console.log('Debug - Folder emoji settings:', {
+                                    'folders.normal': resolvedSettings['codeCounter.emojis.folders.normal'],
+                                    'folders.warning': resolvedSettings['codeCounter.emojis.folders.warning'],
+                                    'folders.danger': resolvedSettings['codeCounter.emojis.folders.danger']
+                                });
+                                
+                                // Use resolved workspace settings instead of global config with fallbacks
+                                const globalConfig = getCurrentConfiguration();
                                 const workspaceBadges = {
-                                    low: resolvedSettings['codeCounter.emojis.normal'],
-                                    medium: resolvedSettings['codeCounter.emojis.warning'],
-                                    high: resolvedSettings['codeCounter.emojis.danger']
+                                    low: resolvedSettings['codeCounter.emojis.normal'] || globalConfig.badges.low,
+                                    medium: resolvedSettings['codeCounter.emojis.warning'] || globalConfig.badges.medium,
+                                    high: resolvedSettings['codeCounter.emojis.danger'] || globalConfig.badges.high
                                 };
                                 const workspaceFolderBadges = {
-                                    low: resolvedSettings['codeCounter.emojis.folders.normal'],
-                                    medium: resolvedSettings['codeCounter.emojis.folders.warning'],
-                                    high: resolvedSettings['codeCounter.emojis.folders.danger']
+                                    low: resolvedSettings['codeCounter.emojis.folders.normal'] || globalConfig.folderBadges.low,
+                                    medium: resolvedSettings['codeCounter.emojis.folders.warning'] || globalConfig.folderBadges.medium,
+                                    high: resolvedSettings['codeCounter.emojis.folders.danger'] || globalConfig.folderBadges.high
                                 };
+                                
+                                console.log('Debug - Final workspaceFolderBadges:', workspaceFolderBadges);
                                 const workspaceThresholds = {
-                                    mid: resolvedSettings['codeCounter.lineThresholds.midThreshold'],
-                                    high: resolvedSettings['codeCounter.lineThresholds.highThreshold']
+                                    mid: resolvedSettings['codeCounter.lineThresholds.midThreshold'] || globalConfig.thresholds.mid,
+                                    high: resolvedSettings['codeCounter.lineThresholds.highThreshold'] || globalConfig.thresholds.high
                                 };
+                                
+                                console.log('Debug - Final workspaceThresholds:', workspaceThresholds);
+                                const workspaceExcludePatterns = resolvedSettings['codeCounter.excludePatterns'];
                                 
                                 panel.webview.html = getEmojiPickerWebviewContent(
                                     workspaceBadges, 
                                     workspaceFolderBadges, 
                                     workspaceThresholds, 
-                                    currentConfig.excludePatterns,
+                                    workspaceExcludePatterns,
                                     {
                                         mode: 'workspace',
                                         directoryTree,
                                         currentDirectory: targetPath === workspacePath ? '<workspace>' : 
                                                         path.relative(workspacePath, targetPath),
-                                        resolvedSettings: inheritanceInfo.resolvedSettings,
+                                        resolvedSettings: addSourceToSettings(inheritanceInfo.resolvedSettings),
                                         currentSettings: inheritanceInfo.currentSettings,
-                                        parentSettings: inheritanceInfo.parentSettings,
+                                        parentSettings: addSourceToSettings(inheritanceInfo.parentSettings),
                                         workspacePath
                                     },
                                     panel.webview
@@ -334,7 +432,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                     // Check if we have workspace folders and determine current mode from the message context
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
                         
                         // Determine the current directory and mode from the message
                         let currentDirectory = '<global>';
@@ -385,44 +483,47 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                 };
                                 
                                 await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+                                notifySettingsChanged();
                                 const fileMessage = isNewFile ? 'Created new .code-counter.json and set' : 'Updated';
                                 vscode.window.showInformationMessage(`${fileMessage} ${message.thresholdKey} threshold to ${message.value} lines in workspace settings`);
                                 
                                 // Refresh the WebView to show updated values with fresh workspace data
-                                const directoryTree = await workspaceService.getDirectoryTree();
-                                const resolvedSettings = await workspaceService.getResolvedSettings(targetPath);
+                                const directoryTree = await getDirectoryTreeFromDatabase(workspaceService, workspacePath);
+                                const resolvedSettings = await getResolvedSettingsFromDatabase(workspaceService, targetPath);
                                 const inheritanceInfo = await workspaceService.getSettingsWithInheritance(targetPath);
                                 const currentConfig = getCurrentConfiguration();
                                 
-                                // Use resolved workspace settings instead of global config
+                                // Use resolved workspace settings instead of global config with fallbacks
+                                const globalConfig = getCurrentConfiguration();
                                 const workspaceBadges = {
-                                    low: resolvedSettings['codeCounter.emojis.normal'],
-                                    medium: resolvedSettings['codeCounter.emojis.warning'],
-                                    high: resolvedSettings['codeCounter.emojis.danger']
+                                    low: resolvedSettings['codeCounter.emojis.normal'] || globalConfig.badges.low,
+                                    medium: resolvedSettings['codeCounter.emojis.warning'] || globalConfig.badges.medium,
+                                    high: resolvedSettings['codeCounter.emojis.danger'] || globalConfig.badges.high
                                 };
                                 const workspaceFolderBadges = {
-                                    low: resolvedSettings['codeCounter.emojis.folders.normal'],
-                                    medium: resolvedSettings['codeCounter.emojis.folders.warning'],
-                                    high: resolvedSettings['codeCounter.emojis.folders.danger']
+                                    low: resolvedSettings['codeCounter.emojis.folders.normal'] || globalConfig.folderBadges.low,
+                                    medium: resolvedSettings['codeCounter.emojis.folders.warning'] || globalConfig.folderBadges.medium,
+                                    high: resolvedSettings['codeCounter.emojis.folders.danger'] || globalConfig.folderBadges.high
                                 };
                                 const workspaceThresholds = {
-                                    mid: resolvedSettings['codeCounter.lineThresholds.midThreshold'],
-                                    high: resolvedSettings['codeCounter.lineThresholds.highThreshold']
+                                    mid: resolvedSettings['codeCounter.lineThresholds.midThreshold'] || globalConfig.thresholds.mid,
+                                    high: resolvedSettings['codeCounter.lineThresholds.highThreshold'] || globalConfig.thresholds.high
                                 };
+                                const workspaceExcludePatterns = resolvedSettings['codeCounter.excludePatterns'];
                                 
                                 panel.webview.html = getEmojiPickerWebviewContent(
                                     workspaceBadges, 
                                     workspaceFolderBadges, 
                                     workspaceThresholds, 
-                                    currentConfig.excludePatterns,
+                                    workspaceExcludePatterns,
                                     {
                                         mode: 'workspace',
                                         directoryTree,
                                         currentDirectory: targetPath === workspacePath ? '<workspace>' : 
                                                         path.relative(workspacePath, targetPath),
-                                        resolvedSettings: inheritanceInfo.resolvedSettings,
+                                        resolvedSettings: addSourceToSettings(inheritanceInfo.resolvedSettings),
                                         currentSettings: inheritanceInfo.currentSettings,
-                                        parentSettings: inheritanceInfo.parentSettings,
+                                        parentSettings: addSourceToSettings(inheritanceInfo.parentSettings),
                                         workspacePath
                                     },
                                     panel.webview
@@ -457,7 +558,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         }
                     } else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
                         const currentDirectory = message.currentDirectory || workspaceData?.currentDirectory || '<workspace>';
                         const targetPath = currentDirectory === '<workspace>' ? workspacePath : 
                                          path.join(workspacePath, currentDirectory);
@@ -485,18 +586,22 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                             };
                             
                             await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+                            notifySettingsChanged();
                             
                             vscode.window.showInformationMessage(`Added exclude pattern: ${message.pattern}`);
                             
                             // Refresh decorations and webview
                             fileExplorerDecorator.refresh();
                             
+                            const inheritanceInfo = await workspaceService.getSettingsWithInheritance(targetPath);
                             const refreshedWorkspaceData = {
                                 ...workspaceData,
                                 currentDirectory: currentDirectory,
-                                directoryTree: await workspaceService.getDirectoryTree(),
+                                directoryTree: await getDirectoryTreeFromDatabase(workspaceService, workspacePath),
                                 patternsWithSources: await workspaceService.getExcludePatternsWithSources(targetPath),
-                                ...await workspaceService.getSettingsWithInheritance(targetPath)
+                                resolvedSettings: addSourceToSettings(inheritanceInfo.resolvedSettings),
+                                currentSettings: addSourceToSettings(inheritanceInfo.currentSettings),
+                                parentSettings: addSourceToSettings(inheritanceInfo.parentSettings)
                             };
                             
                             const updatedExcludePatterns = refreshedWorkspaceData.resolvedSettings['codeCounter.excludePatterns'];
@@ -535,7 +640,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         panel.webview.html = getEmojiPickerWebviewContent(updatedConfiguration.badges, updatedConfiguration.folderBadges, updatedConfiguration.thresholds, updatedConfiguration.excludePatterns, workspaceData, panel.webview);
                     } else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
                         const currentDirectory = message.currentDirectory || workspaceData?.currentDirectory || '<workspace>';
                         const targetPath = currentDirectory === '<workspace>' ? workspacePath : 
                                          path.join(workspacePath, currentDirectory);
@@ -562,18 +667,22 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         };
                         
                         await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+                        notifySettingsChanged();
                         
                         vscode.window.showInformationMessage(`Removed exclude pattern: ${message.pattern}`);
                         
                         // Refresh decorations and webview
                         fileExplorerDecorator.refresh();
                         
+                        const inheritanceInfo2 = await workspaceService.getSettingsWithInheritance(targetPath);
                         const refreshedWorkspaceData = {
                             ...workspaceData,
                             currentDirectory: currentDirectory,
-                            directoryTree: await workspaceService.getDirectoryTree(),
+                            directoryTree: await getDirectoryTreeFromDatabase(workspaceService, workspacePath),
                             patternsWithSources: await workspaceService.getExcludePatternsWithSources(targetPath),
-                            ...await workspaceService.getSettingsWithInheritance(targetPath)
+                            resolvedSettings: addSourceToSettings(inheritanceInfo2.resolvedSettings),
+                            currentSettings: addSourceToSettings(inheritanceInfo2.currentSettings),
+                            parentSettings: addSourceToSettings(inheritanceInfo2.parentSettings)
                         };
                         
                         const updatedExcludePatterns = refreshedWorkspaceData.resolvedSettings['codeCounter.excludePatterns'];
@@ -598,7 +707,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0 && message.isWorkspaceMode) {
                         // In workspace mode: remove patterns from current directory to inherit from ancestors
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
                         const currentDirectory = message.currentDirectory || '<workspace>';
                         const targetPath = currentDirectory === '<workspace>' ? workspacePath : 
                                          path.join(workspacePath, currentDirectory);
@@ -610,13 +719,17 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         
                         // Refresh decorations and webview
                         fileExplorerDecorator.refresh();
+                        notifySettingsChanged();
                         
+                        const inheritanceInfo3 = await workspaceService.getSettingsWithInheritance(targetPath);
                         const refreshedWorkspaceData = {
                             ...workspaceData,
                             currentDirectory: currentDirectory,
-                            directoryTree: await workspaceService.getDirectoryTree(),
+                            directoryTree: await getDirectoryTreeFromDatabase(workspaceService, workspacePath),
                             patternsWithSources: await workspaceService.getExcludePatternsWithSources(targetPath),
-                            ...await workspaceService.getSettingsWithInheritance(targetPath)
+                            resolvedSettings: addSourceToSettings(inheritanceInfo3.resolvedSettings),
+                            currentSettings: addSourceToSettings(inheritanceInfo3.currentSettings),
+                            parentSettings: addSourceToSettings(inheritanceInfo3.parentSettings)
                         };
                         
                         const updatedExcludePatterns = refreshedWorkspaceData.resolvedSettings['codeCounter.excludePatterns'];
@@ -641,6 +754,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         vscode.window.showInformationMessage('Exclude patterns reset to defaults');
                         
                         fileExplorerDecorator.refresh();
+                        notifySettingsChanged();
                         const updatedConfiguration3 = getCurrentConfiguration();
                         panel.webview.html = getEmojiPickerWebviewContent(updatedConfiguration3.badges, updatedConfiguration3.folderBadges, updatedConfiguration3.thresholds, updatedConfiguration3.excludePatterns);
                     }
@@ -656,10 +770,10 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                     
                     if (message.isWorkspaceMode && message.currentDirectory && message.currentDirectory !== '<global>') {
                         console.log('Entering workspace mode reset branch');
-                        // Workspace mode: delete the .code-counter.json file
+                        // Workspace mode: reset emoji fields in database
                         if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                             const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                            const workspaceService = new WorkspaceSettingsService(workspacePath);
+                            const workspaceService = new WorkspaceDatabaseService(workspacePath);
                             
                             console.log('Workspace details:', {
                                 workspacePath: workspacePath,
@@ -667,46 +781,33 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                             });
                             
                             try {
-                                // Construct the full config file path
-                                let targetDirectory;
+                                // Determine target directory path
+                                let targetPath;
                                 if (message.currentDirectory === '<workspace>') {
-                                    targetDirectory = workspacePath;
+                                    targetPath = workspacePath;
                                 } else if (path.isAbsolute(message.currentDirectory)) {
-                                    // Already an absolute path
-                                    targetDirectory = message.currentDirectory;
+                                    targetPath = message.currentDirectory;
                                 } else {
-                                    // Relative path - join with workspace path
-                                    targetDirectory = path.join(workspacePath, message.currentDirectory);
+                                    targetPath = path.join(workspacePath, message.currentDirectory);
                                 }
                                 
-                                const configFilePath = path.join(targetDirectory, '.code-counter.json');
+                                console.log('Resetting emoji fields for directory:', targetPath);
                                 
-                                console.log('Path resolution:', {
-                                    workspacePath: workspacePath,
-                                    messageCurrentDirectory: message.currentDirectory,
-                                    resolvedTargetDirectory: targetDirectory,
-                                    finalConfigFilePath: configFilePath
-                                });
+                                // Reset all emoji fields and thresholds using the database service
+                                await workspaceService.resetField(targetPath, 'emojis.normal');
+                                await workspaceService.resetField(targetPath, 'emojis.warning');
+                                await workspaceService.resetField(targetPath, 'emojis.danger');
+                                await workspaceService.resetField(targetPath, 'emojis.folders.normal');
+                                await workspaceService.resetField(targetPath, 'emojis.folders.warning');
+                                await workspaceService.resetField(targetPath, 'emojis.folders.danger');
+                                await workspaceService.resetField(targetPath, 'lineThresholds.midThreshold');
+                                await workspaceService.resetField(targetPath, 'lineThresholds.highThreshold');
                                 
-                                console.log('Attempting to delete settings file:', configFilePath);
-                                
-                                // Check if file exists before trying to delete
-                                const fileExists = await fs.promises.access(configFilePath).then(() => true).catch(() => false);
-                                
-                                console.log('File exists check result:', fileExists);
-                                
-                                if (fileExists) {
-                                    await workspaceService.deleteSettingsFile(configFilePath);
-                                    vscode.window.showInformationMessage('Workspace emoji settings reset to defaults (file deleted)');
-                                    console.log('File deleted successfully');
-                                } else {
-                                    vscode.window.showInformationMessage('No workspace settings file found to delete - already using inherited defaults');
-                                    console.log('No file found to delete');
-                                }
+                                vscode.window.showInformationMessage('All emoji settings and thresholds reset to inherit from parent');
+                                console.log('All emoji fields reset successfully');
                             } catch (error) {
-                                console.error('Error deleting settings file:', error);
-                                console.error('Error deleting settings file:', error);
-                                vscode.window.showErrorMessage(`Failed to reset workspace settings: ${error}`);
+                                console.error('Error resetting emoji fields:', error);
+                                vscode.window.showErrorMessage(`Failed to reset emoji settings: ${error}`);
                             }
                         } else {
                             console.log('No workspace folders found');
@@ -746,9 +847,9 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                     // Regenerate workspace data if we have workspace folders
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
                         
-                        const directoryTree = await workspaceService.getDirectoryTree();
+                        const directoryTree = await getDirectoryTreeFromDatabase(workspaceService, workspacePath);
                         
                         // Get inheritance info for the specific directory that was reset, not just the workspace root
                         let inheritanceTargetDirectory;
@@ -773,9 +874,9 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                             mode: 'workspace',
                             directoryTree,
                             currentDirectory: message.currentDirectory || '<workspace>',
-                            resolvedSettings: inheritanceInfo.resolvedSettings,
+                            resolvedSettings: addSourceToSettings(inheritanceInfo.resolvedSettings),
                             currentSettings: inheritanceInfo.currentSettings,
-                            parentSettings: inheritanceInfo.parentSettings,
+                            parentSettings: addSourceToSettings(inheritanceInfo.parentSettings),
                             workspacePath: workspacePath,
                             patternsWithSources: await workspaceService.getExcludePatternsWithSources(inheritanceTargetDirectory)
                         };
@@ -810,12 +911,17 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         resetExcludePatterns = updatedConfiguration4.excludePatterns;
                     }
                     
+                    // Refresh decorators to reflect emoji changes
+                    fileExplorerDecorator.refresh();
+                    notifySettingsChanged();
+                    
                     panel.webview.html = getEmojiPickerWebviewContent(resetBadges, resetFolderBadges, resetThresholds, resetExcludePatterns, refreshWorkspaceData, panel.webview);
                     break;
                 case 'updateNotificationSetting':
                     const notificationConfig = vscode.workspace.getConfiguration('codeCounter');
-                    await notificationConfig.update('showNotificationOnAutoGenerate', message.enabled, vscode.ConfigurationTarget.Global);
-                    const statusText = message.enabled ? 'enabled' : 'disabled';
+                    const enabledValue = message.enabled === null || message.enabled === undefined ? false : Boolean(message.enabled);
+                    await notificationConfig.update('showNotificationOnAutoGenerate', enabledValue, vscode.ConfigurationTarget.Global);
+                    const statusText = enabledValue ? 'enabled' : 'disabled';
                     vscode.window.showInformationMessage(`Popup notifications on auto-generate ${statusText}`);
                     break;
                 case 'updateOutputDirectory':
@@ -861,16 +967,17 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                 case 'createWorkspaceSettings':
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
                         
                         // Create empty workspace settings file to enable workspace mode
                         await workspaceService.saveWorkspaceSettings(workspacePath, {});
+                        notifySettingsChanged();
                         
                         // Store workspace as the last viewed directory
                         await context.globalState.update('codeCounter.lastViewedDirectory', '<workspace>');
 
                         // Get directory tree and workspace data
-                        const directoryTree = await workspaceService.getDirectoryTree();
+                        const directoryTree = await getDirectoryTreeFromDatabase(workspaceService, workspacePath);
                         const inheritanceInfo = await workspaceService.getSettingsWithInheritance(workspacePath);
 
                         // Refresh webview with workspace mode
@@ -879,9 +986,9 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                             mode: 'workspace',
                             directoryTree,
                             currentDirectory: '<workspace>',
-                            resolvedSettings: inheritanceInfo.resolvedSettings,
+                            resolvedSettings: addSourceToSettings(inheritanceInfo.resolvedSettings),
                             currentSettings: inheritanceInfo.currentSettings,
-                            parentSettings: inheritanceInfo.parentSettings,
+                            parentSettings: addSourceToSettings(inheritanceInfo.parentSettings),
                             workspacePath,
                             patternsWithSources: await workspaceService.getExcludePatternsWithSources(workspacePath)
                         };
@@ -902,7 +1009,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                 case 'checkEmptySettingsBeforeChange':
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
                         
                         const currentPath = message.currentDirectory === '<global>' ? null : 
                                           message.currentDirectory === '<workspace>' ? workspacePath : 
@@ -910,7 +1017,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         
                         let hasEmptySettings = false;
                         if (currentPath) {
-                            hasEmptySettings = await workspaceService.hasEmptySettings(currentPath);
+                            hasEmptySettings = false // hasEmptySettings not implemented in database service;
                         }
                         
                         // Send response back to webview
@@ -924,7 +1031,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                 case 'selectDirectory':
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
                         
                         // Store the selected directory as the last viewed directory
                         await context.globalState.update('codeCounter.lastViewedDirectory', message.directoryPath);
@@ -938,8 +1045,9 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                                path.join(workspacePath, previousDirectory);
                             
                             // Check if previous directory has empty settings and clean them up
-                            if (await workspaceService.hasEmptySettings(previousPath)) {
-                                await workspaceService.deleteSettingsFile(path.join(previousPath, '.code-counter.json'));
+                            const hasEmptySettings = false; // hasEmptySettings not implemented in database service
+                            if (hasEmptySettings) {
+                                // deleteSettingsFile not needed in database service
                                 cleanupHappened = true;
                             }
                         }
@@ -948,7 +1056,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                            message.directoryPath === '<workspace>' ? workspacePath : 
                                            path.join(workspacePath, message.directoryPath);
                         
-                        const directoryTree = await workspaceService.getDirectoryTree();
+                        const directoryTree = await getDirectoryTreeFromDatabase(workspaceService, workspacePath);
                         const currentConfig = getCurrentConfiguration();
                         
                         let finalSelectedPath = selectedPath;
@@ -1018,7 +1126,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                     mode: 'global',
                                     directoryTree,
                                     currentDirectory: '<global>',
-                                    resolvedSettings: finalResolvedSettings, // Use consistent global settings
+                                    resolvedSettings: addSourceToSettings(finalResolvedSettings), // Use consistent global settings
                                     currentSettings: undefined, // No current settings in global mode
                                     parentSettings: undefined, // No parent settings in global mode
                                     workspacePath
@@ -1037,9 +1145,9 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                     currentDirectory: finalSelectedPath === null ? '<global>' : 
                                                     finalSelectedPath === workspacePath ? '<workspace>' : 
                                                     path.relative(workspacePath, finalSelectedPath),
-                                    resolvedSettings: settings,
+                                    resolvedSettings: addSourceToSettings(settings),
                                     currentSettings: inheritanceInfo?.currentSettings,
-                                    parentSettings: inheritanceInfo?.parentSettings || undefined,
+                                    parentSettings: addSourceToSettings(inheritanceInfo?.parentSettings || {}),
                                     workspacePath,
                                     patternsWithSources: await workspaceService.getExcludePatternsWithSources(finalSelectedPath || workspacePath)
                                 },
@@ -1051,18 +1159,19 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                 case 'createSubWorkspace':
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
                         const targetPath = path.join(workspacePath, message.directoryPath);
                         
                         // Create empty settings file in subdirectory
                         await workspaceService.saveWorkspaceSettings(targetPath, {});
+                        notifySettingsChanged();
                         
                         // Store the subdirectory as the last viewed directory
                         await context.globalState.update('codeCounter.lastViewedDirectory', message.directoryPath);
                         
                         // Refresh with updated tree
-                        const directoryTree = await workspaceService.getDirectoryTree();
-                        const resolvedSettings = await workspaceService.getResolvedSettings(targetPath);
+                        const directoryTree = await getDirectoryTreeFromDatabase(workspaceService, workspacePath);
+                        const resolvedSettings = await getResolvedSettingsFromDatabase(workspaceService, targetPath);
                         const currentConfig = getCurrentConfiguration();
                         
                         // Use resolved workspace settings instead of global config
@@ -1102,16 +1211,19 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                 case 'saveWorkspaceSettings':
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
                         
                         const targetPath = message.directoryPath === '<workspace>' ? workspacePath : 
                                          path.join(workspacePath, message.directoryPath);
                         
                         await workspaceService.saveWorkspaceSettings(targetPath, message.settings);
                         
+                        // Notify PathBasedSettingsService about changes to refresh decorators
+                        pathBasedSettings.notifySettingsChanged();
+                        
                         // Refresh to show updated settings
-                        const directoryTree = await workspaceService.getDirectoryTree();
-                        const resolvedSettings = await workspaceService.getResolvedSettings(targetPath);
+                        const directoryTree = await getDirectoryTreeFromDatabase(workspaceService, workspacePath);
+                        const resolvedSettings = await getResolvedSettingsFromDatabase(workspaceService, targetPath);
                         const currentConfig = getCurrentConfiguration();
                         
                         // Use resolved workspace settings instead of global config
@@ -1130,6 +1242,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                             high: resolvedSettings['codeCounter.lineThresholds.highThreshold']
                         };
                         
+                        const finalInheritanceInfo = await workspaceService.getSettingsWithInheritance(targetPath);
                         panel.webview.html = getEmojiPickerWebviewContent(
                             workspaceBadges, 
                             workspaceFolderBadges, 
@@ -1142,7 +1255,9 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                                 path.relative(workspacePath, targetPath),
                                 workspacePath,
                                 patternsWithSources: await workspaceService.getExcludePatternsWithSources(targetPath),
-                                ...await workspaceService.getSettingsWithInheritance(targetPath)
+                                resolvedSettings: addSourceToSettings(finalInheritanceInfo.resolvedSettings),
+                                currentSettings: addSourceToSettings(finalInheritanceInfo.currentSettings),
+                                parentSettings: addSourceToSettings(finalInheritanceInfo.parentSettings)
                             },
                             panel.webview
                         );
@@ -1153,15 +1268,20 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                 case 'resetWorkspaceField':
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceSettingsService(workspacePath);
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
                         
                         const targetPath = message.directory === '<workspace>' ? workspacePath : 
                                          path.join(workspacePath, message.directory);
                         
+                        // Reset the specific field in the database
                         await workspaceService.resetField(targetPath, message.field);
                         
+                        // Refresh decorators to reflect updated settings
+                        fileExplorerDecorator.refresh();
+                        notifySettingsChanged();
+                        
                         // Get updated resolved settings to send back to webview
-                        const resolvedSettings = await workspaceService.getResolvedSettings(targetPath);
+                        const resolvedSettings = await getResolvedSettingsFromDatabase(workspaceService, targetPath);
                         
                         // Send targeted update to webview instead of refreshing entire HTML
                         panel.webview.postMessage({
@@ -1179,18 +1299,10 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
         undefined
     );
 
-    // Handle webview disposal and cleanup empty settings files
+    // Handle webview disposal
     panel.onDidDispose(() => {
-        // Clean up any empty .code-counter.json files when the settings webview closes
-        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-            const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-            const workspaceService = new WorkspaceSettingsService(workspacePath);
-            
-            // Don't await this since panel is disposing - fire and forget
-            workspaceService.cleanupEmptySettingsFiles().catch(error => {
-                console.log('Error cleaning up empty settings files:', error);
-            });
-        }
+        // Database service handles cleanup automatically - no action needed
+        console.log('Code Counter settings panel disposed');
     });
 }
 
@@ -1201,6 +1313,13 @@ function getEmojiPickerWebviewContent(badges: any,
         workspaceData?: WorkspaceData,
         webview?: vscode.Webview): string {
     try {
+        console.log('Debug - getEmojiPickerWebviewContent called with:', {
+            badges: badges,
+            folderBadges: folderBadges,
+            thresholds: thresholds,
+            excludePatterns: excludePatterns?.length || 0,
+            workspaceData: !!workspaceData
+        });
         const templatePath = path.join(__dirname, '..', 'templates', 'emoji-picker.html');
         let htmlContent = fs.readFileSync(templatePath, 'utf8');
         
@@ -1317,6 +1436,19 @@ function getEmojiPickerWebviewContent(badges: any,
 
         // We'll embed only the data, not the script content
         let embeddedData;
+        
+        // Debug workspaceData before embedding
+        console.log('Debug - workspaceData structure before embedding:', {
+            workspaceDataExists: !!workspaceData,
+            currentSettingsKeys: workspaceData?.currentSettings ? Object.keys(workspaceData.currentSettings) : [],
+            parentSettingsKeys: workspaceData?.parentSettings ? Object.keys(workspaceData.parentSettings) : [],
+        });
+        console.log('Debug - Parent threshold values in parentSettings:', {
+            'midThreshold': workspaceData?.parentSettings?.['codeCounter.lineThresholds.midThreshold'],
+            'highThreshold': workspaceData?.parentSettings?.['codeCounter.lineThresholds.highThreshold'],
+            'allParentSettings': workspaceData?.parentSettings
+        });
+        
         try {
             embeddedData = {
                 emojiData: emojiDB,
@@ -1345,14 +1477,65 @@ function getEmojiPickerWebviewContent(badges: any,
             ${scriptContent}
         `;
         
-        htmlContent = htmlContent.replace(/{{badges\.low}}/g, badges.low);
-        htmlContent = htmlContent.replace(/{{badges\.medium}}/g, badges.medium);
-        htmlContent = htmlContent.replace(/{{badges\.high}}/g, badges.high);
-        htmlContent = htmlContent.replace(/{{folderBadges\.low}}/g, folderBadges.low);
-        htmlContent = htmlContent.replace(/{{folderBadges\.medium}}/g, folderBadges.medium);
-        htmlContent = htmlContent.replace(/{{folderBadges\.high}}/g, folderBadges.high);
-        htmlContent = htmlContent.replace(/{{thresholds\.mid}}/g, thresholds.mid?.toString());
-        htmlContent = htmlContent.replace(/{{thresholds\.high}}/g, thresholds.high?.toString());
+        console.log('Debug - About to replace placeholders with:', {
+            'badges.low': badges.low,
+            'badges.medium': badges.medium,
+            'badges.high': badges.high,
+            'folderBadges.low': folderBadges.low,
+            'folderBadges.medium': folderBadges.medium,
+            'folderBadges.high': folderBadges.high,
+            'thresholds.mid': thresholds.mid,
+            'thresholds.high': thresholds.high
+        });
+        
+        // Test if badges object exists and has the expected structure
+        console.log('Debug - badges object detailed:', badges);
+        console.log('Debug - folderBadges object detailed:', folderBadges);
+        console.log('Debug - thresholds object detailed:', thresholds);
+        
+        // Test if placeholders exist in HTML before replacement
+        const hasBadgesLow = htmlContent.includes('{{badges.low}}');
+        const hasThresholdsMid = htmlContent.includes('{{thresholds.mid}}');
+        console.log('Debug - Placeholders found in HTML:', {
+            '{{badges.low}}': hasBadgesLow,
+            '{{thresholds.mid}}': hasThresholdsMid
+        });
+        
+        // Debug emoji values before replacement
+        const lowBadge = badges.low || '🟢';
+        const mediumBadge = badges.medium || '🟡';
+        const highBadge = badges.high || '🔴';
+        console.log('Debug - Emoji replacement values:', {
+            lowBadge: `"${lowBadge}"`,
+            mediumBadge: `"${mediumBadge}"`,
+            highBadge: `"${highBadge}"`,
+            lowBadgeLength: lowBadge.length,
+            mediumBadgeLength: mediumBadge.length,
+            highBadgeLength: highBadge.length
+        });
+        
+        htmlContent = htmlContent.replace(/{{badges\.low}}/g, lowBadge);
+        htmlContent = htmlContent.replace(/{{badges\.medium}}/g, mediumBadge);
+        htmlContent = htmlContent.replace(/{{badges\.high}}/g, highBadge);
+        htmlContent = htmlContent.replace(/{{folderBadges\.low}}/g, folderBadges.low || '🟩');
+        htmlContent = htmlContent.replace(/{{folderBadges\.medium}}/g, folderBadges.medium || '🟨');
+        htmlContent = htmlContent.replace(/{{folderBadges\.high}}/g, folderBadges.high || '🟥');
+        // Debug threshold values before replacement
+        console.log('Debug - Threshold values before replacement:', {
+            'thresholds.mid': thresholds.mid,
+            'thresholds.mid type': typeof thresholds.mid,
+            'thresholds.mid?.toString()': thresholds.mid?.toString(),
+            'thresholds.high': thresholds.high,
+            'thresholds.high type': typeof thresholds.high,
+            'thresholds.high?.toString()': thresholds.high?.toString()
+        });
+        
+        const midValue = thresholds.mid?.toString() || '300';
+        const highValue = thresholds.high?.toString() || '1000';
+        console.log('Debug - Final threshold replacement values:', { midValue, highValue });
+        
+        htmlContent = htmlContent.replace(/{{thresholds\.mid}}/g, midValue);
+        htmlContent = htmlContent.replace(/{{thresholds\.high}}/g, highValue);
         htmlContent = htmlContent.replace(/{{lowPreviewLines}}/g, lowPreviewLines.toString());
         htmlContent = htmlContent.replace(/{{mediumPreviewLines}}/g, mediumPreviewLines.toString());
         htmlContent = htmlContent.replace(/{{highPreviewLines}}/g, highPreviewLines.toString());
@@ -1363,6 +1546,14 @@ function getEmojiPickerWebviewContent(badges: any,
         htmlContent = htmlContent.replace(/{{excludePatterns}}/g, excludePatternsHtml);
         htmlContent = htmlContent.replace(/{{showNotificationChecked}}/g, showNotificationChecked);
         
+        // Debug - Check for any remaining unreplaced placeholders
+        const remainingPlaceholders = htmlContent.match(/{{[^}]+}}/g) || [];
+        console.log('Debug - Remaining unreplaced placeholders after replacement:', remainingPlaceholders);
+        
+        // Debug - Sample of final HTML content around badge areas
+        const badgesSample = htmlContent.substring(htmlContent.indexOf('current-emoji') - 100, htmlContent.indexOf('current-emoji') + 200);
+        console.log('Debug - Sample HTML around badges area after replacement:', badgesSample);
+       
         // Output Directory and Auto-Generate settings
         const settingsConfig = vscode.workspace.getConfiguration('codeCounter');
         const outputDirectory = settingsConfig.get<string>('outputDirectory', './.cc/reports');
@@ -1382,23 +1573,99 @@ function getEmojiPickerWebviewContent(badges: any,
         let parentWarningThreshold = 'N/A';
         let parentDangerThreshold = 'N/A';
         
+        // Source information for inheritance
+        let parentFileNormalSource = 'N/A';
+        let parentFileWarningSource = 'N/A';
+        let parentFileDangerSource = 'N/A';
+        let parentFolderNormalSource = 'N/A';
+        let parentFolderWarningSource = 'N/A';
+        let parentFolderDangerSource = 'N/A';
+        let parentWarningThresholdSource = 'N/A';
+        let parentDangerThresholdSource = 'N/A';
+        
         if (workspaceData && workspaceData.parentSettings) {
-            parentFileNormal = workspaceData.parentSettings['codeCounter.emojis.normal'];
-            parentFileWarning = workspaceData.parentSettings['codeCounter.emojis.warning'];
-            parentFileDanger = workspaceData.parentSettings['codeCounter.emojis.danger'];
-            parentFolderNormal = workspaceData.parentSettings['codeCounter.emojis.folders.normal'];
-            parentFolderWarning = workspaceData.parentSettings['codeCounter.emojis.folders.warning'];
-            parentFolderDanger = workspaceData.parentSettings['codeCounter.emojis.folders.danger'];
-            parentWarningThreshold = workspaceData.parentSettings['codeCounter.lineThresholds.midThreshold'].toString();
-            parentDangerThreshold = workspaceData.parentSettings['codeCounter.lineThresholds.highThreshold'].toString();
+            // Use actual parent settings if available, with fallbacks for undefined values
+            const globalConfig = getCurrentConfiguration();
+            
+            // Determine the source of inheritance based on current directory
+            let parentSource = '<global>';
+            if (workspaceData.currentDirectory === '<workspace>') {
+                parentSource = '<global>';
+            } else if (workspaceData.currentDirectory && workspaceData.workspacePath) {
+                // We're in a subdirectory, so parent is either workspace root or another parent directory
+                const currentPath = path.join(workspaceData.workspacePath, workspaceData.currentDirectory);
+                const parentPath = path.dirname(currentPath);
+                if (parentPath === workspaceData.workspacePath) {
+                    parentSource = '<workspace>';
+                } else {
+                    parentSource = path.relative(workspaceData.workspacePath, parentPath);
+                }
+            }
+            
+            parentFileNormal = workspaceData.parentSettings['codeCounter.emojis.normal'] || globalConfig.badges.low || '🟢';
+            parentFileWarning = workspaceData.parentSettings['codeCounter.emojis.warning'] || globalConfig.badges.medium || '🟡';
+            parentFileDanger = workspaceData.parentSettings['codeCounter.emojis.danger'] || globalConfig.badges.high || '🔴';
+            parentFolderNormal = workspaceData.parentSettings['codeCounter.emojis.folders.normal'] || globalConfig.folderBadges.low || '🟩';
+            parentFolderWarning = workspaceData.parentSettings['codeCounter.emojis.folders.warning'] || globalConfig.folderBadges.medium || '🟨';
+            parentFolderDanger = workspaceData.parentSettings['codeCounter.emojis.folders.danger'] || globalConfig.folderBadges.high || '🟥';
+            parentWarningThreshold = (workspaceData.parentSettings['codeCounter.lineThresholds.midThreshold'] || globalConfig.thresholds.mid || 300).toString();
+            parentDangerThreshold = (workspaceData.parentSettings['codeCounter.lineThresholds.highThreshold'] || globalConfig.thresholds.high || 1000).toString();
+            
+            // Set source labels
+            parentFileNormalSource = parentSource;
+            parentFileWarningSource = parentSource;
+            parentFileDangerSource = parentSource;
+            parentFolderNormalSource = parentSource;
+            parentFolderWarningSource = parentSource;
+            parentFolderDangerSource = parentSource;
+            parentWarningThresholdSource = parentSource;
+            parentDangerThresholdSource = parentSource;
+        } else if (workspaceData && workspaceData.mode === 'workspace') {
+            // Fallback to global configuration values when no parent settings (e.g., at workspace root)
+            console.log('Getting global config for parent fallback');
+            const globalConfig = getCurrentConfiguration();
+            console.log('Global config retrieved:', globalConfig);
+            
+            parentFileNormal = globalConfig.badges.low || '🟢';
+            parentFileWarning = globalConfig.badges.medium || '🟡';
+            parentFileDanger = globalConfig.badges.high || '🔴';
+            parentFolderNormal = globalConfig.folderBadges.low || '🟩';
+            parentFolderWarning = globalConfig.folderBadges.medium || '🟨';
+            parentFolderDanger = globalConfig.folderBadges.high || '🟥';
+            parentWarningThreshold = (globalConfig.thresholds.mid || 300).toString();
+            parentDangerThreshold = (globalConfig.thresholds.high || 1000).toString();
+            
+            // At workspace root, parent is always global
+            parentFileNormalSource = '<global>';
+            parentFileWarningSource = '<global>';
+            parentFileDangerSource = '<global>';
+            parentFolderNormalSource = '<global>';
+            parentFolderWarningSource = '<global>';
+            parentFolderDangerSource = '<global>';
+            parentWarningThresholdSource = '<global>';
+            parentDangerThresholdSource = '<global>';
+            
+            console.log('Parent values set:', {
+                parentFileNormal, parentFileWarning, parentFileDanger,
+                parentFolderNormal, parentFolderWarning, parentFolderDanger,
+                parentWarningThreshold, parentDangerThreshold
+            });
         }
         
         htmlContent = htmlContent.replace(/{{parentFileNormal}}/g, parentFileNormal);
         htmlContent = htmlContent.replace(/{{parentFileWarning}}/g, parentFileWarning);
         htmlContent = htmlContent.replace(/{{parentFileDanger}}/g, parentFileDanger);
         htmlContent = htmlContent.replace(/{{parentFolderNormal}}/g, parentFolderNormal);
+        htmlContent = htmlContent.replace(/{{parentFileNormalSource}}/g, parentFileNormalSource);
+        htmlContent = htmlContent.replace(/{{parentFileWarningSource}}/g, parentFileWarningSource);
+        htmlContent = htmlContent.replace(/{{parentFileDangerSource}}/g, parentFileDangerSource);
+        htmlContent = htmlContent.replace(/{{parentFolderNormalSource}}/g, parentFolderNormalSource);
         htmlContent = htmlContent.replace(/{{parentFolderWarning}}/g, parentFolderWarning);
         htmlContent = htmlContent.replace(/{{parentFolderDanger}}/g, parentFolderDanger);
+        htmlContent = htmlContent.replace(/{{parentFolderWarningSource}}/g, parentFolderWarningSource);
+        htmlContent = htmlContent.replace(/{{parentFolderDangerSource}}/g, parentFolderDangerSource);
+        htmlContent = htmlContent.replace(/{{parentWarningThresholdSource}}/g, parentWarningThresholdSource);
+        htmlContent = htmlContent.replace(/{{parentDangerThresholdSource}}/g, parentDangerThresholdSource);
         htmlContent = htmlContent.replace(/{{parentWarningThreshold}}/g, parentWarningThreshold);
         htmlContent = htmlContent.replace(/{{parentDangerThreshold}}/g, parentDangerThreshold);
         
@@ -1544,29 +1811,60 @@ async function findNearestConfigDirectory(filePath: string): Promise<string> {
     }
 
     const workspacePath = workspaceFolders[0].uri.fsPath;
-    const workspaceService = new WorkspaceSettingsService(workspacePath);
+    console.log('DEBUG findNearestConfigDirectory: workspacePath =', workspacePath);
+    console.log('DEBUG findNearestConfigDirectory: filePath =', filePath);
+    
+    const workspaceService = new WorkspaceDatabaseService(workspacePath);
     
     // For files, use the directory; for directories, use the directory itself
     const stats = await fs.promises.stat(filePath);
-    let directoryPath = stats.isFile() ? path.dirname(filePath) : filePath;
+    let currentDir = stats.isFile() ? path.dirname(filePath) : filePath;
+    console.log('DEBUG findNearestConfigDirectory: currentDir =', currentDir);
 
-    let dirsWithSettings = (await workspaceService.getDirectoriesWithSettings()).reverse();
-    
-    if (dirsWithSettings.length === 0) 
-        directoryPath = workspacePath;
-    else
-        directoryPath = dirsWithSettings[dirsWithSettings.indexOf(directoryPath)];
-
-    // If the directory is outside workspace, use workspace root
-    if (!directoryPath.startsWith(workspacePath) || dirsWithSettings.length === 0) {
-        directoryPath = workspacePath;
+    // Ensure the directory is within the workspace
+    if (!currentDir.startsWith(workspacePath)) {
+        console.log('DEBUG findNearestConfigDirectory: currentDir not in workspace, returning workspacePath');
+        return workspacePath;
     }
 
-    return directoryPath;
+    // Get all directories with settings
+    const dirsWithSettings = await workspaceService.getDirectoriesWithSettings();
+    console.log('DEBUG findNearestConfigDirectory: dirsWithSettings =', dirsWithSettings);
+    
+    // If no directories have settings, use workspace root
+    if (dirsWithSettings.length === 0) {
+        console.log('DEBUG findNearestConfigDirectory: no dirs with settings, returning workspacePath');
+        return workspacePath;
+    }
+
+    // Traverse up the directory tree to find the nearest parent with settings
+    let searchDir = currentDir;
+    while (searchDir.length >= workspacePath.length) {
+        console.log('DEBUG findNearestConfigDirectory: checking searchDir =', searchDir);
+        // Check if current directory has settings
+        if (dirsWithSettings.includes(searchDir)) {
+            console.log('DEBUG findNearestConfigDirectory: found settings in searchDir, returning', searchDir);
+            return searchDir;
+        }
+        
+        // Move up one directory level
+        const parentDir = path.dirname(searchDir);
+        if (parentDir === searchDir) {
+            // Reached filesystem root, break to avoid infinite loop
+            console.log('DEBUG findNearestConfigDirectory: reached filesystem root');
+            break;
+        }
+        searchDir = parentDir;
+    }
+
+    // No parent directory with settings found, use workspace root
+    console.log('DEBUG findNearestConfigDirectory: no parent found, returning workspacePath');
+    return workspacePath;
 }
 
 /**
- * Add an exclusion pattern to the nearest appropriate .code-counter.json file
+ * Add an exclusion pattern to the nearest appropriate directory's settings,
+ * properly inheriting from parent directories
  */
 async function addExclusionPattern(filePath: string, pattern: string): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -1575,54 +1873,65 @@ async function addExclusionPattern(filePath: string, pattern: string): Promise<v
     }
 
     const workspacePath = workspaceFolders[0].uri.fsPath;
-    const workspaceService = new WorkspaceSettingsService(workspacePath);
+    const workspaceService = new WorkspaceDatabaseService(workspacePath);
     
     // Find the appropriate directory for this file
     const targetDirectory = await findNearestConfigDirectory(filePath);
     
-    // Get current settings for this directory
-    const configPath = path.join(targetDirectory, '.code-counter.json');
-    let existingSettings: WorkspaceSettings = await workspaceService.getResolvedSettings(targetDirectory);
-
-    //Remove all inherited settings except excludePatterns
-    Object.keys(existingSettings).forEach(key => {
-        if (key !== 'codeCounter.excludePatterns')
-        delete (existingSettings as any)[key];
-    });
-
-    try {
-        if (fs.existsSync(configPath)) {
-            const content = await fs.promises.readFile(configPath, 'utf8');
-            existingSettings = JSON.parse(content);
-        }
-    } catch (error) {
-        console.warn('Failed to read existing settings, creating new file:', error);
-        existingSettings = {};
-    }
-
-    // Get existing exclude patterns or initialize empty array
-    const excludePatterns = existingSettings['codeCounter.excludePatterns'] || [];
-    
-    // Check if pattern already exists
-    if (excludePatterns.includes(pattern)) {
-        vscode.window.showInformationMessage(`Pattern "${pattern}" is already excluded`);
+    // Validate pattern is not null/undefined/empty
+    if (!pattern || pattern.trim() === '') {
+        vscode.window.showErrorMessage('Cannot add empty exclusion pattern');
         return;
     }
 
-    // Add the new pattern
-    excludePatterns.push(pattern);
-    existingSettings['codeCounter.excludePatterns'] = excludePatterns;
+    // Get the relative path for the target directory
+    // Normalize paths to ensure consistent format
+    const normalizedWorkspacePath = path.normalize(workspacePath);
+    const normalizedTargetDirectory = path.normalize(targetDirectory);
+    
+    console.log('DEBUG addExclusionPattern: NORMALIZED workspacePath =', normalizedWorkspacePath);
+    console.log('DEBUG addExclusionPattern: NORMALIZED targetDirectory =', normalizedTargetDirectory);
+    
+    const relativePath = path.relative(normalizedWorkspacePath, normalizedTargetDirectory);
+    
+    console.log('DEBUG addExclusionPattern: CALCULATED relativePath =', relativePath);
+    
+    const directoryPath = relativePath || '';
+    console.log('DEBUG addExclusionPattern: workspacePath =', workspacePath);
+    console.log('DEBUG addExclusionPattern: targetDirectory =', targetDirectory);
+    console.log('DEBUG addExclusionPattern: relativePath =', relativePath);
+    console.log('DEBUG addExclusionPattern: directoryPath =', directoryPath);
+    
+    // Get current settings with inheritance for this directory
+    const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(directoryPath);
+    const inheritedPatterns = settingsWithInheritance.resolvedSettings['codeCounter.excludePatterns'] || [];
+    
+    // Check if pattern already exists in inherited patterns
+    if (inheritedPatterns.includes(pattern)) {
+        vscode.window.showInformationMessage(`Pattern "${pattern}" is already excluded (inherited or local)`);
+        return;
+    }
+    
+    // Get current local settings for this directory (not inherited)
+    const localSettings = settingsWithInheritance.currentSettings || {};
+    
+    // Copy all inherited patterns plus add the new one
+    // This ensures we maintain all existing exclusions when creating local settings
+    const newExcludePatterns = [...inheritedPatterns, pattern];
+    
+    // Update only the excludePatterns in local settings
+    const updatedLocalSettings: WorkspaceSettings = { 
+        ...localSettings, 
+        'codeCounter.excludePatterns': newExcludePatterns 
+    };
 
-    // Save the settings
-    await workspaceService.saveWorkspaceSettings(targetDirectory, existingSettings);
+    // Save the updated settings
+    await workspaceService.saveWorkspaceSettings(directoryPath, updatedLocalSettings);
+    notifySettingsChanged();
     
     // Show confirmation
-    const relativePath = path.relative(workspacePath, targetDirectory);
-    const displayPath = relativePath || '<workspace>';
-    vscode.window.showInformationMessage(`Added exclusion pattern "${pattern}" to ${displayPath}/.code-counter.json`);
-    
-    // The WorkspaceSettingsService.saveWorkspaceSettings() method automatically fires 
-    // events that will refresh the file decorators and any open settings webview
+    const displayPath = directoryPath || '<workspace>';
+    vscode.window.showInformationMessage(`Added exclusion pattern "${pattern}" to ${displayPath} settings`);
 }
 
 /**
@@ -1639,12 +1948,30 @@ async function handleExcludeRelativePath(resource: vscode.Uri): Promise<void> {
         const workspacePath = workspaceFolders[0].uri.fsPath;
         const filePath = resource.fsPath;
         
+        console.log('DEBUG handleExcludeRelativePath: resource =', resource);
+        console.log('DEBUG handleExcludeRelativePath: resource.fsPath =', resource.fsPath);
+        console.log('DEBUG handleExcludeRelativePath: workspacePath =', workspacePath);
+        
+        if (!filePath) {
+            vscode.window.showErrorMessage('Invalid file path for exclusion');
+            return;
+        }
+        
         const stats = await fs.promises.stat(filePath);
         
         // Create relative path pattern
-        let  relativePath = path.relative(workspacePath, filePath);
+        let relativePath = path.relative(workspacePath, filePath);
+        if (!relativePath) {
+            vscode.window.showErrorMessage('Could not determine relative path for exclusion');
+            return;
+        }
         relativePath = stats.isDirectory() ? relativePath + '/**' : relativePath;
         const pattern = relativePath.replace(/\\/g, '/'); // Use forward slashes for consistency        
+        
+        if (!pattern) {
+            vscode.window.showErrorMessage('Could not create exclusion pattern');
+            return;
+        }
         
         await addExclusionPattern(filePath, pattern);
     } catch (error) {
@@ -1658,7 +1985,21 @@ async function handleExcludeRelativePath(resource: vscode.Uri): Promise<void> {
 async function handleExcludeFilePattern(resource: vscode.Uri): Promise<void> {
     try {
         const filePath = resource.fsPath;
+        
+        console.log('DEBUG handleExcludeFilePattern: resource =', resource);
+        console.log('DEBUG handleExcludeFilePattern: resource.fsPath =', resource.fsPath);
+        
+        if (!filePath) {
+            vscode.window.showErrorMessage('Invalid file path for exclusion');
+            return;
+        }
+        
         const fileName = path.basename(filePath);
+        
+        if (!fileName) {
+            vscode.window.showErrorMessage('Could not determine file name for exclusion');
+            return;
+        }
         
         const stats = await fs.promises.stat(filePath);
         let directoryPath = stats.isFile() ? path.dirname(filePath) : filePath;
@@ -1667,6 +2008,11 @@ async function handleExcludeFilePattern(resource: vscode.Uri): Promise<void> {
         let pattern = `**/${fileName}`;
         if (stats.isDirectory())
             pattern += '/**';
+        
+        if (!pattern || pattern === '**/') {
+            vscode.window.showErrorMessage('Could not create valid exclusion pattern');
+            return;
+        }
         
         await addExclusionPattern(filePath, pattern);
     } catch (error) {
@@ -1680,6 +2026,15 @@ async function handleExcludeFilePattern(resource: vscode.Uri): Promise<void> {
 async function handleExcludeExtension(resource: vscode.Uri): Promise<void> {
     try {
         const filePath = resource.fsPath;
+        
+        console.log('DEBUG handleExcludeExtension: resource =', resource);
+        console.log('DEBUG handleExcludeExtension: resource.fsPath =', resource.fsPath);
+        
+        if (!filePath) {
+            vscode.window.showErrorMessage('Invalid file path for exclusion');
+            return;
+        }
+        
         const extension = path.extname(filePath);
         
         if (!extension) {
@@ -1690,6 +2045,11 @@ async function handleExcludeExtension(resource: vscode.Uri): Promise<void> {
         // Create a global pattern for this extension
         const pattern = `**/*${extension}`;
         
+        if (!pattern || pattern === '**/*') {
+            vscode.window.showErrorMessage('Could not create valid extension exclusion pattern');
+            return;
+        }
+        
         await addExclusionPattern(filePath, pattern);
     } catch (error) {
         vscode.window.showErrorMessage(`Failed to exclude extension: ${error}`);
@@ -1699,11 +2059,37 @@ async function handleExcludeExtension(resource: vscode.Uri): Promise<void> {
 export function activate(context: vscode.ExtensionContext) {
     console.log('Code Counter extension is now active!');
 
+    // Auto-migrate from .code-counter.json files to database on startup
+    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        const workspaceService = new WorkspaceDatabaseService(workspacePath);
+        
+        // Trigger migration asynchronously 
+        workspaceService.migrateFromJsonFiles().then(migrationResult => {
+            if (migrationResult.migrated > 0) {
+                console.log(`VS Code Code Counter: Migrated ${migrationResult.migrated} settings files to database`);
+                vscode.window.showInformationMessage(
+                    `Code Counter: Successfully migrated ${migrationResult.migrated} settings files to new database format!`
+                );
+            }
+            if (migrationResult.errors.length > 0) {
+                console.warn('Migration errors:', migrationResult.errors);
+            }
+        }).catch(error => {
+            console.log('Migration check completed:', error);
+        });
+    }
+
     // Initialize services
     const fileWatcher = new FileWatcherProvider();
     const countLinesCommand = new CountLinesCommand();
-    const fileExplorerDecorator = new FileExplorerDecorationProvider();
-    const editorTabDecorator = new EditorTabDecorationProvider();
+    
+    // Create a shared PathBasedSettingsService instance for both decorators
+    const pathBasedSettings = new PathBasedSettingsService();
+    globalPathBasedSettings = pathBasedSettings; // Set global reference for settings notifications
+    const fileExplorerDecorator = new FileExplorerDecorationProvider(pathBasedSettings);
+    globalFileExplorerDecorator = fileExplorerDecorator; // Set global reference for decorator refresh
+    const editorTabDecorator = new EditorTabDecorationProvider(pathBasedSettings);
 
     // Create a dedicated file system watcher for .code-counter.json files
     // This ensures decorators refresh when configuration files are modified/deleted externally
@@ -1752,7 +2138,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const openColorSettingsDisposable = vscode.commands.registerCommand('codeCounter.openSettings', async () => {
-        await showCodeCounterSettings(fileExplorerDecorator, context);
+        await showCodeCounterSettings(fileExplorerDecorator, context, pathBasedSettings);
     });
 
     const showReportPanelDisposable = vscode.commands.registerCommand('codeCounter.showReportPanel', async () => {

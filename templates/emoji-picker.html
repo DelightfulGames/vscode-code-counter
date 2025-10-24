@@ -70,7 +70,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 </div>
 
                 <div class="reset-section">
-                    <button class="reset-button" onclick="resetEmojis()">🔄 Reset All Emojis to Defaults</button>
+                    <button class="reset-button" onclick="resetEmojis()">🔄 Reset All Emojis to Parent/Defaults</button>
                 </div>
 
                 <div class="directory-type-section">
@@ -79,9 +79,9 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                         <div class="emoji-config-item">
                             <h4>Low</h4>
                             <div class="inheritance-info workspace-only">
-                                <small>Parent: {{parentFileNormal}}</small>
+                                <small>Parent:</small>
+                                <small>{{parentFileNormalSource}} - {{parentFileNormal}}</small>
                             </div>
-
                             <div class="current-emoji" data-color-key="low" data-type="file" onclick="openEmojiPicker('low', 'file')">
                                 {{badges.low}}
                                 <button class="emoji-reset-btn workspace-only" onclick="resetField(event, 'emoji', 'low')" title="Reset to parent setting">🔁</button>                                
@@ -95,7 +95,8 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                                 <span> lines</span>                                
                             </div>
                             <div class="inheritance-info workspace-only">
-                                <small>Parent: {{parentWarningThreshold}}</small>
+                                <small>Threshold Parent:</small>
+                                <small>{{parentWarningThresholdSource}} - {{parentWarningThreshold}}</small>
                             </div>
 
                             <div class="preview" id="lowPreview">{{badges.low}} {{lowPreviewLines}} lines</div>                            
@@ -104,9 +105,9 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                         <div class="emoji-config-item">
                             <h4>Medium</h4>
                             <div class="inheritance-info workspace-only">
-                                <small>Parent: {{parentFileWarning}}</small>
+                                <small>Parent:</small>
+                                <small>{{parentFileWarningSource}} - {{parentFileWarning}}</small>
                             </div>
-
                             <div class="current-emoji" data-color-key="medium" data-type="file" onclick="openEmojiPicker('medium', 'file')">
                                 {{badges.medium}}                                
                                 <button class="emoji-reset-btn workspace-only" onclick="resetField(event, 'emoji', 'medium')" title="Reset to parent setting">🔁</button>
@@ -120,7 +121,8 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                                 <span> lines</span>
                             </div>
                             <div class="inheritance-info workspace-only">
-                                <small>Parent: {{parentDangerThreshold}}</small>
+                                <small>Threshold Parent:</small>
+                                <small>{{parentDangerThresholdSource}} - {{parentDangerThreshold}}</small>
                             </div>                            
                             <div class="preview" id="mediumPreview">{{badges.medium}} {{mediumPreviewLines}} lines</div>
                         </div>
@@ -128,9 +130,9 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                         <div class="emoji-config-item">
                             <h4>High</h4>
                             <div class="inheritance-info workspace-only">
-                                <small>Parent: {{parentFileDanger}}</small>
+                                <small>Parent:</small>
+                                <small>{{parentFileDangerSource}} - {{parentFileDanger}}</small>
                             </div>
-
                             <div class="current-emoji" data-color-key="high" data-type="file" onclick="openEmojiPicker('high', 'file')">
                                 {{badges.high}}                                
                                 <button class="emoji-reset-btn workspace-only" onclick="resetField(event, 'emoji', 'high')" title="Reset to parent setting">🔁</button>
@@ -150,7 +152,8 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                         <div class="emoji-config-item">
                             <h4>Low</h4>
                             <div class="inheritance-info workspace-only">
-                                <small>Parent: {{parentFolderNormal}}</small>
+                                <small>Parent:</small>
+                                <small>{{parentFolderNormalSource}} - {{parentFolderNormal}}</small>
                             </div>
                             <div class="current-emoji" data-color-key="low" data-type="folder" onclick="openEmojiPicker('low', 'folder')">
                                 {{folderBadges.low}}                                
@@ -165,7 +168,8 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                         <div class="emoji-config-item">
                             <h4>Medium</h4>
                             <div class="inheritance-info workspace-only">
-                                <small>Parent: {{parentFolderWarning}}</small>
+                                <small>Parent:</small>
+                                <small>{{parentFolderWarningSource}} - {{parentFolderWarning}}</small>
                             </div>
                             <div class="current-emoji" data-color-key="medium" data-type="folder" onclick="openEmojiPicker('medium', 'folder')">
                                 {{folderBadges.medium}}                                
@@ -180,7 +184,8 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                         <div class="emoji-config-item">
                             <h4>High</h4>
                             <div class="inheritance-info workspace-only">
-                                <small>Parent: {{parentFolderDanger}}</small>
+                                <small>Parent:</small>
+                                <small>{{parentFolderDangerSource}} - {{parentFolderDanger}}</small>
                             </div>
                             <div class="current-emoji" data-color-key="high" data-type="folder" onclick="openEmojiPicker('high', 'folder')">
                                 {{folderBadges.high}}                                

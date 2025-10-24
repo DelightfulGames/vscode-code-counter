@@ -2,7 +2,7 @@
   "name": "vscode-code-counter",
   "displayName": "Code Counter Pro",
   "description": "Visual line counting with customizable emoji indicators and comprehensive project reports",
-  "version": "0.12.3",
+  "version": "1.0.0",
   "publisher": "DelightfulGames",
   "icon": "marketplace/images/codeCounter-icon.png",
   "galleryBanner": {
@@ -70,8 +70,8 @@
         },
         "codeCounter.outputDirectory": {
           "type": "string",
-          "default": "./.cc/reports",
-          "description": "Directory where reports will be generated"
+          "default": ".vscode/code-counter/reports",
+          "description": "Directory where HTML and XML reports are generated (relative to workspace root)"
         },
         "codeCounter.autoGenerate": {
           "type": "boolean",
@@ -234,6 +234,7 @@
     "@types/mocha": "^10.0.3",
     "@types/node": "18.x",
     "@types/sinon": "^17.0.4",
+    "@types/sql.js": "^1.4.9",
     "@types/vscode": "^1.74.0",
     "@typescript-eslint/eslint-plugin": "^6.7.3",
     "@typescript-eslint/parser": "^6.7.3",
@@ -248,6 +249,7 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "fast-xml-parser": "^4.3.2"
+    "fast-xml-parser": "^4.3.2",
+    "sql.js": "^1.13.0"
   }
 }

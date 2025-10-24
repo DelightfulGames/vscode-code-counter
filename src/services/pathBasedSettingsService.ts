@@ -27,7 +27,7 @@
  */
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { WorkspaceSettingsService, ResolvedSettings } from './workspaceSettingsService';
+import { WorkspaceDatabaseService, ResolvedSettings } from './workspaceDatabaseService';
 
 export type ColorThreshold = 'normal' | 'warning' | 'danger';
 
@@ -49,50 +49,126 @@ export interface ColorThresholdConfig {
     highThreshold: number;
 }
 
-export class PathBasedSettingsService {
-    private workspaceSettingsService: WorkspaceSettingsService | null = null;
+export class PathBasedSettingsService implements vscode.Disposable {
+    private workspaceServices: Map<string, WorkspaceDatabaseService> = new Map();
+    private _onDidChangeSettings: vscode.EventEmitter<string> = new vscode.EventEmitter<string>();
+    readonly onDidChangeSettings: vscode.Event<string> = this._onDidChangeSettings.event;
     
     constructor() {
-        this.initializeWorkspaceService();
+        // Listen to VS Code configuration changes as fallback
+        vscode.workspace.onDidChangeConfiguration((e) => {
+            if (e.affectsConfiguration('codeCounter')) {
+                this._onDidChangeSettings.fire('global');
+            }
+        });
     }
 
     /**
      * Set workspace settings service manually (for testing)
      */
-    public setWorkspaceSettingsService(service: WorkspaceSettingsService): void {
-        this.workspaceSettingsService = service;
-    }
-
-    private initializeWorkspaceService(): void {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (workspaceFolders && workspaceFolders.length > 0) {
-            const workspacePath = workspaceFolders[0].uri.fsPath;
-            this.workspaceSettingsService = new WorkspaceSettingsService(workspacePath);
+    public setWorkspaceSettingsService(service: WorkspaceDatabaseService): void {
+        // For backwards compatibility with tests
+        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+            console.log('DEBUG: Setting workspace service for path:', workspacePath);
+            this.workspaceServices.set(workspacePath, service);
         }
     }
 
     /**
-     * Get resolved settings for a specific file or folder path
+     * Clear all cached workspace services (for testing)
      */
-    private async getResolvedSettingsForPath(filePath: string): Promise<ResolvedSettings | null> {
-        if (!this.workspaceSettingsService) {
+    public clearWorkspaceServices(): void {
+        this.workspaceServices.clear();
+    }
+
+    private getWorkspaceService(filePath: string): WorkspaceDatabaseService | null {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
+        if (!workspaceFolder) {
+            console.log('DEBUG: No workspace folder found for', filePath);
             return null;
         }
 
-        // Normalize the file path to handle both string paths and URI objects
-        let normalizedPath: string;
-        if (filePath.startsWith('file://')) {
-            normalizedPath = vscode.Uri.parse(filePath).fsPath;
-        } else {
-            normalizedPath = filePath;
+        const workspacePath = workspaceFolder.uri.fsPath;
+        console.log('DEBUG: Workspace folder found:', workspacePath, 'for file:', filePath);
+        console.log('DEBUG: Available services keys:', Array.from(this.workspaceServices.keys()));
+        
+        if (!this.workspaceServices.has(workspacePath)) {
+            console.log('DEBUG: No service found in cache for:', workspacePath);
+            // In tests, we should always have a service set via setWorkspaceSettingsService
+            // If we reach here during tests, it means the service wasn't properly configured
+            if (process.env.NODE_ENV === 'test') {
+                console.error('*** CRITICAL: Creating new WorkspaceDatabaseService during tests - this WILL cause data isolation issues ***');
+            } else {
+                console.log('Creating new WorkspaceDatabaseService for production use');
+            }
+            this.workspaceServices.set(workspacePath, new WorkspaceDatabaseService(workspacePath));
         }
         
-        // Get the directory path (for files) or use as-is (for directories)
-        const directoryPath = path.dirname(normalizedPath);
+        const service = this.workspaceServices.get(workspacePath) || null;
+        console.log('DEBUG: getWorkspaceService returning service for', workspacePath, 'found:', !!service);
+        return service;
+    }
+
+    async getResolvedSettings(filePath: string): Promise<ResolvedSettings> {
+        const workspaceService = this.getWorkspaceService(filePath);
+        
+        if (!workspaceService) {
+            // Fallback to global settings if no workspace
+            const config = vscode.workspace.getConfiguration('codeCounter');
+            const emojiConfig = vscode.workspace.getConfiguration('codeCounter.emojis');
+            const folderEmojiConfig = vscode.workspace.getConfiguration('codeCounter.emojis.folders');
             
+            return {
+                'codeCounter.excludePatterns': config.get<string[]>('excludePatterns', []),
+                'codeCounter.emojis.normal': emojiConfig.get('normal', '🟢'),
+                'codeCounter.emojis.warning': emojiConfig.get('warning', '🟡'),
+                'codeCounter.emojis.danger': emojiConfig.get('danger', '🔴'),
+                'codeCounter.emojis.folders.normal': folderEmojiConfig.get('normal', '🟩'),
+                'codeCounter.emojis.folders.warning': folderEmojiConfig.get('warning', '🟨'),
+                'codeCounter.emojis.folders.danger': folderEmojiConfig.get('danger', '🟥'),
+                'codeCounter.lineThresholds.midThreshold': config.get('lineThresholds.midThreshold', 300),
+                'codeCounter.lineThresholds.highThreshold': config.get('lineThresholds.highThreshold', 1000),
+                'codeCounter.showNotificationOnAutoGenerate': config.get('showNotificationOnAutoGenerate', false)
+            } as ResolvedSettings;
+        }
+
         try {
-            const resolvedSettings = await this.workspaceSettingsService.getResolvedSettings(directoryPath);
-            return resolvedSettings;
+            // Get directory path for the file
+            const directoryPath = path.dirname(filePath);
+            const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(directoryPath);
+            
+            // Return the resolved settings that include inheritance
+            return settingsWithInheritance.resolvedSettings;
+        } catch (error) {
+            console.error('Failed to get database settings, falling back to global:', error);
+            
+            // Fallback to global settings
+            const config = vscode.workspace.getConfiguration('codeCounter');
+            const emojiConfig = vscode.workspace.getConfiguration('codeCounter.emojis');
+            const folderEmojiConfig = vscode.workspace.getConfiguration('codeCounter.emojis.folders');
+            
+            return {
+                'codeCounter.excludePatterns': config.get<string[]>('excludePatterns', []),
+                'codeCounter.emojis.normal': emojiConfig.get('normal', '🟢'),
+                'codeCounter.emojis.warning': emojiConfig.get('warning', '🟡'),
+                'codeCounter.emojis.danger': emojiConfig.get('danger', '🔴'),
+                'codeCounter.emojis.folders.normal': folderEmojiConfig.get('normal', '🟩'),
+                'codeCounter.emojis.folders.warning': folderEmojiConfig.get('warning', '🟨'),
+                'codeCounter.emojis.folders.danger': folderEmojiConfig.get('danger', '🟥'),
+                'codeCounter.lineThresholds.midThreshold': config.get('lineThresholds.midThreshold', 300),
+                'codeCounter.lineThresholds.highThreshold': config.get('lineThresholds.highThreshold', 1000),
+                'codeCounter.showNotificationOnAutoGenerate': config.get('showNotificationOnAutoGenerate', false)
+            } as ResolvedSettings;
+        }
+    }
+
+    /**
+     * Get resolved settings for a specific file or folder path (legacy method)
+     */
+    private async getResolvedSettingsForPath(filePath: string): Promise<ResolvedSettings | null> {
+        try {
+            return await this.getResolvedSettings(filePath);
         } catch (error) {
             console.warn('Failed to get resolved settings for path:', filePath, error);
             return null;
@@ -286,5 +362,22 @@ export class PathBasedSettingsService {
         }
         
         return { text, emoji };
+    }
+
+    /**
+     * Notify that settings have changed (call this when database settings are updated)
+     */
+    public notifySettingsChanged(): void {
+        // Clear cached services so fresh instances are created with updated settings
+        this.clearWorkspaceServices();
+        this._onDidChangeSettings.fire('database');
+    }
+
+    /**
+     * Dispose of resources
+     */
+    public dispose(): void {
+        this._onDidChangeSettings.dispose();
+        this.workspaceServices.clear();
     }
 }

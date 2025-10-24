@@ -31,7 +31,7 @@ import { LineCounterService } from '../services/lineCounter';
 import { XmlGeneratorService } from '../services/xmlGenerator';
 import { HtmlGeneratorService } from '../services/htmlGenerator';
 import { WebViewReportService, ReportData } from '../services/webViewReportService';
-import { WorkspaceSettingsService } from '../services/workspaceSettingsService';
+import { WorkspaceDatabaseService } from '../services/workspaceDatabaseService';
 
 export class CountLinesCommand {
     private lineCounter: LineCounterService;
@@ -49,7 +49,7 @@ export class CountLinesCommand {
      */
     private async getExclusionPatterns(workspacePath: string): Promise<string[]> {
         try {
-            const workspaceService = new WorkspaceSettingsService(workspacePath);
+            const workspaceService = new WorkspaceDatabaseService(workspacePath);
             const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(workspacePath);
             return settingsWithInheritance.resolvedSettings['codeCounter.excludePatterns'] || [];
         } catch (error) {
