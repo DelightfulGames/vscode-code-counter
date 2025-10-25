@@ -29,7 +29,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 ## 🚀 **What Makes Code Counter Special?**
 > A Visual Studio Code extension that counts lines of code in your project and generates beautiful HTML reports with XML data sources. Features intelligent file explorer integration with customizable emoji indicators, performance-optimized caching, and a professional emoji picker for complete customization.
 
-> **🎉 MAJOR RELEASE v1.0.0**: Revolutionary database-powered settings architecture with lightning-fast performance! Now featuring organized `.vscode/code-counter/` directory structure and advanced context menu exclusion management. See [CHANGELOG.md](./CHANGELOG.md) for complete details.
+> **🎉 MAJOR RELEASE v1.0.0**: Revolutionary database-powered settings architecture with lightning-fast performance! Now featuring advanced context menu exclusion management. See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
 ## 📸 **See It In Action**
 ### 🎯 **Instant Visual Feedback**
