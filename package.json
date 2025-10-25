@@ -118,6 +118,15 @@
           "minimum": 1,
           "description": "Line count threshold for danger indicator (large file size)"
         },
+        "codeCounter.debug": {
+          "type": "string",
+          "enum": [
+            "none",
+            "console"
+          ],
+          "default": "none",
+          "description": "Debug output location: 'none' for silent operation, 'console' for VS Code Developer Tools"
+        },
         "codeCounter.emojis.normal": {
           "type": "string",
           "default": "🟢",

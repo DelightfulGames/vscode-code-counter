@@ -36,23 +36,164 @@ import { EditorTabDecorationProvider } from './providers/editorTabDecorator';
 import { WebViewReportService } from './services/webViewReportService';
 import { WorkspaceDatabaseService, ResolvedSettings, WorkspaceSettings, SettingsWithInheritance } from './services/workspaceDatabaseService';
 import { PathBasedSettingsService } from './services/pathBasedSettingsService';
+import { DebugService } from './services/debugService';
 // Keep old service for migration purposes
 import { DirectoryNode, WorkspaceData } from './services/workspaceSettingsService';
 
+// Initialize debug service
+const debug = DebugService.getInstance();
+
+// Service instance cache to prevent excessive database connections
+const workspaceServiceCache = new Map<string, WorkspaceDatabaseService>();
+
+// Service cache cleanup function
+function getWorkspaceService(workspacePath: string): WorkspaceDatabaseService {
+    const normalizedPath = path.normalize(workspacePath);
+    
+    if (!workspaceServiceCache.has(normalizedPath)) {
+        debug.info('Creating new WorkspaceDatabaseService for production use');
+        workspaceServiceCache.set(normalizedPath, new WorkspaceDatabaseService(normalizedPath));
+    } else {
+        debug.verbose('Reusing existing WorkspaceDatabaseService from cache');
+    }
+    
+    return workspaceServiceCache.get(normalizedPath)!;
+}
+
+// Invalidate cache for a specific workspace (forces fresh reload on next access)
+function invalidateWorkspaceServiceCache(workspacePath: string): void {
+    const normalizedPath = path.normalize(workspacePath);
+    if (workspaceServiceCache.has(normalizedPath)) {
+        debug.verbose('Invalidating cached WorkspaceDatabaseService for:', normalizedPath);
+        workspaceServiceCache.delete(normalizedPath);
+    }
+}
+
+// Cleanup function for extension deactivation
+function clearServiceCache(): void {
+    workspaceServiceCache.clear();
+}
+
 // Helper functions to bridge API differences between old and new service
 async function getDirectoryTreeFromDatabase(workspaceService: WorkspaceDatabaseService, workspacePath: string): Promise<DirectoryNode[]> {
+    // Get directories that have settings in database
     const directoriesWithSettings = await workspaceService.getDirectoriesWithSettings();
-    return directoriesWithSettings.map(dirPath => {
+    
+    // Get all actual subdirectories in the workspace
+    const allDirectories = await getAllWorkspaceDirectories(workspacePath);
+    
+    // Create directory tree with both existing directories and those with settings
+    const directoryMap = new Map<string, DirectoryNode>();
+    const processedPaths = new Set<string>();
+    
+    // Add all actual directories
+    for (const dirPath of allDirectories) {
         const relativePath = path.relative(workspacePath, dirPath);
-        const dirName = relativePath === '' ? '<workspace>' : path.basename(dirPath);
-        return {
-            name: dirName,
-            path: dirPath,
-            relativePath: relativePath === '' ? '<workspace>' : relativePath,
-            hasSettings: true,
-            children: []
-        };
+        const normalizedRelative = relativePath === '' ? '<workspace>' : relativePath.replace(/\\/g, '/');
+        
+        if (!processedPaths.has(dirPath)) {
+            const dirName = relativePath === '' ? '<workspace>' : path.basename(dirPath);
+            const node = {
+                name: dirName,
+                path: dirPath,
+                relativePath: normalizedRelative,
+                hasSettings: directoriesWithSettings.includes(dirPath),
+                children: []
+            };
+            directoryMap.set(dirPath, node);
+            processedPaths.add(dirPath);
+        }
+    }
+    
+    // Add any directories from database that might not exist on disk (for completeness)
+    for (const dirPath of directoriesWithSettings) {
+        if (!processedPaths.has(dirPath) && dirPath !== workspacePath) {
+            const relativePath = path.relative(workspacePath, dirPath);
+            const normalizedRelative = relativePath === '' ? '<workspace>' : relativePath.replace(/\\/g, '/');
+            const dirName = relativePath === '' ? '<workspace>' : path.basename(dirPath);
+            
+            directoryMap.set(dirPath, {
+                name: dirName,
+                path: dirPath,
+                relativePath: normalizedRelative,
+                hasSettings: true,
+                children: []
+            });
+        }
+    }
+    
+    // Build hierarchical structure
+    const rootNodes: DirectoryNode[] = [];
+    const allNodes = Array.from(directoryMap.values());
+    
+    for (const node of allNodes) {
+        if (node.relativePath === '<workspace>') {
+            // Skip workspace root in the tree - it's handled separately
+            continue;
+        }
+        
+        // Find parent directory
+        const parentPath = path.dirname(node.path);
+        const parentNode = directoryMap.get(parentPath);
+        
+        if (parentNode && parentPath !== node.path && parentNode.relativePath !== '<workspace>') {
+            // Add to parent's children
+            parentNode.children.push(node);
+        } else {
+            // This is a root-level directory (direct child of workspace)
+            rootNodes.push(node);
+        }
+    }
+    
+    // Sort root nodes: directories with settings first, then alphabetically
+    rootNodes.sort((a, b) => {
+        if (a.hasSettings && !b.hasSettings) return -1;
+        if (!a.hasSettings && b.hasSettings) return 1;
+        return a.name.localeCompare(b.name);
     });
+    
+    return rootNodes;
+}
+
+// Helper function to get all actual directories in workspace
+async function getAllWorkspaceDirectories(workspacePath: string): Promise<string[]> {
+    const directories: string[] = [workspacePath]; // Include workspace root
+    const fs = require('fs').promises;
+    
+    async function scanDirectory(dirPath: string, depth: number = 0): Promise<void> {
+        // Limit recursion depth to prevent infinite loops and performance issues
+        if (depth > 4) return;
+        
+        try {
+            const entries = await fs.readdir(dirPath, { withFileTypes: true });
+            
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    // Skip common directories that shouldn't be in settings
+                    const skipDirs = [
+                        'node_modules', '.git', '.vscode', 'out', 'dist', 'build', 
+                        '.next', 'coverage', '.nyc_output', '.cache', 'tmp', 'temp'
+                    ];
+                    
+                    if (skipDirs.includes(entry.name) || entry.name.startsWith('.')) {
+                        continue;
+                    }
+                    
+                    const subDirPath = path.join(dirPath, entry.name);
+                    directories.push(subDirPath);
+                    
+                    // Recursively scan subdirectories
+                    await scanDirectory(subDirPath, depth + 1);
+                }
+            }
+        } catch (error) {
+            // Silently skip directories we can't read
+            debug.verbose(`Could not scan directory ${dirPath}:`, error instanceof Error ? error.message : String(error));
+        }
+    }
+    
+    await scanDirectory(workspacePath);
+    return directories;
 }
 
 async function getResolvedSettingsFromDatabase(workspaceService: WorkspaceDatabaseService, targetPath: string): Promise<ResolvedSettings & { source: string }> {
@@ -80,6 +221,29 @@ function addSourceToSettings(settings: any): any {
         'codeCounter.emojis.folders.danger': settings['codeCounter.emojis.folders.danger'] ?? config.folderBadges.high,
         source: 'database'
     };
+}
+
+// Security: Validate and sanitize directory paths to prevent path traversal attacks
+function validateAndSanitizeDirectory(currentDirectory: string): string {
+    if (currentDirectory === '<workspace>' || currentDirectory === '<global>') {
+        return currentDirectory;
+    }
+    
+    // Check for path traversal attacks
+    if (path.isAbsolute(currentDirectory) || currentDirectory.includes('..')) {
+        debug.error('SECURITY: Invalid directory path detected:', currentDirectory);
+        debug.error('SECURITY: Resetting to workspace to prevent path traversal');
+        return '<workspace>';
+    }
+    
+    // Normalize path separators and ensure it's a relative path
+    return currentDirectory.replace(/\\/g, '/');
+}
+
+// Safe function to calculate target path
+function calculateTargetPath(workspacePath: string, currentDirectory: string): string {
+    const sanitizedDir = validateAndSanitizeDirectory(currentDirectory);
+    return sanitizedDir === '<workspace>' ? workspacePath : path.join(workspacePath, sanitizedDir);
 }
 
 function getCurrentConfiguration() {
@@ -111,7 +275,8 @@ function getCurrentConfiguration() {
             '**/.*/**',
             '**/.*',
             '**/**-lock.json'            
-        ])
+        ]),
+        debug: config.get('debug', 'none')
     };
 }
 
@@ -121,11 +286,119 @@ let globalPathBasedSettings: PathBasedSettingsService | null = null;
 // Global reference to file explorer decorator for refresh operations
 let globalFileExplorerDecorator: FileExplorerDecorationProvider | null = null;
 
+// Global reference to emoji picker webview panel for refresh operations
+let globalEmojiPickerPanel: vscode.WebviewPanel | null = null;
+
+// Global reference to track current directory in webview for proper refresh
+let globalCurrentDirectory: string = '<workspace>';
+
 function notifySettingsChanged(): void {
     if (globalPathBasedSettings) {
         globalPathBasedSettings.notifySettingsChanged();
     } else {
-        console.warn('notifySettingsChanged called but globalPathBasedSettings is null');
+        debug.warning('notifySettingsChanged called but globalPathBasedSettings is null');
+    }
+}
+
+async function refreshEmojiPickerWebviewWithService(workspaceService: WorkspaceDatabaseService, workspacePath: string): Promise<void> {
+    if (!globalEmojiPickerPanel) {
+        // No panel is open, nothing to refresh
+        return;
+    }
+
+    try {
+        debug.info('Refreshing emoji picker webview with existing service instance');
+        
+        // Force a 200ms delay to ensure database operations have completed
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Create a completely fresh service instance to avoid any caching issues
+        const freshService = getWorkspaceService(workspacePath);
+        debug.verbose('Using cached service instance for refresh (cache provides fresh data)');
+        
+        // Get workspace-level data for emoji display (emojis should always be workspace-level)
+        const workspaceInheritanceInfo = await freshService.getSettingsWithInheritance(workspacePath);
+        debug.verbose('Workspace inheritance info for emojis:', {
+            currentSettings: workspaceInheritanceInfo.currentSettings,
+            resolvedSettings: workspaceInheritanceInfo.resolvedSettings,
+            parentSettings: workspaceInheritanceInfo.parentSettings
+        });
+        const workspaceResolvedSettings = workspaceInheritanceInfo.resolvedSettings;
+        const globalConfig = getCurrentConfiguration();
+        
+        const badges = {
+            low: workspaceResolvedSettings['codeCounter.emojis.normal'] || globalConfig.badges.low,
+            medium: workspaceResolvedSettings['codeCounter.emojis.warning'] || globalConfig.badges.medium,
+            high: workspaceResolvedSettings['codeCounter.emojis.danger'] || globalConfig.badges.high
+        };
+        const folderBadges = {
+            low: workspaceResolvedSettings['codeCounter.emojis.folders.normal'] || globalConfig.folderBadges.low,
+            medium: workspaceResolvedSettings['codeCounter.emojis.folders.warning'] || globalConfig.folderBadges.medium,
+            high: workspaceResolvedSettings['codeCounter.emojis.folders.danger'] || globalConfig.folderBadges.high
+        };
+        const thresholds = {
+            mid: workspaceResolvedSettings['codeCounter.lineThresholds.midThreshold'] || globalConfig.thresholds.mid,
+            high: workspaceResolvedSettings['codeCounter.lineThresholds.highThreshold'] || globalConfig.thresholds.high
+        };
+        const excludePatterns = workspaceResolvedSettings['codeCounter.excludePatterns'] || globalConfig.excludePatterns;
+        debug.verbose('Exclude patterns from workspace level:', excludePatterns);
+
+        // Build workspace data for the webview using the fresh service
+        const directoryTree = await getDirectoryTreeFromDatabase(freshService, workspacePath);
+        
+        // Calculate target path for the current directory (ensure normalized path separators)
+        const currentDirectory = (globalCurrentDirectory || '<workspace>').replace(/\\/g, '/');
+        const targetPath = currentDirectory === '<workspace>' ? workspacePath : 
+                          currentDirectory === '<global>' ? workspacePath :
+                          path.join(workspacePath, currentDirectory);
+        
+        // Get inheritance info and patterns for the specific directory
+        const targetInheritanceInfo = await freshService.getSettingsWithInheritance(targetPath);
+        const patternsWithSources = await freshService.getExcludePatternsWithSources(targetPath);
+        
+        debug.verbose('Refresh targeting directory:', currentDirectory, 'at path:', targetPath);
+        debug.verbose('Patterns for current directory:', patternsWithSources);
+        debug.verbose('Directory tree paths:', directoryTree.map(dir => dir.relativePath));
+        debug.verbose('Current directory for selection highlighting:', currentDirectory);
+        
+        const workspaceData = {
+            mode: 'workspace' as const,
+            directoryTree,
+            currentDirectory,
+            resolvedSettings: {
+                ...workspaceInheritanceInfo.resolvedSettings,
+                source: 'database'
+            } as any,
+            currentSettings: {
+                ...workspaceInheritanceInfo.currentSettings,
+                source: 'database'
+            } as any,
+            parentSettings: addSourceToSettings(workspaceInheritanceInfo.parentSettings),
+            workspacePath,
+            patternsWithSources
+        };
+
+        debug.verbose('Final webview refresh data validation:', {
+            'excludePatterns length': excludePatterns?.length || 0,
+            'excludePatterns content': excludePatterns,
+            'workspaceData.resolvedSettings has excludePatterns': !!workspaceData.resolvedSettings['codeCounter.excludePatterns'],
+            'workspaceData.currentSettings has excludePatterns': !!workspaceData.currentSettings['codeCounter.excludePatterns'],
+            'workspaceData.parentSettings has excludePatterns': !!workspaceData.parentSettings['codeCounter.excludePatterns']
+        });
+
+        // Update the webview content
+        globalEmojiPickerPanel.webview.html = getEmojiPickerWebviewContent(
+            badges, 
+            folderBadges, 
+            thresholds, 
+            excludePatterns, 
+            workspaceData, 
+            globalEmojiPickerPanel.webview
+        );
+
+        debug.info('Emoji picker webview refreshed with updated exclusion patterns');
+    } catch (error) {
+        debug.error('Failed to refresh emoji picker webview with service:', error);
     }
 }
 
@@ -141,6 +414,9 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
         }
     );
 
+    // Store global reference for refreshing from context menu commands
+    globalEmojiPickerPanel = panel;
+
     // Auto-detect workspace settings and use resolved settings for initial display
     let workspaceData: WorkspaceData | undefined = undefined;
     let badges, folderBadges, thresholds, excludePatterns;
@@ -154,10 +430,10 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
         try {
             const migrationResult = await workspaceService.migrateFromJsonFiles();
             if (migrationResult.migrated > 0) {
-                console.log(`Migrated ${migrationResult.migrated} settings files to database`);
+                debug.info(`Migrated ${migrationResult.migrated} settings files to database`);
             }
         } catch (error) {
-            console.log('Migration check completed');
+            debug.verbose('Migration check completed');
         }
         
         const directoriesWithSettings = await workspaceService.getDirectoriesWithSettings();
@@ -234,8 +510,11 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                    path.join(workspacePath, initialDirectory);
         const patternsWithSources = await workspaceService.getExcludePatternsWithSources(initialDirectoryPath);
 
-        // Create directory tree structure from directories with settings
+        // Create directory tree structure from ALL directories in workspace
         const directoryTree = await getDirectoryTreeFromDatabase(workspaceService, workspacePath);
+
+        // Track initial directory globally for webview refresh (normalize path separators)
+        globalCurrentDirectory = initialDirectory.replace(/\\/g, '/');
 
         workspaceData = {
             mode: initialMode,
@@ -263,7 +542,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
     }
 
     // Debug: Log final values before webview creation
-    console.log('Debug - Final values before webview creation:', {
+    debug.verbose('Final values before webview creation:', {
         badges: badges,
         folderBadges: folderBadges,
         thresholds: thresholds,
@@ -281,7 +560,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                     // Check if we have workspace folders and determine current mode from the message context
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
+                        const workspaceService = getWorkspaceService(workspacePath);
                         
                         // Determine the current directory and mode from the workspace data in the webview
                         // We need to get this info from the message or reconstruct it
@@ -298,9 +577,8 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         }
                         
                         if (isWorkspaceMode) {
-                            // Handle workspace emoji update
-                            const targetPath = currentDirectory === '<workspace>' ? workspacePath : 
-                                             path.join(workspacePath, currentDirectory);
+                            // Handle workspace emoji update - Use safe path calculation
+                            const targetPath = calculateTargetPath(workspacePath, currentDirectory);
                             
                             // Check if .code-counter.json exists and get current workspace settings
                             const settingsPath = path.join(targetPath, '.code-counter.json');
@@ -447,9 +725,8 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         }
                         
                         if (isWorkspaceMode) {
-                            // Handle workspace threshold update
-                            const targetPath = currentDirectory === '<workspace>' ? workspacePath : 
-                                             path.join(workspacePath, currentDirectory);
+                            // Handle workspace threshold update - Use safe path calculation
+                            const targetPath = calculateTargetPath(workspacePath, currentDirectory);
                             
                             // Check if .code-counter.json exists and get existing workspace settings  
                             const settingsPath = path.join(targetPath, '.code-counter.json');
@@ -707,7 +984,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0 && message.isWorkspaceMode) {
                         // In workspace mode: remove patterns from current directory to inherit from ancestors
                         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
+                        const workspaceService = getWorkspaceService(workspacePath);
                         const currentDirectory = message.currentDirectory || '<workspace>';
                         const targetPath = currentDirectory === '<workspace>' ? workspacePath : 
                                          path.join(workspacePath, currentDirectory);
@@ -715,18 +992,25 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         // Reset the excludePatterns field to inherit from parent
                         await workspaceService.resetField(targetPath, 'excludePatterns');
                         
+                        // Invalidate cache to ensure fresh data on next access
+                        invalidateWorkspaceServiceCache(workspacePath);
+                        console.log('Cache invalidated after reset operation');
+                        
+                        // Get fresh service instance with updated data
+                        const freshWorkspaceService = getWorkspaceService(workspacePath);
+                        
                         vscode.window.showInformationMessage('Exclude patterns reset - now inheriting from parent');
                         
                         // Refresh decorations and webview
                         fileExplorerDecorator.refresh();
                         notifySettingsChanged();
                         
-                        const inheritanceInfo3 = await workspaceService.getSettingsWithInheritance(targetPath);
+                        const inheritanceInfo3 = await freshWorkspaceService.getSettingsWithInheritance(targetPath);
                         const refreshedWorkspaceData = {
                             ...workspaceData,
                             currentDirectory: currentDirectory,
-                            directoryTree: await getDirectoryTreeFromDatabase(workspaceService, workspacePath),
-                            patternsWithSources: await workspaceService.getExcludePatternsWithSources(targetPath),
+                            directoryTree: await getDirectoryTreeFromDatabase(freshWorkspaceService, workspacePath),
+                            patternsWithSources: await freshWorkspaceService.getExcludePatternsWithSources(targetPath),
                             resolvedSettings: addSourceToSettings(inheritanceInfo3.resolvedSettings),
                             currentSettings: addSourceToSettings(inheritanceInfo3.currentSettings),
                             parentSettings: addSourceToSettings(inheritanceInfo3.parentSettings)
@@ -1036,6 +1320,10 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         // Store the selected directory as the last viewed directory
                         await context.globalState.update('codeCounter.lastViewedDirectory', message.directoryPath);
                         
+                        // Track the current directory globally for proper webview refresh (normalize path separators)
+                        globalCurrentDirectory = message.directoryPath.replace(/\\/g, '/');
+                        debug.verbose(`Directory selected via click - originalPath: "${message.directoryPath}", normalizedPath: "${globalCurrentDirectory}"`);
+                        
                         // Get the previous directory path if it exists and track if cleanup happened
                         const previousDirectory = message.previousDirectory;
                         let cleanupHappened = false;
@@ -1144,7 +1432,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                     directoryTree,
                                     currentDirectory: finalSelectedPath === null ? '<global>' : 
                                                     finalSelectedPath === workspacePath ? '<workspace>' : 
-                                                    path.relative(workspacePath, finalSelectedPath),
+                                                    path.relative(workspacePath, finalSelectedPath).replace(/\\/g, '/'),
                                     resolvedSettings: addSourceToSettings(settings),
                                     currentSettings: inheritanceInfo?.currentSettings,
                                     parentSettings: addSourceToSettings(inheritanceInfo?.parentSettings || {}),
@@ -1294,6 +1582,17 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         vscode.window.showInformationMessage(`Field ${message.field} reset to parent value`);
                     }
                     break;
+                case 'configureDebugService':
+                    // Handle debug service configuration - save to VS Code settings
+                    const backend = message.backend as 'none' | 'console';
+                    
+                    // Update VS Code configuration - this will trigger automatic update via configuration listener
+                    const debugConfig = vscode.workspace.getConfiguration('codeCounter');
+                    await debugConfig.update('debug', backend, vscode.ConfigurationTarget.Global);
+                    
+                    debug.info(`Debug service configured: backend=${backend}`);
+                    vscode.window.showInformationMessage(`Debug service updated: ${backend === 'none' ? 'Disabled' : 'Developer Tools'}`);
+                    break;
             }
         },
         undefined
@@ -1302,8 +1601,18 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
     // Handle webview disposal
     panel.onDidDispose(() => {
         // Database service handles cleanup automatically - no action needed
-        console.log('Code Counter settings panel disposed');
+        globalEmojiPickerPanel = null;
+        debug.info('Code Counter settings panel disposed');
     });
+}
+
+function escapeHtml(unsafe: string): string {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 function getEmojiPickerWebviewContent(badges: any, 
@@ -1313,7 +1622,7 @@ function getEmojiPickerWebviewContent(badges: any,
         workspaceData?: WorkspaceData,
         webview?: vscode.Webview): string {
     try {
-        console.log('Debug - getEmojiPickerWebviewContent called with:', {
+        debug.verbose('getEmojiPickerWebviewContent called with:', {
             badges: badges,
             folderBadges: folderBadges,
             thresholds: thresholds,
@@ -1382,7 +1691,15 @@ function getEmojiPickerWebviewContent(badges: any,
                     return `
                         <div class="glob-pattern-item ${borderClass} ${levelClass}" data-pattern="${item.pattern}">
                             <code style="opacity: ${opacity};">${item.pattern}</code>
-                            <span class="pattern-path" title="Inherited from ${item.source}">${item.source === '<global>' ? '&lt;global&gt;' : '&lt;workspace&gt;\\'}${item.source}${item.source === '<global>' ? '' : '\.code-counter.json'}</span>
+                            <span class="pattern-path" title="Inherited from ${item.source}">
+                                ${item.source === '<global>' 
+                                    ? '&lt;global&gt;'
+                                    : (item.source === '<workspace>' 
+                                        ? '&lt;workspace&gt;' 
+                                        : item.source
+                                    )
+                                }
+                            </span>
                             <span class="pattern-source" title="Inherited from ${item.source}">🔗</span>
                             ${deleteButton}
                         </div>
@@ -1546,6 +1863,13 @@ function getEmojiPickerWebviewContent(badges: any,
         htmlContent = htmlContent.replace(/{{excludePatterns}}/g, excludePatternsHtml);
         htmlContent = htmlContent.replace(/{{showNotificationChecked}}/g, showNotificationChecked);
         
+        // Replace debug configuration
+        const currentConfig = getCurrentConfiguration();
+        const debugBackendValue = currentConfig.debug || 'none';
+        htmlContent = htmlContent.replace(/{{debugBackend}}/g, debugBackendValue);
+        htmlContent = htmlContent.replace(/{{debugBackendNoneSelected}}/g, debugBackendValue === 'none' ? 'selected' : '');
+        htmlContent = htmlContent.replace(/{{debugBackendConsoleSelected}}/g, debugBackendValue === 'console' ? 'selected' : '');
+        
         // Debug - Check for any remaining unreplaced placeholders
         const remainingPlaceholders = htmlContent.match(/{{[^}]+}}/g) || [];
         console.log('Debug - Remaining unreplaced placeholders after replacement:', remainingPlaceholders);
@@ -1620,6 +1944,7 @@ function getEmojiPickerWebviewContent(badges: any,
             parentFolderDangerSource = parentSource;
             parentWarningThresholdSource = parentSource;
             parentDangerThresholdSource = parentSource;
+            
         } else if (workspaceData && workspaceData.mode === 'workspace') {
             // Fallback to global configuration values when no parent settings (e.g., at workspace root)
             console.log('Getting global config for parent fallback');
@@ -1656,16 +1981,16 @@ function getEmojiPickerWebviewContent(badges: any,
         htmlContent = htmlContent.replace(/{{parentFileWarning}}/g, parentFileWarning);
         htmlContent = htmlContent.replace(/{{parentFileDanger}}/g, parentFileDanger);
         htmlContent = htmlContent.replace(/{{parentFolderNormal}}/g, parentFolderNormal);
-        htmlContent = htmlContent.replace(/{{parentFileNormalSource}}/g, parentFileNormalSource);
-        htmlContent = htmlContent.replace(/{{parentFileWarningSource}}/g, parentFileWarningSource);
-        htmlContent = htmlContent.replace(/{{parentFileDangerSource}}/g, parentFileDangerSource);
-        htmlContent = htmlContent.replace(/{{parentFolderNormalSource}}/g, parentFolderNormalSource);
+        htmlContent = htmlContent.replace(/{{parentFileNormalSource}}/g, escapeHtml(parentFileNormalSource));
+        htmlContent = htmlContent.replace(/{{parentFileWarningSource}}/g, escapeHtml(parentFileWarningSource));
+        htmlContent = htmlContent.replace(/{{parentFileDangerSource}}/g, escapeHtml(parentFileDangerSource));
+        htmlContent = htmlContent.replace(/{{parentFolderNormalSource}}/g, escapeHtml(parentFolderNormalSource));
         htmlContent = htmlContent.replace(/{{parentFolderWarning}}/g, parentFolderWarning);
         htmlContent = htmlContent.replace(/{{parentFolderDanger}}/g, parentFolderDanger);
-        htmlContent = htmlContent.replace(/{{parentFolderWarningSource}}/g, parentFolderWarningSource);
-        htmlContent = htmlContent.replace(/{{parentFolderDangerSource}}/g, parentFolderDangerSource);
-        htmlContent = htmlContent.replace(/{{parentWarningThresholdSource}}/g, parentWarningThresholdSource);
-        htmlContent = htmlContent.replace(/{{parentDangerThresholdSource}}/g, parentDangerThresholdSource);
+        htmlContent = htmlContent.replace(/{{parentFolderWarningSource}}/g, escapeHtml(parentFolderWarningSource));
+        htmlContent = htmlContent.replace(/{{parentFolderDangerSource}}/g, escapeHtml(parentFolderDangerSource));
+        htmlContent = htmlContent.replace(/{{parentWarningThresholdSource}}/g, escapeHtml(parentWarningThresholdSource));
+        htmlContent = htmlContent.replace(/{{parentDangerThresholdSource}}/g, escapeHtml(parentDangerThresholdSource));
         htmlContent = htmlContent.replace(/{{parentWarningThreshold}}/g, parentWarningThreshold);
         htmlContent = htmlContent.replace(/{{parentDangerThreshold}}/g, parentDangerThreshold);
         
@@ -1781,24 +2106,53 @@ function generateWorkspaceSettingsHtml(workspaceData: any): string {
 function generateDirectoryTreeHtml(directories: any[], currentDirectory: string, level: number = 1): string {
     if (!directories || directories.length === 0) return '';
     
-    return directories.map(dir => {
+    // Sort directories: those with settings first, then alphabetically
+    const sortedDirectories = [...directories].sort((a, b) => {
+        if (a.hasSettings && !b.hasSettings) return -1;
+        if (!a.hasSettings && b.hasSettings) return 1;
+        return a.name.localeCompare(b.name);
+    });
+    
+    return sortedDirectories.map(dir => {
+        // Skip any malformed directory entries
+        if (!dir.name || dir.name.trim() === '' || dir.name === '<subworkspace>') {
+            return '';
+        }
+        
         const isSelected = currentDirectory === dir.relativePath;
         const hasSettingsClass = dir.hasSettings ? 'has-settings' : '';
         const selectedClass = isSelected ? 'selected' : '';
         
+        // Debug selection matching for deeply nested directories
+        if (level > 1) {
+            debug.verbose(`Directory selection check - currentDirectory: "${currentDirectory}", dir.relativePath: "${dir.relativePath}", isSelected: ${isSelected}, level: ${level}`);
+        }
+        
+        // Visual indicators
+        const settingsIndicator = dir.hasSettings ? ' ⚙️' : '';
+        const folderIcon = dir.hasSettings ? '📁' : '📂';
+        
+        // Recursively generate children HTML
         const childrenHtml = dir.children && dir.children.length > 0 ? 
             generateDirectoryTreeHtml(dir.children, currentDirectory, level + 1) : '';
         
+        // Escape directory name and path for safe HTML
+        const safeName = escapeHtml(dir.name);
+        const safePath = escapeHtml(dir.relativePath.replace(/\\/g, '/'));
+        
         return `
-            <div class="directory-item ${selectedClass} ${hasSettingsClass}" 
-                 style="margin-left: ${level * 15}px"
-                 onclick="selectDirectory('${dir.relativePath.replace(/\\/g, '\\\\')}')">
-                <span class="directory-icon">📁</span>
-                ${dir.name}
+            <div class="directory-container">
+                <div class="directory-item ${selectedClass} ${hasSettingsClass}" 
+                     style="margin-left: ${level * 15}px"
+                     onclick="selectDirectory('${safePath}')">
+                    <span class="directory-icon">${folderIcon}</span>
+                    <span class="directory-name">${safeName}</span>
+                    <span class="settings-indicator">${settingsIndicator}</span>
+                </div>
+                ${childrenHtml}
             </div>
-            ${childrenHtml}
         `;
-    }).join('');
+    }).filter(html => html.trim() !== '').join('');
 }
 
 /**
@@ -1873,7 +2227,7 @@ async function addExclusionPattern(filePath: string, pattern: string): Promise<v
     }
 
     const workspacePath = workspaceFolders[0].uri.fsPath;
-    const workspaceService = new WorkspaceDatabaseService(workspacePath);
+    const workspaceService = getWorkspaceService(workspacePath);
     
     // Find the appropriate directory for this file
     const targetDirectory = await findNearestConfigDirectory(filePath);
@@ -1885,25 +2239,42 @@ async function addExclusionPattern(filePath: string, pattern: string): Promise<v
     }
 
     // Get the relative path for the target directory
-    // Normalize paths to ensure consistent format
-    const normalizedWorkspacePath = path.normalize(workspacePath);
-    const normalizedTargetDirectory = path.normalize(targetDirectory);
+    // Normalize paths to ensure consistent format and resolve any symbolic links
+    const normalizedWorkspacePath = path.resolve(path.normalize(workspacePath));
+    const normalizedTargetDirectory = path.resolve(path.normalize(targetDirectory));
     
     console.log('DEBUG addExclusionPattern: NORMALIZED workspacePath =', normalizedWorkspacePath);
     console.log('DEBUG addExclusionPattern: NORMALIZED targetDirectory =', normalizedTargetDirectory);
     
-    const relativePath = path.relative(normalizedWorkspacePath, normalizedTargetDirectory);
+    // Ensure target directory is within workspace before calculating relative path
+    if (!normalizedTargetDirectory.startsWith(normalizedWorkspacePath)) {
+        console.error('SECURITY: Target directory is outside workspace bounds');
+        vscode.window.showErrorMessage('Cannot add exclusion pattern: Target directory is outside workspace');
+        return;
+    }
+    
+    // Calculate relative path safely
+    let relativePath = path.relative(normalizedWorkspacePath, normalizedTargetDirectory);
+    
+    // Additional validation to prevent path traversal
+    if (relativePath.includes('..') || path.isAbsolute(relativePath)) {
+        console.error('SECURITY: Calculated relative path contains path traversal or is absolute:', relativePath);
+        vscode.window.showErrorMessage('Cannot add exclusion pattern: Invalid directory path');
+        return;
+    }
     
     console.log('DEBUG addExclusionPattern: CALCULATED relativePath =', relativePath);
     
-    const directoryPath = relativePath || '';
+    // Normalize path separators for consistent storage
+    const directoryPath = relativePath.replace(/\\/g, '/') || '';
     console.log('DEBUG addExclusionPattern: workspacePath =', workspacePath);
     console.log('DEBUG addExclusionPattern: targetDirectory =', targetDirectory);
     console.log('DEBUG addExclusionPattern: relativePath =', relativePath);
     console.log('DEBUG addExclusionPattern: directoryPath =', directoryPath);
     
     // Get current settings with inheritance for this directory
-    const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(directoryPath);
+    // Pass the absolute target directory path, not the relative path
+    const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(normalizedTargetDirectory);
     const inheritedPatterns = settingsWithInheritance.resolvedSettings['codeCounter.excludePatterns'] || [];
     
     // Check if pattern already exists in inherited patterns
@@ -1919,15 +2290,37 @@ async function addExclusionPattern(filePath: string, pattern: string): Promise<v
     // This ensures we maintain all existing exclusions when creating local settings
     const newExcludePatterns = [...inheritedPatterns, pattern];
     
+    console.log('DEBUG: Adding exclusion pattern:', {
+        pattern,
+        inheritedPatterns,
+        newExcludePatterns,
+        directoryPath
+    });
+    
     // Update only the excludePatterns in local settings
     const updatedLocalSettings: WorkspaceSettings = { 
         ...localSettings, 
         'codeCounter.excludePatterns': newExcludePatterns 
     };
 
-    // Save the updated settings
-    await workspaceService.saveWorkspaceSettings(directoryPath, updatedLocalSettings);
+    // Save the updated settings - pass absolute target directory path, not relative
+    await workspaceService.saveWorkspaceSettings(normalizedTargetDirectory, updatedLocalSettings);
+    
+    // Notify settings changed first to trigger decorator refresh
     notifySettingsChanged();
+    
+    // Refresh file explorer decorators to ensure inheritance chain is updated
+    if (globalFileExplorerDecorator) {
+        globalFileExplorerDecorator.refresh();
+    }
+    
+    // Add small delay to ensure database operations and decorator updates are fully committed
+    await new Promise(resolve => setTimeout(resolve, 660));
+    
+    // Force refresh by creating a new service instance to ensure we get the latest state
+    // This avoids any potential caching issues with the current service instance
+    const refreshService = new WorkspaceDatabaseService(workspacePath);
+    await refreshEmojiPickerWebviewWithService(refreshService, workspacePath);
     
     // Show confirmation
     const displayPath = directoryPath || '<workspace>';
@@ -2059,6 +2452,11 @@ async function handleExcludeExtension(resource: vscode.Uri): Promise<void> {
 export function activate(context: vscode.ExtensionContext) {
     console.log('Code Counter extension is now active!');
 
+    // Initialize debug service with configuration monitoring
+    const debug = DebugService.getInstance();
+    debug.initialize(context);
+    debug.info('Code Counter extension activated');
+
     // Auto-migrate from .code-counter.json files to database on startup
     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
@@ -2178,4 +2576,11 @@ export function activate(context: vscode.ExtensionContext) {
     );
 }
 
-export function deactivate() {}
+export function deactivate() {
+    // Clean up debug service
+    const debug = DebugService.getInstance();
+    debug.dispose();
+    
+    // Clean up service cache
+    clearServiceCache();
+}

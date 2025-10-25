@@ -243,6 +243,26 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                         </div>
                     </div>
                 </div>
+
+                <div class="color-section">
+                    <h3>🐛 Debug Service</h3>
+                    <p>Having issues?</p>
+                    <p>
+                       1. Configure extension debug logging output.<br />
+                       2. Open VS Code Developer Console to view logs (Help → Toggle Developer Tools).<br />
+                       3. Reproduce the issue and copy [Console] output.<br />
+                       4. Open an issue on GitHub with the log details. <a href="https://github.com/DelightfulGames/vscode-code-counter/issues">GitHub issues</a>
+                    </p>
+                    <div class="debug-service-container">
+                        <div class="debug-backend-container">
+                            <label for="debugBackend">Output Location:</label>
+                            <select id="debugBackend" onchange="updateDebugService()">
+                                <option value="none" {{debugBackendNoneSelected}}>None (No Logging)</option>
+                                <option value="console" {{debugBackendConsoleSelected}}>Developer Tools Console</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

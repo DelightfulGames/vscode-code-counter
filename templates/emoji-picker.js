@@ -372,6 +372,32 @@ function updateNotificationSetting(isEnabled) {
     });
 }
 
+function updateDebugService() {
+    const backendSelect = document.getElementById('debugBackend');
+    
+    if (!backendSelect) {
+        console.error('Debug service control not found');
+        return;
+    }
+    
+    const backend = backendSelect.value;
+    
+    vscode.postMessage({
+        command: 'configureDebugService',
+        backend: backend,
+    });
+}
+
+function initializeDebugService() {
+    const backendSelect = document.getElementById('debugBackend');
+    
+    if (backendSelect) {
+        // Note: Initial value is set from VS Code configuration via template replacement
+        // Set up automatic saving when changed
+        backendSelect.addEventListener('change', updateDebugService);
+    }
+}
+
 function updateThreshold(thresholdKey, value) {
     const numValue = parseInt(value, 10);
     if (isNaN(numValue) || numValue < 1) {
@@ -405,6 +431,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize workspace mode (with small delay to ensure DOM is fully updated)
     setTimeout(initializeWorkspaceMode, 500);
+    
+    // Initialize debug service dropdowns
+    initializeDebugService();
     
     // Listen for messages from the extension
     window.addEventListener('message', event => {
