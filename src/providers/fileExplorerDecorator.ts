@@ -33,6 +33,7 @@ import { lineThresholdService } from '../services/lineThresholdService';
 import { PathBasedSettingsService } from '../services/pathBasedSettingsService';
 import { WorkspaceDatabaseService } from '../services/workspaceDatabaseService';
 import { GlobUtils } from '../utils/globUtils';
+import { DebugService } from '../services/debugService';
 
 export class FileExplorerDecorationProvider implements vscode.FileDecorationProvider {
     private _onDidChangeFileDecorations: vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined> = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
@@ -41,10 +42,12 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     private lineCountCache: LineCountCacheService;
     private pathBasedSettings: PathBasedSettingsService;
     private disposables: vscode.Disposable[] = [];
+    private debug: DebugService;
 
     constructor(pathBasedSettings?: PathBasedSettingsService) {
         this.lineCountCache = new LineCountCacheService();
         this.pathBasedSettings = pathBasedSettings || new PathBasedSettingsService();
+        this.debug = DebugService.getInstance();
         this.setupConfigurationWatcher();
     }
 
@@ -245,28 +248,31 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
     async provideFileDecoration(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {
         // Extension is enabled, so always show decorations based on mode
-        console.log('provideFileDecoration called for:', uri.toString());
+        this.debug.verbose('provideFileDecoration called for URI', { uri: uri.toString(), scheme: uri.scheme });
 
         // Skip decorations for non-file URIs to prevent filesystem errors
         if (uri.scheme !== 'file') {
-            console.log('Skipping decoration for non-file URI scheme:', uri.scheme);
+            this.debug.verbose('Skipping decoration for non-file URI scheme', { scheme: uri.scheme });
             return undefined;
         }
 
         try {
+            this.debug.verbose('About to call vscode.workspace.fs.stat', { fsPath: uri.fsPath });
             const stat = await vscode.workspace.fs.stat(uri);
-            console.log('File type:', stat.type === vscode.FileType.Directory ? 'Directory' : 'File');
+            const fileType = stat.type === vscode.FileType.Directory ? 'Directory' : 'File';
+            this.debug.verbose('File stat result', { fileType, fsPath: uri.fsPath });
             
             if (stat.type === vscode.FileType.Directory) {
                 // Handle folder decoration
-                console.log('Calling provideFolderDecoration for:', uri.fsPath);
+                this.debug.verbose('Calling provideFolderDecoration', { fsPath: uri.fsPath });
                 return await this.provideFolderDecoration(uri);
             } else {
                 // Handle file decoration
+                this.debug.verbose('Calling provideFileDecorationForFile', { fsPath: uri.fsPath });
                 return await this.provideFileDecorationForFile(uri);
             }
         } catch (error) {
-            console.log('Error in provideFileDecoration:', error);
+            this.debug.error('Error in provideFileDecoration', { error: error, fsPath: uri.fsPath });
             return undefined;
         }
     }
@@ -286,6 +292,11 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
             // Get the color classification for this line count using path-based settings
             const threshold = await this.pathBasedSettings.getColorThresholdForPath(lineCount.lines, uri.fsPath);
+            this.debug.verbose('FileExplorerDecorationProvider threshold calculation', { 
+                fsPath: uri.fsPath, 
+                lines: lineCount.lines, 
+                threshold: threshold 
+            });
             const coloredTooltip = this.createColoredTooltip(uri.fsPath, lineCount);
             
             // Use different colored icons based on line count thresholds
@@ -293,6 +304,11 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             
             // Get custom emojis from path-based configuration
             const emoji = await this.pathBasedSettings.getThemeEmojiForPath(threshold, uri.fsPath);
+            this.debug.verbose('FileExplorerDecorationProvider emoji retrieved', { 
+                emoji: emoji, 
+                threshold: threshold, 
+                fsPath: uri.fsPath 
+            });
             
             switch (threshold) {
                 case 'normal':

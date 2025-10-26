@@ -1036,3 +1036,64 @@ body.workspace-mode .workspace-only {
     border-radius: 3px;
     border: 1px dashed magenta;
 }
+
+/* Debug Service Styling */
+.debug-service-container {
+    margin-top: 10px;
+}
+
+.debug-backend-container {
+    margin-bottom: 10px;
+}
+
+.debug-file-link-container {
+    margin-top: 10px;
+    padding: 8px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.debug-file-link-container label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: var(--vscode-foreground);
+}
+
+.debug-log-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    text-decoration: none;
+    border-radius: 3px;
+    border: 1px solid var(--vscode-button-border);
+    font-size: 12px;
+    transition: background-color 0.2s ease;
+}
+
+.debug-log-link:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+    text-decoration: none;
+}
+
+.debug-log-link:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+}
+
+/* Hidden Directory Styling */
+.hidden-directory {
+    opacity: 0.7;
+    font-style: italic;
+}
+
+.hidden-directory .directory-name {
+    color: var(--vscode-descriptionForeground);
+}
+
+.hidden-directory .directory-icon {
+    opacity: 0.8;
+}

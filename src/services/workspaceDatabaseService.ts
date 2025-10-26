@@ -577,8 +577,15 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
                 for (const entry of entries) {
                     const fullPath = path.join(dir, entry.name);
                     
-                    if (entry.isDirectory() && !entry.name.startsWith('.')) {
-                        await scanDirectory(fullPath);
+                    if (entry.isDirectory()) {
+                        // Skip common system directories that shouldn't contain settings
+                        const skipDirs = [
+                            'node_modules', '.git', 'coverage', 'out', 'dist', 'build'
+                        ];
+                        
+                        if (!skipDirs.includes(entry.name)) {
+                            await scanDirectory(fullPath);
+                        }
                     } else if (entry.isFile() && entry.name === '.code-counter.json') {
                         files.push(fullPath);
                     }

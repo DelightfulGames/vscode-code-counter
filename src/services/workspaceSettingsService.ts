@@ -455,7 +455,16 @@ export class WorkspaceSettingsService {
             const entries = await fs.promises.readdir(rootPath, { withFileTypes: true });
             
             for (const entry of entries) {
-                if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+                if (entry.isDirectory()) {
+                    // Skip common system directories that shouldn't be in settings
+                    const skipDirs = [
+                        'node_modules', '.git', 'coverage', 'out', 'dist', 'build'
+                    ];
+                    
+                    if (skipDirs.includes(entry.name)) {
+                        continue;
+                    }
+                    
                     const fullPath = path.join(rootPath, entry.name);
                     const hasSettings = await this.hasSettings(fullPath);
                     const children = await this.buildDirectoryTree(fullPath);
@@ -481,7 +490,16 @@ export class WorkspaceSettingsService {
             const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
             
             for (const entry of entries) {
-                if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+                if (entry.isDirectory()) {
+                    // Skip common system directories that shouldn't be in settings
+                    const skipDirs = [
+                        'node_modules', '.git', 'coverage', 'out', 'dist', 'build'
+                    ];
+                    
+                    if (skipDirs.includes(entry.name)) {
+                        continue;
+                    }
+                    
                     const fullPath = path.join(dirPath, entry.name);
                     
                     if (await this.hasSettings(fullPath)) {

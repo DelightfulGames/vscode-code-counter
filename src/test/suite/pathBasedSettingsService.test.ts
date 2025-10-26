@@ -36,11 +36,14 @@ suite('PathBasedSettingsService Tests', () => {
         vscodeMock = sinon.createSandbox();
         
         // Mock workspace folders
-        vscodeMock.stub(vscode.workspace, 'workspaceFolders').value([{
-            uri: { fsPath: tempDir },
-            name: 'test-workspace',
-            index: 0
-        }]);
+        Object.defineProperty(vscode.workspace, 'workspaceFolders', {
+            value: [{
+                uri: { fsPath: tempDir },
+                name: 'test-workspace',
+                index: 0
+            }],
+            configurable: true
+        });
         
         // Mock getWorkspaceFolder to return the workspace for any file in tempDir
         vscodeMock.stub(vscode.workspace, 'getWorkspaceFolder').callsFake((uri: vscode.Uri) => {
@@ -118,10 +121,13 @@ suite('PathBasedSettingsService Tests', () => {
         });
 
         test('should handle missing workspace folders gracefully', async () => {
-            // Save the current stub
+            // Save the current value
             const originalWorkspaceFolders = vscode.workspace.workspaceFolders;
             
-            vscodeMock.stub(vscode.workspace, 'workspaceFolders').value(undefined);
+            Object.defineProperty(vscode.workspace, 'workspaceFolders', {
+                value: undefined,
+                configurable: true
+            });
             
             const serviceWithoutWorkspace = new PathBasedSettingsService();
             const filePath = path.join(tempDir, 'test.ts');
@@ -130,7 +136,10 @@ suite('PathBasedSettingsService Tests', () => {
             expect(emojis.normal).to.equal('🟢'); // Should still fallback to global
             
             // Restore the original workspace folders for subsequent tests
-            vscodeMock.stub(vscode.workspace, 'workspaceFolders').value(originalWorkspaceFolders);
+            Object.defineProperty(vscode.workspace, 'workspaceFolders', {
+                value: originalWorkspaceFolders,
+                configurable: true
+            });
         });
     });
 

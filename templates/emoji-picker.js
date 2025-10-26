@@ -382,9 +382,21 @@ function updateDebugService() {
     
     const backend = backendSelect.value;
     
+    // Show/hide file link based on selection
+    const fileLinkContainer = document.getElementById('debugFileLink');
+    if (fileLinkContainer) {
+        fileLinkContainer.style.display = backend === 'file' ? 'block' : 'none';
+    }
+    
     vscode.postMessage({
         command: 'configureDebugService',
         backend: backend,
+    });
+}
+
+function openDebugLogFile() {
+    vscode.postMessage({
+        command: 'openDebugLogFile'
     });
 }
 
@@ -395,6 +407,12 @@ function initializeDebugService() {
         // Note: Initial value is set from VS Code configuration via template replacement
         // Set up automatic saving when changed
         backendSelect.addEventListener('change', updateDebugService);
+        
+        // Set initial display state for file link
+        const fileLinkContainer = document.getElementById('debugFileLink');
+        if (fileLinkContainer) {
+            fileLinkContainer.style.display = backendSelect.value === 'file' ? 'block' : 'none';
+        }
     }
 }
 

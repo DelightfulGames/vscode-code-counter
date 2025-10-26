@@ -111,7 +111,9 @@ export class PathBasedSettingsService implements vscode.Disposable {
     }
 
     async getResolvedSettings(filePath: string): Promise<ResolvedSettings> {
+        console.log('DEBUG: PathBasedSettingsService.getResolvedSettings called for:', filePath);
         const workspaceService = this.getWorkspaceService(filePath);
+        console.log('DEBUG: getWorkspaceService returned:', !!workspaceService);
         
         if (!workspaceService) {
             // Fallback to global settings if no workspace
@@ -136,7 +138,9 @@ export class PathBasedSettingsService implements vscode.Disposable {
         try {
             // Get directory path for the file
             const directoryPath = path.dirname(filePath);
+            console.log('DEBUG: Calling getSettingsWithInheritance for directory:', directoryPath);
             const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(directoryPath);
+            console.log('DEBUG: Got resolved settings:', JSON.stringify(settingsWithInheritance.resolvedSettings, null, 2));
             
             // Return the resolved settings that include inheritance
             return settingsWithInheritance.resolvedSettings;
@@ -272,7 +276,9 @@ export class PathBasedSettingsService implements vscode.Disposable {
      * Get theme emoji for threshold at specific path
      */
     async getThemeEmojiForPath(threshold: ColorThreshold, filePath: string): Promise<string> {
+        console.log('DEBUG: getThemeEmojiForPath called for threshold:', threshold, 'filePath:', filePath);
         const customEmojis = await this.getCustomEmojisForPath(filePath);
+        console.log('DEBUG: customEmojis retrieved:', JSON.stringify(customEmojis));
         
         switch (threshold) {
             case 'normal':

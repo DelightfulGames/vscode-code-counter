@@ -122,10 +122,11 @@
           "type": "string",
           "enum": [
             "none",
-            "console"
+            "console",
+            "file"
           ],
           "default": "none",
-          "description": "Debug output location: 'none' for silent operation, 'console' for VS Code Developer Tools"
+          "description": "Debug output location: 'none' for silent operation, 'console' for VS Code Developer Tools, 'file' for .vscode/code-counter/debug.log"
         },
         "codeCounter.emojis.normal": {
           "type": "string",

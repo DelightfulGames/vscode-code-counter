@@ -8,6 +8,7 @@ import { FileExplorerDecorationProvider } from '../../providers/fileExplorerDeco
 import { EditorTabDecorationProvider } from '../../providers/editorTabDecorator';
 import { PathBasedSettingsService } from '../../services/pathBasedSettingsService';
 import { WorkspaceDatabaseService, WorkspaceSettings } from '../../services/workspaceDatabaseService';
+import { DebugService } from '../../services/debugService';
 
 suite('Decorator Integration Tests', () => {
     let tempDir: string;
@@ -61,11 +62,14 @@ suite('Decorator Integration Tests', () => {
         
         // Mock workspace folders
         const workspaceUri = vscode.Uri.file(tempDir);
-        vscodeMock.stub(vscode.workspace, 'workspaceFolders').value([{
-            uri: workspaceUri,
-            name: 'test-workspace',
-            index: 0
-        }]);
+        Object.defineProperty(vscode.workspace, 'workspaceFolders', {
+            value: [{
+                uri: workspaceUri,
+                name: 'test-workspace',
+                index: 0
+            }],
+            configurable: true
+        });
         
         // Note: workspace.fs.stat is provided by vscode-mock and cannot be stubbed directly
         // The mock provides a basic stat implementation that should work for most tests
@@ -117,6 +121,11 @@ suite('Decorator Integration Tests', () => {
         vscodeMock.stub(vscode.workspace, 'onDidChangeConfiguration').returns({ dispose: () => {} });
         vscodeMock.stub(vscode.workspace, 'onDidSaveTextDocument').returns({ dispose: () => {} });
         
+        // Enable file debug logging for this test
+        const debugService = DebugService.getInstance();
+        debugService.configure('file');
+        debugService.clearLog(); // Clear any existing log
+
         // Create a shared PathBasedSettingsService that uses the test's workspace database
         pathBasedSettings = new PathBasedSettingsService();
         // Clear any cached services from previous tests  
@@ -205,6 +214,18 @@ suite('Decorator Integration Tests', () => {
             
             // Test file: 800 >= 500 (root highThreshold) = danger (inherits from root)
             expect(testDecoration!.badge).to.equal('🔴');
+            
+            // Debug: Check what was logged to the debug file
+            const debugService = DebugService.getInstance();
+            const logFilePath = debugService.getLogFilePath();
+            if (logFilePath && fs.existsSync(logFilePath)) {
+                const logContent = fs.readFileSync(logFilePath, 'utf8');
+                console.log('=== DEBUG LOG CONTENT ===');
+                console.log(logContent);
+                console.log('=== END DEBUG LOG ===');
+            } else {
+                console.log('No debug log file found at:', logFilePath);
+            }
         });
 
         test('should apply path-based exclude patterns', async () => {

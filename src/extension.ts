@@ -82,6 +82,11 @@ async function getDirectoryTreeFromDatabase(workspaceService: WorkspaceDatabaseS
     // Get all actual subdirectories in the workspace
     const allDirectories = await getAllWorkspaceDirectories(workspacePath);
     
+    // Debug: Log found directories
+    const hiddenDirs = allDirectories.filter(dir => path.basename(dir).startsWith('.'));
+    debug.info(`getDirectoryTreeFromDatabase - Total directories: ${allDirectories.length}, Hidden directories: ${hiddenDirs.length}`);
+    hiddenDirs.forEach(dir => debug.info(`  Hidden directory: ${dir}`));
+    
     // Create directory tree with both existing directories and those with settings
     const directoryMap = new Map<string, DirectoryNode>();
     const processedPaths = new Set<string>();
@@ -152,6 +157,11 @@ async function getDirectoryTreeFromDatabase(workspaceService: WorkspaceDatabaseS
         return a.name.localeCompare(b.name);
     });
     
+    // Debug: Log final root nodes
+    const hiddenRootNodes = rootNodes.filter(node => node.name.startsWith('.'));
+    debug.info(`getDirectoryTreeFromDatabase - Root nodes: ${rootNodes.length}, Hidden root nodes: ${hiddenRootNodes.length}`);
+    hiddenRootNodes.forEach(node => debug.info(`  Hidden root node: ${node.name} (${node.path})`));
+    
     return rootNodes;
 }
 
@@ -169,13 +179,13 @@ async function getAllWorkspaceDirectories(workspacePath: string): Promise<string
             
             for (const entry of entries) {
                 if (entry.isDirectory()) {
-                    // Skip common directories that shouldn't be in settings
+                    // Skip common system directories that shouldn't be in settings
                     const skipDirs = [
-                        'node_modules', '.git', '.vscode', 'out', 'dist', 'build', 
+                        'node_modules', '.git', 'out', 'dist', 'build', 
                         '.next', 'coverage', '.nyc_output', '.cache', 'tmp', 'temp'
                     ];
                     
-                    if (skipDirs.includes(entry.name) || entry.name.startsWith('.')) {
+                    if (skipDirs.includes(entry.name)) {
                         continue;
                     }
                     
@@ -512,6 +522,12 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
 
         // Create directory tree structure from ALL directories in workspace
         const directoryTree = await getDirectoryTreeFromDatabase(workspaceService, workspacePath);
+        
+        // Debug: Log what we're passing to the webview
+        debug.info(`showCodeCounterSettings - Directory tree has ${directoryTree.length} root nodes`);
+        const hiddenRootNodes = directoryTree.filter(node => node.name.startsWith('.'));
+        debug.info(`showCodeCounterSettings - Hidden root nodes: ${hiddenRootNodes.length}`);
+        hiddenRootNodes.forEach(node => debug.info(`  Webview hidden root: ${node.name} (${node.relativePath})`));
 
         // Track initial directory globally for webview refresh (normalize path separators)
         globalCurrentDirectory = initialDirectory.replace(/\\/g, '/');
@@ -1584,14 +1600,39 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                     break;
                 case 'configureDebugService':
                     // Handle debug service configuration - save to VS Code settings
-                    const backend = message.backend as 'none' | 'console';
+                    const backend = message.backend as 'none' | 'console' | 'file';
                     
                     // Update VS Code configuration - this will trigger automatic update via configuration listener
                     const debugConfig = vscode.workspace.getConfiguration('codeCounter');
                     await debugConfig.update('debug', backend, vscode.ConfigurationTarget.Global);
                     
                     debug.info(`Debug service configured: backend=${backend}`);
-                    vscode.window.showInformationMessage(`Debug service updated: ${backend === 'none' ? 'Disabled' : 'Developer Tools'}`);
+                    let statusMessage = 'Disabled';
+                    if (backend === 'console') {
+                        statusMessage = 'Developer Tools';
+                    } else if (backend === 'file') {
+                        statusMessage = 'File Log (.vscode/code-counter/debug.log)';
+                    }
+                    vscode.window.showInformationMessage(`Debug service updated: ${statusMessage}`);
+                    break;
+
+                case 'openDebugLogFile':
+                    // Handle opening the debug log file
+                    try {
+                        const debugService = DebugService.getInstance();
+                        const logFilePath = debugService.getLogFilePath();
+                        
+                        if (logFilePath && fs.existsSync(logFilePath)) {
+                            // Open the debug log file in VS Code
+                            const document = await vscode.workspace.openTextDocument(logFilePath);
+                            await vscode.window.showTextDocument(document);
+                        } else {
+                            vscode.window.showWarningMessage('Debug log file not found. Make sure File Log is enabled and extension activity has generated logs.');
+                        }
+                    } catch (error) {
+                        debug.error('Error opening debug log file:', error);
+                        vscode.window.showErrorMessage('Failed to open debug log file: ' + (error as Error).message);
+                    }
                     break;
             }
         },
@@ -1869,6 +1910,7 @@ function getEmojiPickerWebviewContent(badges: any,
         htmlContent = htmlContent.replace(/{{debugBackend}}/g, debugBackendValue);
         htmlContent = htmlContent.replace(/{{debugBackendNoneSelected}}/g, debugBackendValue === 'none' ? 'selected' : '');
         htmlContent = htmlContent.replace(/{{debugBackendConsoleSelected}}/g, debugBackendValue === 'console' ? 'selected' : '');
+        htmlContent = htmlContent.replace(/{{debugBackendFileSelected}}/g, debugBackendValue === 'file' ? 'selected' : '');
         
         // Debug - Check for any remaining unreplaced placeholders
         const remainingPlaceholders = htmlContent.match(/{{[^}]+}}/g) || [];
@@ -2130,7 +2172,9 @@ function generateDirectoryTreeHtml(directories: any[], currentDirectory: string,
         
         // Visual indicators
         const settingsIndicator = dir.hasSettings ? ' ⚙️' : '';
-        const folderIcon = dir.hasSettings ? '📁' : '📂';
+        const isHidden = dir.name.startsWith('.');
+        const folderIcon = dir.hasSettings ? '📁' : (isHidden ? '🫣' : '📁');
+        const hiddenClass = isHidden ? 'hidden-directory' : '';
         
         // Recursively generate children HTML
         const childrenHtml = dir.children && dir.children.length > 0 ? 
@@ -2142,7 +2186,7 @@ function generateDirectoryTreeHtml(directories: any[], currentDirectory: string,
         
         return `
             <div class="directory-container">
-                <div class="directory-item ${selectedClass} ${hasSettingsClass}" 
+                <div class="directory-item ${selectedClass} ${hasSettingsClass} ${hiddenClass}" 
                      style="margin-left: ${level * 15}px"
                      onclick="selectDirectory('${safePath}')">
                     <span class="directory-icon">${folderIcon}</span>

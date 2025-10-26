@@ -259,7 +259,12 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                             <select id="debugBackend" onchange="updateDebugService()">
                                 <option value="none" {{debugBackendNoneSelected}}>None (No Logging)</option>
                                 <option value="console" {{debugBackendConsoleSelected}}>Developer Tools Console</option>
+                                <option value="file" {{debugBackendFileSelected}}>File Log - .vscode/code-counter/debug.log</option>
                             </select>
+                        </div>
+                        <div class="debug-file-link-container" id="debugFileLink" style="display: none;">
+                            <label>Debug Log File:</label>
+                            <a href="#" onclick="openDebugLogFile()" class="debug-log-link">📄 Open .vscode/code-counter/debug.log</a>
                         </div>
                     </div>
                 </div>
