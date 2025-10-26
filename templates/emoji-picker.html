@@ -69,6 +69,38 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                     </details>
                 </div>
 
+                <div class="color-section">
+                    <h3>🌍 Include Patterns (Whitelist)</h3>
+                    <details open>
+                        <summary>Glob patterns for files to include even if they match exclusion patterns:</summary>
+                        <div class="glob-patterns-container">
+                            {{includePatterns}}
+                        </div>
+                        <div class="add-pattern-container">
+                            <input type="text" id="newIncludePattern" placeholder="Enter glob pattern (e.g., **/*.spec.ts)" />
+                            <button onclick="addIncludePattern()">➕ Add Pattern</button>
+                            <button class="emoji-reset-btn workspace-only" onclick="resetField(event, 'includePatterns')" title="Reset to parent settings">Reset All Patterns</button>
+                        </div>
+                        <div class="pattern-examples">
+                            <details>
+                                <summary>📖 Pattern Examples</summary>
+                                <ul>
+                                    <li><code>**/*.spec.ts</code> - Include all test files even if tests folder is excluded</li>
+                                    <li><code>node_modules/important/**</code> - Include specific important dependencies</li>
+                                    <li><code>build/**/*.map</code> - Include source maps from build folder</li>
+                                    <li><code>**/README.md</code> - Include all README files</li>
+                                    <li><code>dist/types/**</code> - Include TypeScript declaration files</li>
+                                    <li><code>**/*.config.*</code> - Include all configuration files</li>
+                                </ul>
+                                <div class="pattern-info">
+                                    <strong>Note:</strong> Inclusion patterns override exclusion patterns. If a file matches both, it will be included.
+                                </div>
+                            </details>
+                        </div>
+                        <button onclick="resetIncludePatterns()" class="reset-button">🔄 Reset Patterns to Parent/Defaults</button>
+                    </details>
+                </div>
+
                 <div class="reset-section">
                     <button class="reset-button" onclick="resetEmojis()">🔄 Reset All Emojis to Parent/Defaults</button>
                 </div>
@@ -200,73 +232,87 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 </div>
             </div>
             <div class="workspace-settings-sidebar">
-                {{workspaceSettings}}
+                <div class="color-section">
+                    <h3>🐛 Debug Service</h3>
+                    <details>
+                        <summary>Having issues?</summary>
+                        <p>Select a debug output location to help diagnose problems:</p>
+                        <div id="backend-developer-tools" style="display: none;">
+                            1. Configure extension debug logging output.<br />
+                            2. Open VS Code Developer Console to view logs (Help → Toggle Developer Tools).<br />
+                            3. Reproduce the issue and copy [Console] output.<br />
+                            4. Open an issue on GitHub with the log details. <a href="https://github.com/DelightfulGames/vscode-code-counter/issues">GitHub issues</a>
+                        </div>
+                        <div id="backend-file" style="display: none;">
+                            1. Configure extension debug logging output.<br />
+                            2. Reproduce the issue and come back to this menu.<br />
+                            3. Select "None" (turns file debugger off)<br />
+                            4. Open an issue on GitHub with the log details. <a href="https://github.com/DelightfulGames/vscode-code-counter/issues">GitHub issues</a>
+                        </div>                                                    
+                        <div class="debug-service-container">
+                            <div class="debug-backend-container">
+                                <label for="debugBackend">Output Location:</label>
+                                <select id="debugBackend" onchange="updateDebugService()">
+                                    <option value="none" {{debugBackendNoneSelected}}>None (No Logging)</option>
+                                    <option value="console" {{debugBackendConsoleSelected}}>Developer Tools Console</option>
+                                    <option value="file" {{debugBackendFileSelected}}>File Log - debug.log</option>
+                                </select>
+                            </div>
+                            <div class="debug-file-link-container" id="debugFileLink" style="display: none;">
+                                <label>Debug Log File:</label>
+                                <a href="#" onclick="openDebugLogFile()" class="debug-log-link">📄 Open .vscode/code-counter/debug.log</a>
+                            </div>
+                        </div>
+                    </details>
+                </div>
 
+                {{workspaceSettings}}
                 <div class="color-section">
                     <h3>📤 Output Directory</h3>
-                    <p>Directory where HTML and XML reports will be generated:</p>
-                    <div class="output-directory-container">
-                        <div class="input-group">
-                            <input type="text" id="outputDirectory" placeholder="./.cc/reports" onchange="updateOutputDirectory(this.value)" value="{{outputDirectory}}">
-                            <button onclick="browseOutputDirectory()" class="browse-button" title="Browse for directory">📂</button>
+                    <details open>
+                        <summary>Directory where HTML and XML reports will be generated:</summary>
+                        <div class="output-directory-container">
+                            <div class="input-group">
+                                <input type="text" id="outputDirectory" placeholder="./.cc/reports" onchange="updateOutputDirectory(this.value)" value="{{outputDirectory}}">
+                                <button onclick="browseOutputDirectory()" class="browse-button" title="Browse for directory">📂</button>
+                            </div>
+                            <div class="setting-description">
+                                Relative to workspace root. Reports include detailed HTML views and XML data files with line count statistics.
+                            </div>
                         </div>
-                        <div class="setting-description">
-                            Relative to workspace root. Reports include detailed HTML views and XML data files with line count statistics.
-                        </div>
-                    </div>
+                    </details>
                 </div>
 
                 <div class="color-section">
                     <h3>🔄 Auto-Generation</h3>
-                    <p>Automatically generate reports when files are saved:</p>
-                    <div class="auto-generate-container">
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="autoGenerate" {{autoGenerateChecked}} onchange="updateAutoGenerate(this.checked)">
-                            <label for="autoGenerate">Auto-generate reports on file save</label>
+                    <details open>
+                        <summary>Automatically generate reports when files are saved:</summary>
+                        <div class="auto-generate-container">
+                            <div class="checkbox-container">
+                                <input type="checkbox" id="autoGenerate" {{autoGenerateChecked}} onchange="updateAutoGenerate(this.checked)">
+                                <label for="autoGenerate">Auto-generate reports on file save</label>
+                            </div>
+                            <div class="setting-description">
+                                When enabled, the extension will automatically regenerate HTML and XML reports whenever you save a file in the workspace. This keeps your code metrics up-to-date in real-time.
+                            </div>
                         </div>
-                        <div class="setting-description">
-                            When enabled, the extension will automatically regenerate HTML and XML reports whenever you save a file in the workspace. This keeps your code metrics up-to-date in real-time.
-                        </div>
-                    </div>
+                    </details>                    
                 </div>
 
                 <div class="color-section">
                     <h3>💬 Notification Settings</h3>
-                    <p>Control when the extension shows popup notifications:</p>
-                    <div class="notification-settings-container">
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="showNotificationOnAutoGenerate" {{showNotificationChecked}} onchange="updateNotificationSetting(this.checked)">
-                            <label for="showNotificationOnAutoGenerate">Show popup notifications when reports are auto-generated on file save</label>
+                    <details open>
+                        <summary>Control when the extension shows popup notifications:</summary>
+                        <div class="notification-settings-container">
+                            <div class="checkbox-container">
+                                <input type="checkbox" id="showNotificationOnAutoGenerate" {{showNotificationChecked}} onchange="updateNotificationSetting(this.checked)">
+                                <label for="showNotificationOnAutoGenerate">Show popup notifications when reports are auto-generated on file save</label>
+                            </div>
+                            <div class="setting-description">
+                                When enabled, the extension will show a popup notification with a "View Report" button each time a report is automatically generated when you save a file. When disabled, reports are generated silently in the background.
+                            </div>
                         </div>
-                        <div class="setting-description">
-                            When enabled, the extension will show a popup notification with a "View Report" button each time a report is automatically generated when you save a file. When disabled, reports are generated silently in the background.
-                        </div>
-                    </div>
-                </div>
-
-                <div class="color-section">
-                    <h3>🐛 Debug Service</h3>
-                    <p>Having issues?</p>
-                    <p>
-                       1. Configure extension debug logging output.<br />
-                       2. Open VS Code Developer Console to view logs (Help → Toggle Developer Tools).<br />
-                       3. Reproduce the issue and copy [Console] output.<br />
-                       4. Open an issue on GitHub with the log details. <a href="https://github.com/DelightfulGames/vscode-code-counter/issues">GitHub issues</a>
-                    </p>
-                    <div class="debug-service-container">
-                        <div class="debug-backend-container">
-                            <label for="debugBackend">Output Location:</label>
-                            <select id="debugBackend" onchange="updateDebugService()">
-                                <option value="none" {{debugBackendNoneSelected}}>None (No Logging)</option>
-                                <option value="console" {{debugBackendConsoleSelected}}>Developer Tools Console</option>
-                                <option value="file" {{debugBackendFileSelected}}>File Log - .vscode/code-counter/debug.log</option>
-                            </select>
-                        </div>
-                        <div class="debug-file-link-container" id="debugFileLink" style="display: none;">
-                            <label>Debug Log File:</label>
-                            <a href="#" onclick="openDebugLogFile()" class="debug-log-link">📄 Open .vscode/code-counter/debug.log</a>
-                        </div>
-                    </div>
+                    </details>
                 </div>
             </div>
         </div>

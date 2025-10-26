@@ -63,6 +63,11 @@ export class LineCountCacheService {
         this.cache.delete(filePath);
     }
 
+    public invalidateFileCache(filePath: string): void {
+        this.invalidateCache(filePath);
+        console.log('Invalidated file cache for:', filePath);
+    }
+
     public invalidateFolderCache(filePath: string): void {
         // Invalidate all cached entries that are parent directories of this file
         const normalizedPath = path.normalize(filePath);

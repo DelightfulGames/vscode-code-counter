@@ -41,6 +41,7 @@ export interface WorkspaceSettings {
     'codeCounter.emojis.folders.warning'?: string;
     'codeCounter.emojis.folders.danger'?: string;
     'codeCounter.excludePatterns'?: string[];
+    'codeCounter.includePatterns'?: string[];
     'codeCounter.showNotificationOnAutoGenerate'?: boolean;
 }
 
@@ -54,6 +55,7 @@ export interface ResolvedSettings {
     'codeCounter.emojis.folders.warning': string;
     'codeCounter.emojis.folders.danger': string;
     'codeCounter.excludePatterns': string[];
+    'codeCounter.includePatterns': string[];
     'codeCounter.showNotificationOnAutoGenerate': boolean;
 }
 
@@ -509,6 +511,60 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         return patterns;
     }
 
+    async getIncludePatternsWithSources(directoryPath: string): Promise<Array<{ pattern: string; source: string; level: 'global' | 'workspace' | 'directory' }>> {
+        const patterns: Array<{ pattern: string; source: string; level: 'global' | 'workspace' | 'directory' }> = [];
+        
+        // Get all settings in the inheritance chain to show each layer
+        const relativePath = path.relative(this.workspacePath, directoryPath);
+        
+        // Build the path hierarchy to check each level
+        const pathParts = relativePath.split(path.sep).filter(part => part !== '');
+        const pathsToCheck: Array<{ path: string; source: string; level: 'global' | 'workspace' | 'directory' }> = [
+            { path: '', source: '<workspace>', level: 'workspace' }
+        ];
+        
+        let currentPath = '';
+        for (const part of pathParts) {
+            currentPath = currentPath ? path.join(currentPath, part) : part;
+            pathsToCheck.push({ 
+                path: currentPath, 
+                source: path.basename(currentPath), 
+                level: 'directory' 
+            });
+        }
+        
+        // Query database for each path level (in reverse order to show most specific first)
+        for (let i = pathsToCheck.length - 1; i >= 0; i--) {
+            const pathInfo = pathsToCheck[i];
+            const query = `
+                SELECT setting_value
+                FROM workspace_settings
+                WHERE directory_path = ? AND setting_key = 'codeCounter.includePatterns'
+            `;
+            
+            const stmt = this.db!.prepare(query);
+            stmt.bind([pathInfo.path]);
+            
+            if (stmt.step()) {
+                const row = stmt.getAsObject();
+                const includePatterns = JSON.parse((row as any).setting_value) as string[];
+                for (const pattern of includePatterns) {
+                    patterns.push({ pattern, source: pathInfo.source, level: pathInfo.level });
+                }
+            }
+            stmt.free();
+        }
+        
+        // Add global patterns at the end if they exist
+        const globalConfig = vscode.workspace.getConfiguration('codeCounter');
+        const globalPatterns = globalConfig.get<string[]>('includePatterns', []);
+        for (const pattern of globalPatterns) {
+            patterns.push({ pattern, source: '<global>', level: 'global' });
+        }
+        
+        return patterns;
+    }
+
     /**
      * Get global default settings
      */
@@ -527,6 +583,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             'codeCounter.emojis.folders.warning': folderEmojiConfig.get<string>('warning', '🟨'),
             'codeCounter.emojis.folders.danger': folderEmojiConfig.get<string>('danger', '🟥'),
             'codeCounter.excludePatterns': config.get<string[]>('excludePatterns', []),
+            'codeCounter.includePatterns': config.get<string[]>('includePatterns', []),
             'codeCounter.showNotificationOnAutoGenerate': config.get<boolean>('showNotificationOnAutoGenerate', false)
         };
     }

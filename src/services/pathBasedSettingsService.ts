@@ -333,6 +333,21 @@ export class PathBasedSettingsService implements vscode.Disposable {
     }
 
     /**
+     * Get include patterns for a specific file path
+     */
+    async getIncludePatternsForPath(filePath: string): Promise<string[]> {
+        const resolvedSettings = await this.getResolvedSettingsForPath(filePath);
+        
+        if (resolvedSettings) {
+            return resolvedSettings['codeCounter.includePatterns'] || [];
+        }
+
+        // Fallback to global settings
+        const config = vscode.workspace.getConfiguration('codeCounter');
+        return config.get<string[]>('includePatterns', []);
+    }
+
+    /**
      * Format line count with emoji for specific path
      */
     async formatLineCountWithEmojiForPath(lineCount: number, filePath: string): Promise<{ text: string; emoji: string }> {

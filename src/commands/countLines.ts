@@ -60,6 +60,22 @@ export class CountLinesCommand {
         }
     }
 
+    /**
+     * Get inclusion patterns for a workspace folder using hierarchical settings
+     */
+    private async getInclusionPatterns(workspacePath: string): Promise<string[]> {
+        try {
+            const workspaceService = new WorkspaceDatabaseService(workspacePath);
+            const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(workspacePath);
+            return settingsWithInheritance.resolvedSettings['codeCounter.includePatterns'] || [];
+        } catch (error) {
+            console.warn('Failed to get workspace inclusion patterns, falling back to global settings:', error);
+            // Fallback to global settings if workspace settings fail
+            const config = vscode.workspace.getConfiguration('codeCounter');
+            return config.get<string[]>('includePatterns', []);
+        }
+    }
+
     async execute(): Promise<void> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         
@@ -91,13 +107,17 @@ export class CountLinesCommand {
         try {
             vscode.window.showInformationMessage('Counting lines of code...');
             
-            // Get exclusion patterns using hierarchical workspace settings
+            // Use path-based settings instead of workspace-level patterns
             const folder = workspaceFolders[0];
-            const excludePatterns = await this.getExclusionPatterns(folder.uri.fsPath);
 
             if (choice.label.includes('Panel')) {
-                // Show in WebView panel
-                const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
+                // Show in WebView panel using path-based settings
+                const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
+                
+                console.log('Debug - CountLinesCommand execute results (path-based):', {
+                    totalFiles: results.files?.length || 0,
+                    files: results.files?.map((f: any) => f.relativePath) || []
+                });
                 const reportData = this.convertToReportData(results, folder.uri.fsPath);
                 
                 const webViewService = WebViewReportService.getInstance();
@@ -110,14 +130,17 @@ export class CountLinesCommand {
                 const outputDirectory = config.get<string>('outputDirectory', './.cc/reports');
                 
                 for (const folder of workspaceFolders) {
-                    const folderExcludePatterns = await this.getExclusionPatterns(folder.uri.fsPath);
-                    const results = await this.lineCounter.countLines(folder.uri.fsPath, folderExcludePatterns);
+                    // Use path-based settings for HTML export as well
+                    const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
                     const xmlData = this.xmlGenerator.generateXml(results);
                     await this.htmlGenerator.generateHtmlReport(xmlData, folder.uri.fsPath, outputDirectory);
                 }
 
                 vscode.window.showInformationMessage('Line counting completed! HTML reports generated.');
             }
+            
+            // Refresh decorations after counting is complete
+            this.refreshDecorations();
             
         } catch (error) {
             vscode.window.showErrorMessage(`Error counting lines: ${error}`);
@@ -135,10 +158,9 @@ export class CountLinesCommand {
         try {
             vscode.window.showInformationMessage('Counting lines of code...');
             
-            // Count lines for the first workspace folder (or combine if multiple)
+            // Count lines for the first workspace folder using path-based settings
             const folder = workspaceFolders[0];
-            const excludePatterns = await this.getExclusionPatterns(folder.uri.fsPath);
-            const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
+            const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
             
             // Convert to WebView report data format
             const reportData = this.convertToReportData(results, folder.uri.fsPath);
@@ -148,6 +170,9 @@ export class CountLinesCommand {
             await webViewService.showReport(reportData);
 
             vscode.window.showInformationMessage('Line counting completed! Report opened in panel.');
+            
+            // Refresh decorations after counting is complete
+            this.refreshDecorations();
             
         } catch (error) {
             vscode.window.showErrorMessage(`Error counting lines: ${error}`);
@@ -170,10 +195,9 @@ export class CountLinesCommand {
             const showNotification = config.get<boolean>('showNotificationOnAutoGenerate', false);
             const outputDirectory = config.get<string>('outputDirectory', './.cc/reports');
 
-            // Generate HTML/XML files for all workspace folders
+            // Generate HTML/XML files for all workspace folders using path-based settings
             for (const folder of workspaceFolders) {
-                const excludePatterns = await this.getExclusionPatterns(folder.uri.fsPath);
-                const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
+                const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
                 const xmlData = this.xmlGenerator.generateXml(results);
                 await this.htmlGenerator.generateHtmlReport(xmlData, folder.uri.fsPath, outputDirectory);
             }
@@ -181,10 +205,9 @@ export class CountLinesCommand {
             // Log for debugging auto-generation
             console.log(`Auto-generated reports saved to: ${outputDirectory}`);
 
-            // Count lines for notification (use first workspace folder for summary)
+            // Count lines for notification (use first workspace folder for summary) using path-based settings
             const folder = workspaceFolders[0];
-            const excludePatterns = await this.getExclusionPatterns(folder.uri.fsPath);
-            const results = await this.lineCounter.countLines(folder.uri.fsPath, excludePatterns);
+            const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
             const reportData = this.convertToReportData(results, folder.uri.fsPath);
 
             // Only show notification if enabled in settings
@@ -208,6 +231,9 @@ export class CountLinesCommand {
             // Silently log errors for auto-generated reports to avoid spam
             console.error('Auto line count failed:', error);
         }
+        
+        // Refresh decorations after counting is complete
+        this.refreshDecorations();
     }
 
     private convertToReportData(results: any, workspacePath: string): ReportData {
@@ -265,5 +291,11 @@ export class CountLinesCommand {
             workspacePath,
             generatedDate: new Date().toLocaleString()
         };
+    }
+
+    private refreshDecorations(): void {
+        // Trigger decorator refresh by firing a command that the extension handles
+        // This ensures decorations are updated after line counting
+        vscode.commands.executeCommand('codeCounter.internal.refreshDecorations');
     }
 }

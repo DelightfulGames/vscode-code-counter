@@ -68,6 +68,7 @@ export interface WorkspaceSettings {
     'codeCounter.emojis.folders.warning'?: string;
     'codeCounter.emojis.folders.danger'?: string;
     'codeCounter.excludePatterns'?: string[];
+    'codeCounter.includePatterns'?: string[];
     'codeCounter.showNotificationOnAutoGenerate'?: boolean;
 }
 
@@ -81,6 +82,7 @@ export interface ResolvedSettings {
     'codeCounter.emojis.folders.warning': string;
     'codeCounter.emojis.folders.danger': string;
     'codeCounter.excludePatterns': string[];
+    'codeCounter.includePatterns': string[];
     'codeCounter.showNotificationOnAutoGenerate': boolean;
     source: 'global' | 'workspace' | string; // string for subdirectory path
 }
@@ -94,6 +96,7 @@ export interface WorkspaceData {
     parentSettings?: ResolvedSettings;
     workspacePath?: string; 
     patternsWithSources?: Array<{ pattern: string; source: string; level: 'global' | 'workspace' | 'directory' }>;
+    includePatternsWithSources?: Array<{ pattern: string; source: string; level: 'global' | 'workspace' | 'directory' }>;
 }
 
 export class WorkspaceSettingsService {
@@ -137,13 +140,15 @@ export class WorkspaceSettingsService {
                 '**/.*',
                 '**/**-lock.json'
             ])],
+            'codeCounter.includePatterns': [...(globalSettings['codeCounter.includePatterns'] ?? [])],
             'codeCounter.showNotificationOnAutoGenerate': globalSettings['codeCounter.showNotificationOnAutoGenerate'] ?? false,
             source: 'global'
         };
 
         // Apply settings from closest parent with .code-counter.json
-        // For excludePatterns, we want to use the nearest ancestor that defines it, not merge
+        // For excludePatterns and includePatterns, we want to use the nearest ancestor that defines it, not merge
         let excludePatternsFound = false;
+        let includePatternsFound = false;
         
         for (const { settings, source } of settingsChain.reverse()) {
             // Apply each setting if it exists in the workspace settings
@@ -175,6 +180,11 @@ export class WorkspaceSettingsService {
             if (!excludePatternsFound && settings['codeCounter.excludePatterns'] !== undefined) {
                 resolved['codeCounter.excludePatterns'] = [...settings['codeCounter.excludePatterns']];
                 excludePatternsFound = true;
+            }
+            // For includePatterns, also only use the first (nearest) ancestor that defines it
+            if (!includePatternsFound && settings['codeCounter.includePatterns'] !== undefined) {
+                resolved['codeCounter.includePatterns'] = [...settings['codeCounter.includePatterns']];
+                includePatternsFound = true;
             }
             if (settings['codeCounter.showNotificationOnAutoGenerate'] !== undefined) {
                 resolved['codeCounter.showNotificationOnAutoGenerate'] = settings['codeCounter.showNotificationOnAutoGenerate'];
@@ -235,6 +245,7 @@ export class WorkspaceSettingsService {
                     '**/.*',
                     '**/**-lock.json'
                 ])],
+                'codeCounter.includePatterns': [...(globalSettings['codeCounter.includePatterns'] ?? [])],
                 'codeCounter.showNotificationOnAutoGenerate': globalSettings['codeCounter.showNotificationOnAutoGenerate'] ?? false,
                 source: 'global'
             };
@@ -440,6 +451,49 @@ export class WorkspaceSettingsService {
         if (!sourceFound) {
             const globalSettings = this.getGlobalSettings();
             const globalPatterns = globalSettings['codeCounter.excludePatterns'] || [];
+            for (const pattern of globalPatterns) {
+                patterns.push({ pattern, source: '<global>', level: 'global' });
+            }
+        }
+        
+        return patterns;
+    }
+
+    /**
+     * Get include patterns with their inheritance source information
+     */
+    async getIncludePatternsWithSources(directoryPath: string): Promise<Array<{ pattern: string; source: string; level: 'global' | 'workspace' | 'directory' }>> {
+        const patterns: Array<{ pattern: string; source: string; level: 'global' | 'workspace' | 'directory' }> = [];
+        
+        // Get the resolved settings to see which patterns are actually effective
+        const inheritance = await this.getSettingsWithInheritance(directoryPath);
+        const resolvedPatterns = inheritance.resolvedSettings['codeCounter.includePatterns'] || [];
+        
+        // Get settings chain to determine the source of each pattern
+        const settingsChain = await this.getSettingsChain(directoryPath);
+        
+        // For each resolved pattern, find its source
+        for (const pattern of resolvedPatterns) {
+            let patternSource = '<global>';
+            let patternLevel: 'global' | 'workspace' | 'directory' = 'global';
+            
+            // Check which level defines this pattern (start from current directory)
+            for (const { settings, source } of settingsChain) {
+                const levelPatterns = settings['codeCounter.includePatterns'];
+                if (levelPatterns && levelPatterns.includes(pattern)) {
+                    patternLevel = source === 'workspace' ? 'workspace' : 'directory';
+                    patternSource = source === 'workspace' ? '<workspace>' : source;
+                    break;
+                }
+            }
+            
+            patterns.push({ pattern, source: patternSource, level: patternLevel });
+        }
+        
+        // If no patterns found in workspace settings, check global settings
+        if (patterns.length === 0) {
+            const globalSettings = this.getGlobalSettings();
+            const globalPatterns = globalSettings['codeCounter.includePatterns'] || [];
             for (const pattern of globalPatterns) {
                 patterns.push({ pattern, source: '<global>', level: 'global' });
             }

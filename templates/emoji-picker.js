@@ -349,6 +349,50 @@ function resetPatterns() {
     });
 }
 
+// Inclusion pattern functions
+function addIncludePattern() {
+    const input = document.getElementById('newIncludePattern');
+    const pattern = input.value.trim();
+    if (pattern) {
+        // Check if we're in workspace mode
+        const currentDirectory = window.workspaceData ? window.workspaceData.currentDirectory : '<global>';
+        const isWorkspaceMode = currentDirectory !== '<global>';
+        
+        vscode.postMessage({
+            command: 'addIncludeGlobPattern',
+            pattern: pattern,
+            currentDirectory: currentDirectory,
+            isWorkspaceMode: isWorkspaceMode
+        });
+        input.value = '';
+    }
+}
+
+function removeIncludePattern(pattern) {
+    // Check if we're in workspace mode
+    const currentDirectory = window.workspaceData ? window.workspaceData.currentDirectory : '<global>';
+    const isWorkspaceMode = currentDirectory !== '<global>';
+    
+    vscode.postMessage({
+        command: 'removeIncludeGlobPattern',
+        pattern: pattern,
+        currentDirectory: currentDirectory,
+        isWorkspaceMode: isWorkspaceMode
+    });
+}
+
+function resetIncludePatterns() {
+    // Check if we're in workspace mode
+    const currentDirectory = window.workspaceData ? window.workspaceData.currentDirectory : '<global>';
+    const isWorkspaceMode = currentDirectory !== '<global>';
+    
+    vscode.postMessage({
+        command: 'resetIncludeGlobPatterns',
+        currentDirectory: currentDirectory,
+        isWorkspaceMode: isWorkspaceMode
+    });
+}
+
 function resetEmojis() {
     // Check if we're in workspace mode by looking at the current context
     const currentDirectory = window.workspaceData ? window.workspaceData.currentDirectory : '<global>';
@@ -387,7 +431,18 @@ function updateDebugService() {
     if (fileLinkContainer) {
         fileLinkContainer.style.display = backend === 'file' ? 'block' : 'none';
     }
-    
+
+    // Show/hide instructions based on backend
+    const developerToolsInstructions = document.getElementById('backend-developer-tools');
+    const fileInstructions = document.getElementById('backend-file');
+
+    if (developerToolsInstructions) {
+        developerToolsInstructions.style.display = backend === 'console' ? 'inline' : 'none';
+    }
+    if (fileInstructions) {
+        fileInstructions.style.display = backend === 'file' ? 'inline' : 'none';
+    }
+
     vscode.postMessage({
         command: 'configureDebugService',
         backend: backend,

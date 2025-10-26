@@ -71,6 +71,8 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         // Listen for file saves to refresh decorations
         const saveWatcher = vscode.workspace.onDidSaveTextDocument(document => {
             console.log('File saved:', document.uri.fsPath);
+            // Invalidate cache for the specific file that was saved
+            this.lineCountCache.invalidateFileCache(document.uri.fsPath);
             // Invalidate cache for parent folders since their statistics may have changed
             this.lineCountCache.invalidateFolderCache(document.uri.fsPath);
             // Fire change event for the specific file to refresh its decoration
@@ -297,13 +299,14 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                 lines: lineCount.lines, 
                 threshold: threshold 
             });
-            const coloredTooltip = this.createColoredTooltip(uri.fsPath, lineCount);
+            // Get custom emojis from path-based configuration
+            const emoji = await this.pathBasedSettings.getThemeEmojiForPath(threshold, uri.fsPath);
+            
+            // Create path-aware tooltip
+            const coloredTooltip = await this.createPathAwareTooltip(uri.fsPath, lineCount, threshold, emoji);
             
             // Use different colored icons based on line count thresholds
             let badge = '●';
-            
-            // Get custom emojis from path-based configuration
-            const emoji = await this.pathBasedSettings.getThemeEmojiForPath(threshold, uri.fsPath);
             this.debug.verbose('FileExplorerDecorationProvider emoji retrieved', { 
                 emoji: emoji, 
                 threshold: threshold, 
@@ -347,17 +350,44 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             return true;
         }
 
-        // Check against path-based exclusion patterns
+        // Check against path-based exclusion and inclusion patterns
         const excludePatterns = await this.pathBasedSettings.getExcludePatternsForPath(filePath);
+        const includePatterns = await this.pathBasedSettings.getIncludePatternsForPath(filePath);
         const relativePath = vscode.workspace.asRelativePath(filePath);
         
+        // Check if file matches any exclusion pattern
+        let isExcluded = false;
         for (const pattern of excludePatterns) {
             if (this.matchesPattern(relativePath, pattern)) {
-                return true;
+                isExcluded = true;
+                break;
             }
         }
-
-        return false;
+        
+        // Check if file matches any inclusion pattern (overrides exclusion)
+        let isIncluded = false;
+        for (const pattern of includePatterns) {
+            if (this.matchesPattern(relativePath, pattern)) {
+                isIncluded = true;
+                break;
+            }
+        }
+        
+        // Apply inclusion override logic:
+        // - If file matches inclusion pattern, never skip (even if excluded)
+        // - If file doesn't match inclusion pattern but is excluded, skip
+        // - If file doesn't match inclusion pattern and is not excluded, don't skip
+        if (isIncluded) {
+            this.debug.verbose('File included by inclusion pattern', { filePath, relativePath });
+            return false; // Don't skip - inclusion pattern overrides exclusion
+        }
+        
+        if (isExcluded) {
+            this.debug.verbose('File excluded by exclusion pattern', { filePath, relativePath });
+            return true; // Skip - file is excluded and no inclusion pattern matches
+        }
+        
+        return false; // Don't skip - file is neither excluded nor specifically included
     }
 
     private async provideFolderDecoration(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {
@@ -531,6 +561,49 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             lineCount.blankLines,
             lineCount.size
         );
+    }
+
+    private async createPathAwareTooltip(filePath: string, lineCount: CachedLineCount, threshold: string, emoji: string): Promise<string> {
+        const fileName = path.basename(filePath);
+        
+        // Get path-based thresholds
+        const thresholdConfig = await this.pathBasedSettings.getThresholdConfigForPath(filePath);
+        
+        let thresholdInfo = '';
+        if (thresholdConfig.enabled) {
+            switch (threshold) {
+                case 'normal':
+                    thresholdInfo = ` (${emoji} Below ${thresholdConfig.midThreshold} lines)`;
+                    break;
+                case 'warning':
+                    thresholdInfo = ` (${emoji} Above ${thresholdConfig.midThreshold} lines)`;
+                    break;
+                case 'danger':
+                    thresholdInfo = ` (${emoji} Above ${thresholdConfig.highThreshold} lines)`;
+                    break;
+            }
+        }
+        
+        return `${fileName}${thresholdInfo}\n` +
+               `──────────────────\n` +
+               `Total Lines: ${lineCount.lines.toLocaleString()}\n` +
+               `Code Lines: ${lineCount.codeLines.toLocaleString()}\n` +
+               `Comment Lines: ${lineCount.commentLines.toLocaleString()}\n` +
+               `Blank Lines: ${lineCount.blankLines.toLocaleString()}\n` +
+               `File Size: ${this.formatFileSize(lineCount.size)}`;
+    }
+
+    private formatFileSize(bytes: number): string {
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let size = bytes;
+        let unitIndex = 0;
+        
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
+        }
+        
+        return `${size.toFixed(1)} ${units[unitIndex]}`;
     }
 
     refresh(): void {

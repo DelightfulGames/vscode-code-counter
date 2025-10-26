@@ -892,6 +892,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                 currentDirectory: currentDirectory,
                                 directoryTree: await getDirectoryTreeFromDatabase(workspaceService, workspacePath),
                                 patternsWithSources: await workspaceService.getExcludePatternsWithSources(targetPath),
+                                includePatternsWithSources: await workspaceService.getIncludePatternsWithSources(targetPath),
                                 resolvedSettings: addSourceToSettings(inheritanceInfo.resolvedSettings),
                                 currentSettings: addSourceToSettings(inheritanceInfo.currentSettings),
                                 parentSettings: addSourceToSettings(inheritanceInfo.parentSettings)
@@ -973,6 +974,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                             currentDirectory: currentDirectory,
                             directoryTree: await getDirectoryTreeFromDatabase(workspaceService, workspacePath),
                             patternsWithSources: await workspaceService.getExcludePatternsWithSources(targetPath),
+                            includePatternsWithSources: await workspaceService.getIncludePatternsWithSources(targetPath),
                             resolvedSettings: addSourceToSettings(inheritanceInfo2.resolvedSettings),
                             currentSettings: addSourceToSettings(inheritanceInfo2.currentSettings),
                             parentSettings: addSourceToSettings(inheritanceInfo2.parentSettings)
@@ -1027,6 +1029,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                             currentDirectory: currentDirectory,
                             directoryTree: await getDirectoryTreeFromDatabase(freshWorkspaceService, workspacePath),
                             patternsWithSources: await freshWorkspaceService.getExcludePatternsWithSources(targetPath),
+                            includePatternsWithSources: await freshWorkspaceService.getIncludePatternsWithSources(targetPath),
                             resolvedSettings: addSourceToSettings(inheritanceInfo3.resolvedSettings),
                             currentSettings: addSourceToSettings(inheritanceInfo3.currentSettings),
                             parentSettings: addSourceToSettings(inheritanceInfo3.parentSettings)
@@ -1059,6 +1062,230 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                         panel.webview.html = getEmojiPickerWebviewContent(updatedConfiguration3.badges, updatedConfiguration3.folderBadges, updatedConfiguration3.thresholds, updatedConfiguration3.excludePatterns);
                     }
                     break;
+                
+                // Inclusion pattern handlers
+                case 'addIncludeGlobPattern':
+                    // Check if we should add to global settings regardless of workspace
+                    if (message.currentDirectory === '<global>') {
+                        // Add to global configuration
+                        const patternConfig = vscode.workspace.getConfiguration('codeCounter');
+                        const currentPatterns = patternConfig.get<string[]>('includePatterns', []);
+                        if (message.pattern && !currentPatterns.includes(message.pattern)) {
+                            const updatedPatterns = [...currentPatterns, message.pattern];
+                            await patternConfig.update('includePatterns', updatedPatterns, vscode.ConfigurationTarget.Global);
+                            vscode.window.showInformationMessage(`Added include pattern to global settings: ${message.pattern}`);
+                            
+                            fileExplorerDecorator.refresh();
+                            const updatedConfiguration = getCurrentConfiguration();
+                            panel.webview.html = getEmojiPickerWebviewContent(updatedConfiguration.badges, updatedConfiguration.folderBadges, updatedConfiguration.thresholds, updatedConfiguration.excludePatterns, workspaceData, panel.webview);
+                        }
+                    } else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
+                        const currentDirectory = message.currentDirectory || workspaceData?.currentDirectory || '<workspace>';
+                        const targetPath = currentDirectory === '<workspace>' ? workspacePath : 
+                                         path.join(workspacePath, currentDirectory);
+                        
+                        // Get current settings for this directory
+                        const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(targetPath);
+                        let currentPatterns: string[] = [];
+                        
+                        // If patterns exist in current directory, use them
+                        if (settingsWithInheritance.currentSettings?.['codeCounter.includePatterns']) {
+                            currentPatterns = [...settingsWithInheritance.currentSettings['codeCounter.includePatterns']];
+                        } else {
+                            // If no patterns defined in current directory, create a copy from ancestors
+                            const inheritedPatterns = settingsWithInheritance.resolvedSettings['codeCounter.includePatterns'] || [];
+                            currentPatterns = [...inheritedPatterns]; // Explicit copy to avoid reference sharing
+                        }
+                        
+                        if (message.pattern && !currentPatterns.includes(message.pattern)) {
+                            const updatedPatterns = [...currentPatterns, message.pattern];
+                            
+                            // Merge with existing settings in the current directory
+                            const updatedSettings: WorkspaceSettings = {
+                                ...settingsWithInheritance.currentSettings,
+                                'codeCounter.includePatterns': updatedPatterns
+                            };
+                            
+                            await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+                            notifySettingsChanged();
+                            
+                            vscode.window.showInformationMessage(`Added include pattern: ${message.pattern}`);
+                            
+                            // Refresh decorations and webview
+                            fileExplorerDecorator.refresh();
+                            
+                            const inheritanceInfo = await workspaceService.getSettingsWithInheritance(targetPath);
+                            const refreshedWorkspaceData = {
+                                ...workspaceData,
+                                currentDirectory: currentDirectory,
+                                directoryTree: await getDirectoryTreeFromDatabase(workspaceService, workspacePath),
+                                patternsWithSources: await workspaceService.getExcludePatternsWithSources(targetPath),
+                                includePatternsWithSources: await workspaceService.getIncludePatternsWithSources(targetPath),
+                                resolvedSettings: addSourceToSettings(inheritanceInfo.resolvedSettings),
+                                currentSettings: addSourceToSettings(inheritanceInfo.currentSettings),
+                                parentSettings: addSourceToSettings(inheritanceInfo.parentSettings)
+                            };
+                            
+                            const updatedExcludePatterns = refreshedWorkspaceData.resolvedSettings['codeCounter.excludePatterns'];
+                            panel.webview.html = getEmojiPickerWebviewContent(
+                                badges, folderBadges, thresholds, updatedExcludePatterns, 
+                                refreshedWorkspaceData, panel.webview
+                            );
+                        }
+                    } else {
+                        // Fallback to global configuration if no workspace
+                        const patternConfig = vscode.workspace.getConfiguration('codeCounter');
+                        const currentPatterns = patternConfig.get<string[]>('includePatterns', []);
+                        if (message.pattern && !currentPatterns.includes(message.pattern)) {
+                            const updatedPatterns = [...currentPatterns, message.pattern];
+                            await patternConfig.update('includePatterns', updatedPatterns, vscode.ConfigurationTarget.Global);
+                            vscode.window.showInformationMessage(`Added include pattern: ${message.pattern}`);
+                            
+                            fileExplorerDecorator.refresh();
+                            const updatedConfiguration = getCurrentConfiguration();
+                            panel.webview.html = getEmojiPickerWebviewContent(updatedConfiguration.badges, updatedConfiguration.folderBadges, updatedConfiguration.thresholds, updatedConfiguration.excludePatterns, workspaceData, panel.webview);
+                        }
+                    }
+                    break;
+                    
+                case 'removeIncludeGlobPattern':
+                    // Check if we should remove from global settings regardless of workspace
+                    if (message.currentDirectory === '<global>') {
+                        // Remove from global configuration
+                        const removeConfig = vscode.workspace.getConfiguration('codeCounter');
+                        const currentPatterns = removeConfig.get<string[]>('includePatterns', []);
+                        const filteredPatterns = currentPatterns.filter((p: string) => p !== message.pattern);
+                        await removeConfig.update('includePatterns', filteredPatterns, vscode.ConfigurationTarget.Global);
+                        vscode.window.showInformationMessage(`Removed include pattern from global settings: ${message.pattern}`);
+                        
+                        fileExplorerDecorator.refresh();
+                        const updatedConfiguration = getCurrentConfiguration();
+                        panel.webview.html = getEmojiPickerWebviewContent(updatedConfiguration.badges, updatedConfiguration.folderBadges, updatedConfiguration.thresholds, updatedConfiguration.excludePatterns, workspaceData, panel.webview);
+                    } else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                        const workspaceService = new WorkspaceDatabaseService(workspacePath);
+                        const currentDirectory = message.currentDirectory || workspaceData?.currentDirectory || '<workspace>';
+                        const targetPath = currentDirectory === '<workspace>' ? workspacePath : 
+                                         path.join(workspacePath, currentDirectory);
+                        
+                        // Get current settings for this directory
+                        const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(targetPath);
+                        let currentPatterns: string[] = [];
+                        
+                        // If patterns exist in current directory, use them
+                        if (settingsWithInheritance.currentSettings?.['codeCounter.includePatterns']) {
+                            currentPatterns = [...settingsWithInheritance.currentSettings['codeCounter.includePatterns']];
+                        } else {
+                            // If no patterns defined in current directory, create a copy from ancestors
+                            const inheritedPatterns = settingsWithInheritance.resolvedSettings['codeCounter.includePatterns'] || [];
+                            currentPatterns = [...inheritedPatterns]; // Explicit copy to avoid reference sharing
+                        }
+                        
+                        const filteredPatterns = currentPatterns.filter((p: string) => p !== message.pattern);
+                        
+                        // Merge with existing settings in the current directory
+                        const updatedSettings: WorkspaceSettings = {
+                            ...settingsWithInheritance.currentSettings,
+                            'codeCounter.includePatterns': filteredPatterns
+                        };
+                        
+                        await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+                        notifySettingsChanged();
+                        
+                        vscode.window.showInformationMessage(`Removed include pattern: ${message.pattern}`);
+                        
+                        // Refresh decorations and webview
+                        fileExplorerDecorator.refresh();
+                        
+                        const inheritanceInfo2 = await workspaceService.getSettingsWithInheritance(targetPath);
+                        const refreshedWorkspaceData = {
+                            ...workspaceData,
+                            currentDirectory: currentDirectory,
+                            directoryTree: await getDirectoryTreeFromDatabase(workspaceService, workspacePath),
+                            patternsWithSources: await workspaceService.getExcludePatternsWithSources(targetPath),
+                            includePatternsWithSources: await workspaceService.getIncludePatternsWithSources(targetPath),
+                            resolvedSettings: addSourceToSettings(inheritanceInfo2.resolvedSettings),
+                            currentSettings: addSourceToSettings(inheritanceInfo2.currentSettings),
+                            parentSettings: addSourceToSettings(inheritanceInfo2.parentSettings)
+                        };
+                        
+                        const updatedExcludePatterns = refreshedWorkspaceData.resolvedSettings['codeCounter.excludePatterns'];
+                        panel.webview.html = getEmojiPickerWebviewContent(
+                            badges, folderBadges, thresholds, updatedExcludePatterns,
+                            refreshedWorkspaceData, panel.webview
+                        );
+                    } else {
+                        // Fallback to global configuration if no workspace
+                        const removeConfig = vscode.workspace.getConfiguration('codeCounter');
+                        const currentPatterns2 = removeConfig.get<string[]>('includePatterns', []);
+                        const filteredPatterns = currentPatterns2.filter((p: string) => p !== message.pattern);
+                        await removeConfig.update('includePatterns', filteredPatterns, vscode.ConfigurationTarget.Global);
+                        vscode.window.showInformationMessage(`Removed include pattern: ${message.pattern}`);
+                        
+                        fileExplorerDecorator.refresh();
+                        const updatedConfiguration2 = getCurrentConfiguration();
+                        panel.webview.html = getEmojiPickerWebviewContent(updatedConfiguration2.badges, updatedConfiguration2.folderBadges, updatedConfiguration2.thresholds, updatedConfiguration2.excludePatterns, workspaceData, panel.webview);
+                    }
+                    break;
+                    
+                case 'resetIncludeGlobPatterns':
+                    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0 && message.isWorkspaceMode) {
+                        // In workspace mode: remove patterns from current directory to inherit from ancestors
+                        const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                        const workspaceService = getWorkspaceService(workspacePath);
+                        const currentDirectory = message.currentDirectory || '<workspace>';
+                        const targetPath = currentDirectory === '<workspace>' ? workspacePath : 
+                                         path.join(workspacePath, currentDirectory);
+                        
+                        // Reset the includePatterns field to inherit from parent
+                        await workspaceService.resetField(targetPath, 'includePatterns');
+                        
+                        // Invalidate cache to ensure fresh data on next access
+                        invalidateWorkspaceServiceCache(workspacePath);
+                        console.log('Cache invalidated after include patterns reset operation');
+                        
+                        // Get fresh service instance with updated data
+                        const freshWorkspaceService = getWorkspaceService(workspacePath);
+                        
+                        vscode.window.showInformationMessage('Include patterns reset - now inheriting from parent');
+                        
+                        // Refresh decorations
+                        fileExplorerDecorator.refresh();
+                        notifySettingsChanged();
+                        
+                        const inheritanceInfo3 = await freshWorkspaceService.getSettingsWithInheritance(targetPath);
+                        const refreshedWorkspaceData = {
+                            ...workspaceData,
+                            currentDirectory: currentDirectory,
+                            directoryTree: await getDirectoryTreeFromDatabase(freshWorkspaceService, workspacePath),
+                            patternsWithSources: await freshWorkspaceService.getExcludePatternsWithSources(targetPath),
+                            includePatternsWithSources: await freshWorkspaceService.getIncludePatternsWithSources(targetPath),
+                            resolvedSettings: addSourceToSettings(inheritanceInfo3.resolvedSettings),
+                            currentSettings: addSourceToSettings(inheritanceInfo3.currentSettings),
+                            parentSettings: addSourceToSettings(inheritanceInfo3.parentSettings)
+                        };
+                        
+                        const updatedExcludePatterns = refreshedWorkspaceData.resolvedSettings['codeCounter.excludePatterns'];
+                        panel.webview.html = getEmojiPickerWebviewContent(
+                            badges, folderBadges, thresholds, updatedExcludePatterns,
+                            refreshedWorkspaceData, panel.webview
+                        );
+                    } else {
+                        // Fallback to global configuration reset if not in workspace mode
+                        const resetConfig = vscode.workspace.getConfiguration('codeCounter');
+                        const defaultPatterns: string[] = []; // Default to empty array for include patterns
+                        await resetConfig.update('includePatterns', defaultPatterns, vscode.ConfigurationTarget.Global);
+                        vscode.window.showInformationMessage('Include patterns reset to defaults (empty)');
+                        
+                        fileExplorerDecorator.refresh();
+                        notifySettingsChanged();
+                        const updatedConfiguration3 = getCurrentConfiguration();
+                        panel.webview.html = getEmojiPickerWebviewContent(updatedConfiguration3.badges, updatedConfiguration3.folderBadges, updatedConfiguration3.thresholds, updatedConfiguration3.excludePatterns, workspaceData, panel.webview);
+                    }
+                    break;
+                
                 case 'resetEmoji':
                     // Check if we're in workspace mode and have the necessary data
                     console.log('Reset emoji command received - Full debug:', { 
@@ -1178,7 +1405,8 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                             currentSettings: inheritanceInfo.currentSettings,
                             parentSettings: addSourceToSettings(inheritanceInfo.parentSettings),
                             workspacePath: workspacePath,
-                            patternsWithSources: await workspaceService.getExcludePatternsWithSources(inheritanceTargetDirectory)
+                            patternsWithSources: await workspaceService.getExcludePatternsWithSources(inheritanceTargetDirectory),
+                            includePatternsWithSources: await workspaceService.getIncludePatternsWithSources(inheritanceTargetDirectory)
                         };
                     }
                     
@@ -1290,7 +1518,8 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                             currentSettings: inheritanceInfo.currentSettings,
                             parentSettings: addSourceToSettings(inheritanceInfo.parentSettings),
                             workspacePath,
-                            patternsWithSources: await workspaceService.getExcludePatternsWithSources(workspacePath)
+                            patternsWithSources: await workspaceService.getExcludePatternsWithSources(workspacePath),
+                            includePatternsWithSources: await workspaceService.getIncludePatternsWithSources(workspacePath)
                         };
 
                         panel.webview.html = getEmojiPickerWebviewContent(
@@ -1453,7 +1682,8 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                     currentSettings: inheritanceInfo?.currentSettings,
                                     parentSettings: addSourceToSettings(inheritanceInfo?.parentSettings || {}),
                                     workspacePath,
-                                    patternsWithSources: await workspaceService.getExcludePatternsWithSources(finalSelectedPath || workspacePath)
+                                    patternsWithSources: await workspaceService.getExcludePatternsWithSources(finalSelectedPath || workspacePath),
+                                    includePatternsWithSources: await workspaceService.getIncludePatternsWithSources(finalSelectedPath || workspacePath)
                                 },
                                 panel.webview
                             );
@@ -1559,6 +1789,7 @@ async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecora
                                                 path.relative(workspacePath, targetPath),
                                 workspacePath,
                                 patternsWithSources: await workspaceService.getExcludePatternsWithSources(targetPath),
+                                includePatternsWithSources: await workspaceService.getIncludePatternsWithSources(targetPath),
                                 resolvedSettings: addSourceToSettings(finalInheritanceInfo.resolvedSettings),
                                 currentSettings: addSourceToSettings(finalInheritanceInfo.currentSettings),
                                 parentSettings: addSourceToSettings(finalInheritanceInfo.parentSettings)
@@ -1759,6 +1990,113 @@ function getEmojiPickerWebviewContent(badges: any,
             `).join('');
         }
 
+        // Generate include patterns HTML with inheritance information
+        let includePatternsHtml = '';
+        
+        // Debug logging for inclusion patterns
+        console.log('Debug - Inclusion patterns generation:', {
+            workspaceDataExists: !!workspaceData,
+            mode: workspaceData?.mode,
+            hasResolvedSettings: !!workspaceData?.resolvedSettings,
+            hasIncludePatternsWithSources: !!workspaceData?.includePatternsWithSources,
+            includePatternsWithSourcesLength: workspaceData?.includePatternsWithSources?.length || 0,
+            resolvedIncludePatterns: workspaceData?.resolvedSettings?.['codeCounter.includePatterns']?.length || 0,
+            currentIncludePatterns: workspaceData?.currentSettings?.['codeCounter.includePatterns']?.length || 0
+        });
+        
+        if (workspaceData && workspaceData.mode === 'workspace' && workspaceData.resolvedSettings && workspaceData.includePatternsWithSources && workspaceData.includePatternsWithSources.length > 0) {
+            // In workspace mode, show detailed inheritance information
+            const currentIncludeSettings = workspaceData.currentSettings?.['codeCounter.includePatterns'] || [];
+            const hasLocalIncludePatterns = workspaceData.currentSettings?.['codeCounter.includePatterns'] !== undefined;
+            
+            console.log('Debug - Using detailed inheritance mode for inclusion patterns');
+            
+            const includePatternItems = workspaceData.includePatternsWithSources.map((item) => {
+                const isCurrentSetting = currentIncludeSettings.includes(item.pattern);
+                const levelClass = item.level === 'global' ? 'global-setting' : 
+                                 item.level === 'workspace' ? 'workspace-setting' : 'directory-setting';
+                const borderClass = isCurrentSetting ? 'current-setting' : 'inherited-setting';
+                
+                if (isCurrentSetting) {
+                    // Current directory pattern - show as local setting
+                    return `
+                        <div class="glob-pattern-item ${borderClass} ${levelClass}" data-pattern="${item.pattern}">
+                            <code>${item.pattern}</code>
+                            <span class="pattern-source" title="Set in current directory">📍</span>
+                            <button onclick="removeIncludePattern('${item.pattern}')" class="remove-btn">❌</button>
+                        </div>
+                    `;
+                } else {
+                    // Inherited pattern - show source and inheritance info
+                    const opacity = item.level === 'global' ? '0.7' : '0.8';
+                    let sourceLabel = '<global>';
+                    
+                    if (item.level === 'global') {
+                        sourceLabel = '<global>';
+                    } else if (item.level === 'workspace') {
+                        sourceLabel = '<workspace>';
+                    } else if (item.level === 'directory') {
+                        // For directory level, show relative path
+                        const workspacePath = workspaceData.workspacePath || '';
+                        const relativePath = path.relative(workspacePath, item.source);
+                        sourceLabel = relativePath || item.source;
+                    }
+                    
+                    // Show delete button only if no local patterns exist (copy-all-then-modify behavior)
+                    const deleteButton = !hasLocalIncludePatterns ? 
+                        `<button onclick="removeIncludePattern('${item.pattern}')" class="remove-btn" title="Remove (will copy all patterns to local first)">❌</button>` : 
+                        '';
+                    
+                    return `
+                        <div class="glob-pattern-item ${borderClass} ${levelClass}" data-pattern="${item.pattern}">
+                            <code style="opacity: ${opacity};">${item.pattern}</code>
+                            <span class="pattern-path" title="Inherited from ${item.source}">
+                                ${item.source === '<global>' 
+                                    ? '&lt;global&gt;'
+                                    : (item.source === '<workspace>' 
+                                        ? '&lt;workspace&gt;' 
+                                        : item.source
+                                    )
+                                }
+                            </span>
+                            <span class="pattern-source" title="Inherited from ${item.source}">🔗</span>
+                            ${deleteButton}
+                        </div>
+                    `;
+                }
+            });
+            
+            includePatternsHtml = includePatternItems.join('');
+        } else {
+            // Global mode or workspace mode without includePatternsWithSources - get from resolved settings
+            const includePatterns = workspaceData?.resolvedSettings?.['codeCounter.includePatterns'] || [];
+            
+            console.log('Debug - Using fallback mode for inclusion patterns:', {
+                includePatternsLength: includePatterns.length,
+                patterns: includePatterns,
+                isWorkspaceMode: workspaceData?.mode === 'workspace'
+            });
+            
+            if (workspaceData && workspaceData.mode === 'workspace' && includePatterns.length > 0) {
+                // In workspace mode but without detailed inheritance, show simple list with workspace-aware buttons
+                includePatternsHtml = includePatterns.map((pattern) => `
+                    <div class="glob-pattern-item workspace-setting current-setting" data-pattern="${pattern}">
+                        <code>${pattern}</code>
+                        <span class="pattern-source" title="Effective pattern">📍</span>
+                        <button onclick="removeIncludePattern('${pattern}')" class="remove-btn">❌</button>
+                    </div>
+                `).join('');
+            } else {
+                // Global mode or no patterns
+                includePatternsHtml = includePatterns.map((pattern) => `
+                    <div class="glob-pattern-item" data-pattern="${pattern}">
+                        <code>${pattern}</code>
+                        <button onclick="removeIncludePattern('${pattern}')" class="remove-btn">❌</button>
+                    </div>
+                `).join('');
+            }
+        }
+
         //Load the JavaScript content, CSS and JSON data
         const scriptPath = path.join(__dirname, '..', 'templates', 'emoji-picker.js');
         const cssPath = path.join(__dirname, '..', 'templates', 'emoji-picker.css');
@@ -1902,6 +2240,7 @@ function getEmojiPickerWebviewContent(badges: any,
         htmlContent = htmlContent.replace(/{{highFolderAvg}}/g, highFolderAvg.toString());
         htmlContent = htmlContent.replace(/{{highFolderMax}}/g, highFolderMax.toString());
         htmlContent = htmlContent.replace(/{{excludePatterns}}/g, excludePatternsHtml);
+        htmlContent = htmlContent.replace(/{{includePatterns}}/g, includePatternsHtml);
         htmlContent = htmlContent.replace(/{{showNotificationChecked}}/g, showNotificationChecked);
         
         // Replace debug configuration
@@ -2567,6 +2906,13 @@ export function activate(context: vscode.ExtensionContext) {
         countLinesCommand.execute();
     });
 
+    // Internal command for refreshing decorations
+    const refreshDecorationsDisposable = vscode.commands.registerCommand('codeCounter.internal.refreshDecorations', () => {
+        if (globalFileExplorerDecorator) {
+            globalFileExplorerDecorator.refresh();
+        }
+    });
+
     // Removed toggle commands - users can simply disable the extension if they don't want it
 
     const resetColorsDisposable = vscode.commands.registerCommand('codeCounter.resetBadgeSettings', async () => {
@@ -2603,6 +2949,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Add all disposables to context
     context.subscriptions.push(
         countLinesDisposable,
+        refreshDecorationsDisposable,
         resetColorsDisposable,
         openColorSettingsDisposable,
         showReportPanelDisposable,

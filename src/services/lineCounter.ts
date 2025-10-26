@@ -30,11 +30,50 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { FileInfo, LineCountResult } from '../types';
+import { PathBasedSettingsService } from './pathBasedSettingsService';
 
 export class LineCounterService {
     
     async countLines(workspacePath: string, excludePatterns: string[] = []): Promise<LineCountResult> {
         const files = await this.getFiles(workspacePath, excludePatterns);
+        const fileInfos: FileInfo[] = [];
+        
+        let totalLines = 0;
+        let totalFiles = 0;
+        const languageStats: { [language: string]: { files: number; lines: number } } = {};
+
+        for (const filePath of files) {
+            try {
+                const fileInfo = await this.countFileLines(filePath, workspacePath);
+                fileInfos.push(fileInfo);
+                
+                totalLines += fileInfo.lines;
+                totalFiles++;
+                
+                // Update language statistics
+                if (!languageStats[fileInfo.language]) {
+                    languageStats[fileInfo.language] = { files: 0, lines: 0 };
+                }
+                languageStats[fileInfo.language].files++;
+                languageStats[fileInfo.language].lines += fileInfo.lines;
+                
+            } catch (error) {
+                console.warn(`Failed to count lines in ${filePath}:`, error);
+            }
+        }
+
+        return {
+            workspacePath,
+            totalFiles,
+            totalLines,
+            files: fileInfos,
+            languageStats,
+            generatedAt: new Date()
+        };
+    }
+
+    async countLinesWithInclusions(workspacePath: string, excludePatterns: string[] = [], includePatterns: string[] = []): Promise<LineCountResult> {
+        const files = await this.getFilesWithInclusions(workspacePath, excludePatterns, includePatterns);
         const fileInfos: FileInfo[] = [];
         
         let totalLines = 0;
@@ -80,6 +119,66 @@ export class LineCounterService {
         
         const files = await vscode.workspace.findFiles(includePattern, excludePattern);
         return files.map(file => file.fsPath);
+    }
+
+    private async getFilesWithInclusions(workspacePath: string, excludePatterns: string[], includePatterns: string[]): Promise<string[]> {
+        // Get all files first without any filtering
+        const allFiles = await vscode.workspace.findFiles(new vscode.RelativePattern(workspacePath, '**/*'));
+        const minimatch = require('minimatch').minimatch;
+        
+        // Convert to file paths
+        const filePaths = allFiles.map(file => file.fsPath);
+        
+        // If no inclusion patterns are specified, fall back to normal exclusion-only behavior
+        if (includePatterns.length === 0) {
+            return this.getFiles(workspacePath, excludePatterns);
+        }
+        
+        const filteredFiles: string[] = [];
+        
+        console.log('Debug - getFilesWithInclusions processing:', {
+            workspacePath,
+            totalFilesToProcess: filePaths.length,
+            excludePatterns,
+            includePatterns
+        });
+        
+        let includedViaPattern = 0;
+        let excludedCount = 0;
+        
+        for (const filePath of filePaths) {
+            const relativePath = path.relative(workspacePath, filePath).replace(/\\/g, '/');
+            
+            // Check if file matches any exclusion pattern
+            const isExcluded = excludePatterns.some(pattern => minimatch(relativePath, pattern));
+            
+            // Check if file matches any inclusion pattern
+            const isIncluded = includePatterns.some(pattern => minimatch(relativePath, pattern));
+            
+            // Inclusion patterns act as overrides for exclusions:
+            // 1. If file matches inclusion pattern -> include (even if also excluded)
+            // 2. If file doesn't match inclusion pattern but is excluded -> exclude
+            // 3. If file doesn't match inclusion pattern and is not excluded -> include
+            if (isIncluded || !isExcluded) {
+                filteredFiles.push(filePath);
+                if (isIncluded) {
+                    includedViaPattern++;
+                }
+            } else {
+                excludedCount++;
+            }
+            // Only exclude if the file is excluded AND doesn't match any inclusion pattern
+        }
+        
+        console.log('Debug - getFilesWithInclusions results:', {
+            totalProcessed: filePaths.length,
+            totalIncluded: filteredFiles.length,
+            includedViaPattern,
+            excludedCount,
+            sampleIncludedFiles: filteredFiles.slice(0, 5).map(f => path.relative(workspacePath, f))
+        });
+        
+        return filteredFiles;
     }
 
     async countFileLines(filePath: string, workspacePath?: string): Promise<FileInfo> {
@@ -198,5 +297,105 @@ export class LineCounterService {
             }
         }
         return false;
+    }
+
+    /**
+     * Count lines using path-based settings for inclusion/exclusion patterns
+     * This method uses PathBasedSettingsService to get patterns per file path,
+     * allowing for subworkspace-specific configuration files
+     */
+    async countLinesWithPathBasedSettings(workspacePath: string): Promise<LineCountResult> {
+        const pathBasedSettings = new PathBasedSettingsService();
+        
+        // Get all files first without any filtering
+        const allFiles = await vscode.workspace.findFiles(new vscode.RelativePattern(workspacePath, '**/*'));
+        const minimatch = require('minimatch').minimatch;
+        
+        const filteredFiles: string[] = [];
+        
+        console.log('Debug - countLinesWithPathBasedSettings processing:', {
+            workspacePath,
+            totalFilesToProcess: allFiles.length
+        });
+        
+        let includedViaPattern = 0;
+        let excludedCount = 0;
+        
+        for (const fileUri of allFiles) {
+            const filePath = fileUri.fsPath;
+            const relativePath = path.relative(workspacePath, filePath).replace(/\\/g, '/');
+            
+            // Get path-specific patterns for this file
+            const excludePatterns = await pathBasedSettings.getExcludePatternsForPath(filePath);
+            const includePatterns = await pathBasedSettings.getIncludePatternsForPath(filePath);
+            
+            // Check if file matches any exclusion pattern
+            const isExcluded = excludePatterns.some(pattern => minimatch(relativePath, pattern));
+            
+            // Check if file matches any inclusion pattern
+            const isIncluded = includePatterns.some(pattern => minimatch(relativePath, pattern));
+            
+            // Inclusion patterns act as overrides for exclusions:
+            // 1. If file matches inclusion pattern -> include (even if also excluded)
+            // 2. If file doesn't match inclusion pattern but is excluded -> exclude
+            // 3. If file doesn't match inclusion pattern and is not excluded -> include
+            if (isIncluded || !isExcluded) {
+                filteredFiles.push(filePath);
+                if (isIncluded) {
+                    includedViaPattern++;
+                    console.log('Debug - File included via path-based pattern:', {
+                        relativePath,
+                        filePath,
+                        matchedPattern: includePatterns.find(pattern => minimatch(relativePath, pattern)),
+                        includePatterns,
+                        excludePatterns
+                    });
+                }
+            } else {
+                excludedCount++;
+            }
+        }
+        
+        console.log('Debug - countLinesWithPathBasedSettings results:', {
+            totalProcessed: allFiles.length,
+            totalIncluded: filteredFiles.length,
+            includedViaPattern,
+            excludedCount
+        });
+        
+        // Now count lines for the filtered files
+        const fileInfos: FileInfo[] = [];
+        let totalLines = 0;
+        let totalFiles = 0;
+        const languageStats: { [language: string]: { files: number; lines: number } } = {};
+
+        for (const filePath of filteredFiles) {
+            try {
+                const fileInfo = await this.countFileLines(filePath, workspacePath);
+                fileInfos.push(fileInfo);
+                
+                totalLines += fileInfo.lines;
+                totalFiles++;
+                
+                // Update language statistics
+                if (!languageStats[fileInfo.language]) {
+                    languageStats[fileInfo.language] = { files: 0, lines: 0 };
+                }
+                languageStats[fileInfo.language].files++;
+                languageStats[fileInfo.language].lines += fileInfo.lines;
+                
+            } catch (error) {
+                console.warn(`Failed to count lines in ${filePath}:`, error);
+            }
+        }
+
+        return {
+            workspacePath,
+            totalFiles,
+            totalLines,
+            files: fileInfos,
+            languageStats,
+            generatedAt: new Date()
+        };
     }
 }

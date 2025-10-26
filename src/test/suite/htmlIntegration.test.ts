@@ -295,6 +295,7 @@ suite('HTML Generation and UI Integration Tests', () => {
                 currentDirectory: '<global>',
                 resolvedSettings: {
                     'codeCounter.excludePatterns': ['**/node_modules/**', '**/.git/**'],
+                    'codeCounter.includePatterns': [],
                     'codeCounter.emojis.normal': '🟢',
                     'codeCounter.emojis.warning': '🟡',
                     'codeCounter.emojis.danger': '🔴',
