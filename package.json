@@ -68,6 +68,11 @@
           ],
           "description": "Glob patterns for files to exclude from counting"
         },
+        "codeCounter.includePatterns": {
+          "type": "array",
+          "default": [],
+          "description": "Glob patterns for files to include in counting, overriding exclusion patterns. Files matching both exclusion and inclusion patterns will be included."
+        },
         "codeCounter.outputDirectory": {
           "type": "string",
           "default": ".vscode/code-counter/reports",
