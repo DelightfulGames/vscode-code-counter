@@ -204,11 +204,11 @@ export function getEmojiPickerWebviewContent(badges: any,
         let emojiDB = JSON.parse(emojiData);
         let emojiSearchDB = JSON.parse(emojiSearchData);
         Object.keys(emojiSearchDB).forEach(key => {
-            if (key.startsWith('__')) delete emojiSearchDB[key];
+            if (key.startsWith('_')) delete emojiSearchDB[key];
         });
 
         Object.keys(emojiDB).forEach(key => {
-            if (key.startsWith('__')) delete emojiDB[key];
+            if (key.startsWith('_')) delete emojiDB[key];
         });
 
         // Embed data for the webview

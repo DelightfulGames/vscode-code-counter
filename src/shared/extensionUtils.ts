@@ -304,3 +304,150 @@ export async function refreshEmojiPickerWebviewWithService(workspaceService: Wor
         debug.error('Failed to refresh emoji picker webview with service:', error);
     }
 }
+
+/**
+ * Find the nearest directory with configuration settings for a given file path
+ */
+export async function findNearestConfigDirectory(filePath: string): Promise<string> {
+    const vscode = await import('vscode');
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        throw new Error('No workspace folder is open');
+    }
+
+    const workspacePath = workspaceFolders[0].uri.fsPath;
+    
+    const workspaceService = new WorkspaceDatabaseService(workspacePath);
+    
+    // For files, use the directory; for directories, use the directory itself
+    const fs = await import('fs');
+    const stats = await fs.promises.stat(filePath);
+    let currentDir = stats.isFile() ? path.dirname(filePath) : filePath;
+
+    // Ensure the directory is within the workspace
+    if (!currentDir.startsWith(workspacePath)) {
+        return workspacePath;
+    }
+
+    // Get all directories with settings
+    const dirsWithSettings = await workspaceService.getDirectoriesWithSettings();
+    
+    // If no directories have settings, use workspace root
+    if (dirsWithSettings.length === 0) {
+        return workspacePath;
+    }
+
+    // Traverse up the directory tree to find the nearest parent with settings
+    let searchDir = currentDir;
+    while (searchDir.length >= workspacePath.length) {
+        // Check if current directory has settings
+        if (dirsWithSettings.includes(searchDir)) {
+            return searchDir;
+        }
+        
+        // Move up one directory level
+        const parentDir = path.dirname(searchDir);
+        if (parentDir === searchDir) {
+            // Reached filesystem root, break to avoid infinite loop
+            break;
+        }
+        searchDir = parentDir;
+    }
+
+    // No parent directory with settings found, use workspace root
+    return workspacePath;
+}
+
+/**
+ * Add an exclusion pattern to the nearest appropriate directory's settings,
+ * properly inheriting from parent directories
+ */
+export async function addExclusionPattern(filePath: string, pattern: string): Promise<void> {
+    const vscode = await import('vscode');
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        throw new Error('No workspace folder is open');
+    }
+
+    const workspacePath = workspaceFolders[0].uri.fsPath;
+    const workspaceService = getWorkspaceService(workspacePath);
+    
+    // Find the appropriate directory for this file
+    const targetDirectory = await findNearestConfigDirectory(filePath);
+    
+    // Validate pattern is not null/undefined/empty
+    if (!pattern || pattern.trim() === '') {
+        vscode.window.showErrorMessage('Cannot add empty exclusion pattern');
+        return;
+    }
+
+    // Get the relative path for the target directory
+    // Normalize paths to ensure consistent format and resolve any symbolic links
+    const normalizedWorkspacePath = path.resolve(path.normalize(workspacePath));
+    const normalizedTargetDirectory = path.resolve(path.normalize(targetDirectory));
+    
+    // Ensure target directory is within workspace before calculating relative path
+    if (!normalizedTargetDirectory.startsWith(normalizedWorkspacePath)) {
+        debug.error('SECURITY: Target directory is outside workspace bounds');
+        vscode.window.showErrorMessage('Cannot add exclusion pattern: Target directory is outside workspace');
+        return;
+    }
+    
+    // Calculate relative path safely
+    let relativePath = path.relative(normalizedWorkspacePath, normalizedTargetDirectory);
+    
+    // Additional validation to prevent path traversal
+    if (relativePath.includes('..') || path.isAbsolute(relativePath)) {
+        debug.error('SECURITY: Calculated relative path contains path traversal or is absolute:', relativePath);
+        vscode.window.showErrorMessage('Cannot add exclusion pattern: Invalid directory path');
+        return;
+    }
+    
+    // Normalize path separators for consistent storage
+    const directoryPath = relativePath.replace(/\\/g, '/') || '';
+    
+    // Get current settings with inheritance for this directory
+    // Pass the absolute target directory path, not the relative path
+    const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(normalizedTargetDirectory);
+    const inheritedPatterns = settingsWithInheritance.resolvedSettings['codeCounter.excludePatterns'] || [];
+    
+    // Check if pattern already exists in inherited patterns
+    if (inheritedPatterns.includes(pattern)) {
+        vscode.window.showInformationMessage(`Pattern "${pattern}" is already excluded (inherited or local)`);
+        return;
+    }
+    
+    // Get current local settings for this directory (not inherited)
+    const localSettings = settingsWithInheritance.currentSettings || {};
+    
+    // Copy all inherited patterns plus add the new one
+    // This ensures we maintain all existing exclusions when creating local settings
+    const newExcludePatterns = [...inheritedPatterns, pattern];
+    
+    // Update only the excludePatterns in local settings
+    const updatedLocalSettings: any = { 
+        ...localSettings, 
+        'codeCounter.excludePatterns': newExcludePatterns 
+    };
+
+    // Save the updated settings - pass absolute target directory path, not relative
+    await workspaceService.saveWorkspaceSettings(normalizedTargetDirectory, updatedLocalSettings);
+    
+    // Notify settings changed first to trigger decorator refresh
+    notifySettingsChanged();
+    
+    // Refresh file explorer decorators to ensure inheritance chain is updated
+    refreshFileExplorerDecorator();
+    
+    // Add small delay to ensure database operations and decorator updates are fully committed
+    await new Promise(resolve => setTimeout(resolve, 660));
+    
+    // Force refresh by creating a new service instance to ensure we get the latest state
+    // This avoids any potential caching issues with the current service instance
+    const refreshService = new WorkspaceDatabaseService(workspacePath);
+    await refreshEmojiPickerWebviewWithService(refreshService, workspacePath);
+    
+    // Show confirmation
+    const displayPath = directoryPath || '<workspace>';
+    vscode.window.showInformationMessage(`Added exclusion pattern "${pattern}" to ${displayPath} settings`);
+}

@@ -417,3 +417,13 @@ function extractInheritanceInfo(workspaceData: WorkspaceData | undefined) {
         parentWarningThresholdSource, parentDangerThresholdSource
     };
 }
+
+/**
+ * Show Code Counter Settings - Main webview creation function
+ * Moved from extension.ts to centralize webview management
+ */
+export async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecorationProvider, context: vscode.ExtensionContext, pathBasedSettings: PathBasedSettingsService): Promise<void> {
+    // Delegate to the proper handler class
+    const { SettingsWebviewHandler } = await import('../handlers/settingsWebviewHandler');
+    return SettingsWebviewHandler.showCodeCounterSettings(fileExplorerDecorator, context, pathBasedSettings);
+}

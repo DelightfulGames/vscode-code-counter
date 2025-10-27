@@ -184,3 +184,125 @@ export function createExtensionPattern(filePath: string): string {
     
     return `**/*${extension}`;
 }
+
+/**
+ * Handle excluding a file/folder by relative path
+ */
+export async function handleExcludeRelativePath(resource: vscode.Uri): Promise<void> {
+    try {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            vscode.window.showErrorMessage('No workspace folder is open');
+            return;
+        }
+
+        const workspacePath = workspaceFolders[0].uri.fsPath;
+        const filePath = resource.fsPath;
+        
+        debug.verbose('handleExcludeRelativePath: resource =', resource);
+        debug.verbose('handleExcludeRelativePath: resource.fsPath =', resource.fsPath);
+        debug.verbose('handleExcludeRelativePath: workspacePath =', workspacePath);
+        
+        if (!filePath) {
+            vscode.window.showErrorMessage('Invalid file path for exclusion');
+            return;
+        }
+        
+        const stats = await fs.promises.stat(filePath);
+        
+        // Create relative path pattern
+        let relativePath = path.relative(workspacePath, filePath);
+        if (!relativePath) {
+            vscode.window.showErrorMessage('Could not determine relative path for exclusion');
+            return;
+        }
+        relativePath = stats.isDirectory() ? relativePath + '/**' : relativePath;
+        const pattern = relativePath.replace(/\\/g, '/'); // Use forward slashes for consistency        
+        
+        if (!pattern) {
+            vscode.window.showErrorMessage('Could not create exclusion pattern');
+            return;
+        }
+        
+        await addExclusionPattern(filePath, pattern);
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to exclude path: ${error}`);
+    }
+}
+
+/**
+ * Handle excluding files by name pattern (basename)
+ */
+export async function handleExcludeFilePattern(resource: vscode.Uri): Promise<void> {
+    try {
+        const filePath = resource.fsPath;
+        
+        debug.verbose('handleExcludeFilePattern: resource =', resource);
+        debug.verbose('handleExcludeFilePattern: resource.fsPath =', resource.fsPath);
+        
+        if (!filePath) {
+            vscode.window.showErrorMessage('Invalid file path for exclusion');
+            return;
+        }
+        
+        const fileName = path.basename(filePath);
+        
+        if (!fileName) {
+            vscode.window.showErrorMessage('Could not determine file name for exclusion');
+            return;
+        }
+        
+        const stats = await fs.promises.stat(filePath);
+        let directoryPath = stats.isFile() ? path.dirname(filePath) : filePath;
+
+        // Create a global pattern for this filename
+        let pattern = `**/${fileName}`;
+        if (stats.isDirectory())
+            pattern += '/**';
+        
+        if (!pattern || pattern === '**/') {
+            vscode.window.showErrorMessage('Could not create valid exclusion pattern');
+            return;
+        }
+        
+        await addExclusionPattern(filePath, pattern);
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to exclude file pattern: ${error}`);
+    }
+}
+
+/**
+ * Handle excluding files by extension
+ */
+export async function handleExcludeExtension(resource: vscode.Uri): Promise<void> {
+    try {
+        const filePath = resource.fsPath;
+        
+        debug.verbose('handleExcludeExtension: resource =', resource);
+        debug.verbose('handleExcludeExtension: resource.fsPath =', resource.fsPath);
+        
+        if (!filePath) {
+            vscode.window.showErrorMessage('Invalid file path for exclusion');
+            return;
+        }
+        
+        const extension = path.extname(filePath);
+        
+        if (!extension) {
+            vscode.window.showWarningMessage('Selected file has no extension to exclude');
+            return;
+        }
+        
+        // Create a global pattern for this extension
+        const pattern = `**/*${extension}`;
+        
+        if (!pattern || pattern === '**/*') {
+            vscode.window.showErrorMessage('Could not create valid extension exclusion pattern');
+            return;
+        }
+        
+        await addExclusionPattern(filePath, pattern);
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to exclude extension: ${error}`);
+    }
+}
