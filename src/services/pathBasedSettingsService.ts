@@ -85,20 +85,20 @@ export class PathBasedSettingsService implements vscode.Disposable {
     private getWorkspaceService(filePath: string): WorkspaceDatabaseService | null {
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
         if (!workspaceFolder) {
-            console.log('DEBUG: No workspace folder found for', filePath);
+            console.log('DEBUG: PathBasedSettingsService.getWorkspaceService - No workspace folder found for', filePath);
             return null;
         }
 
         const workspacePath = workspaceFolder.uri.fsPath;
-        console.log('DEBUG: Workspace folder found:', workspacePath, 'for file:', filePath);
-        console.log('DEBUG: Available services keys:', Array.from(this.workspaceServices.keys()));
+        console.log('DEBUG: PathBasedSettingsService.getWorkspaceService - Workspace folder found:', workspacePath, 'for file:', filePath);
+        console.log('DEBUG: PathBasedSettingsService.getWorkspaceService - Available services keys:', Array.from(this.workspaceServices.keys()));
         
         if (!this.workspaceServices.has(workspacePath)) {
-            console.log('DEBUG: No service found in cache for:', workspacePath);
+            console.log('DEBUG: PathBasedSettingsService.getWorkspaceService - No service found in cache for:', workspacePath);
             // In tests, we should always have a service set via setWorkspaceSettingsService
             // If we reach here during tests, it means the service wasn't properly configured
             if (process.env.NODE_ENV === 'test') {
-                console.error('*** CRITICAL: Creating new WorkspaceDatabaseService during tests - this WILL cause data isolation issues ***');
+                console.error('*** CRITICAL: PathBasedSettingsService creating new WorkspaceDatabaseService during tests - this WILL cause data isolation issues ***');
             } else {
                 console.log('Creating new WorkspaceDatabaseService for production use');
             }
@@ -106,14 +106,14 @@ export class PathBasedSettingsService implements vscode.Disposable {
         }
         
         const service = this.workspaceServices.get(workspacePath) || null;
-        console.log('DEBUG: getWorkspaceService returning service for', workspacePath, 'found:', !!service);
+        console.log('DEBUG: PathBasedSettingsService.getWorkspaceService - returning service for', workspacePath, 'found:', !!service);
         return service;
     }
 
     async getResolvedSettings(filePath: string): Promise<ResolvedSettings> {
         console.log('DEBUG: PathBasedSettingsService.getResolvedSettings called for:', filePath);
         const workspaceService = this.getWorkspaceService(filePath);
-        console.log('DEBUG: getWorkspaceService returned:', !!workspaceService);
+        console.log('DEBUG: PathBasedSettingsService.getResolvedSettings - getWorkspaceService returned:', !!workspaceService);
         
         if (!workspaceService) {
             // Fallback to global settings if no workspace

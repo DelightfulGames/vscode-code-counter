@@ -400,6 +400,20 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
     }
 
     /**
+     * Clear all settings in the database (for testing)
+     */
+    async clearAllSettings(): Promise<void> {
+        await this.ensureInitialized();
+        
+        const stmt = this.db!.prepare(`DELETE FROM workspace_settings`);
+        stmt.run([]);
+        stmt.free();
+        
+        // Save the cleared database to file
+        this.saveToFile();
+    }
+
+    /**
      * Reset a specific field to inherit from parent (removes the field from local settings)
      */
     async resetField(directoryPath: string, fieldPath: string): Promise<void> {

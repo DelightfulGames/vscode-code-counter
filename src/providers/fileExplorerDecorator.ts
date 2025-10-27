@@ -250,6 +250,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
     async provideFileDecoration(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {
         // Extension is enabled, so always show decorations based on mode
+        console.log('DEBUG: FileExplorerDecorationProvider.provideFileDecoration called for URI:', uri.toString(), 'scheme:', uri.scheme);
         this.debug.verbose('provideFileDecoration called for URI', { uri: uri.toString(), scheme: uri.scheme });
 
         // Skip decorations for non-file URIs to prevent filesystem errors
@@ -280,17 +281,22 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     }
 
     private async provideFileDecorationForFile(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {
+        console.log('DEBUG: provideFileDecorationForFile called for:', uri.fsPath);
 
         // Skip certain file types
         if (await this.shouldSkipFile(uri.fsPath)) {
+            console.log('DEBUG: provideFileDecorationForFile - shouldSkipFile returned true, skipping');
             return undefined;
         }
 
         try {
+            console.log('DEBUG: provideFileDecorationForFile - getting line count for:', uri.fsPath);
             const lineCount = await this.lineCountCache.getLineCount(uri.fsPath);
             if (!lineCount) {
+                console.log('DEBUG: provideFileDecorationForFile - lineCount is null, returning undefined');
                 return undefined;
             }
+            console.log('DEBUG: provideFileDecorationForFile - lineCount:', JSON.stringify(lineCount));
 
             // Get the color classification for this line count using path-based settings
             const threshold = await this.pathBasedSettings.getColorThresholdForPath(lineCount.lines, uri.fsPath);

@@ -138,7 +138,7 @@ suite('Decorator Integration Tests', () => {
         editorTabDecorator = new EditorTabDecorationProvider(pathBasedSettings);
     });
     
-    teardown(() => {
+    teardown(async () => {
         if (fileExplorerDecorator) {
             fileExplorerDecorator.dispose();
         }
@@ -147,6 +147,16 @@ suite('Decorator Integration Tests', () => {
         }
         if (vscodeMock) {
             vscodeMock.restore();
+        }
+        
+        // Clear database between tests to prevent interference
+        if (workspaceSettingsService) {
+            try {
+                await workspaceSettingsService.clearAllSettings();
+                console.log('[TEARDOWN] Cleared all database settings');
+            } catch (error) {
+                console.warn('[TEARDOWN] Failed to clear database settings:', error);
+            }
         }
     });
 
