@@ -140,7 +140,12 @@ export class PathBasedSettingsService implements vscode.Disposable {
             const directoryPath = path.dirname(filePath);
             console.log('DEBUG: Calling getSettingsWithInheritance for directory:', directoryPath);
             const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(directoryPath);
-            console.log('DEBUG: Got resolved settings:', JSON.stringify(settingsWithInheritance.resolvedSettings, null, 2));
+            console.log('DEBUG: Got resolved settings keys:', Object.keys(settingsWithInheritance.resolvedSettings));
+            console.log('DEBUG: Emoji settings in resolved:', {
+                normal: settingsWithInheritance.resolvedSettings['codeCounter.emojis.normal'],
+                warning: settingsWithInheritance.resolvedSettings['codeCounter.emojis.warning'],
+                danger: settingsWithInheritance.resolvedSettings['codeCounter.emojis.danger']
+            });
             
             // Return the resolved settings that include inheritance
             return settingsWithInheritance.resolvedSettings;
@@ -183,9 +188,16 @@ export class PathBasedSettingsService implements vscode.Disposable {
      * Get custom emojis for a specific file path
      */
     async getCustomEmojisForPath(filePath: string): Promise<CustomEmojis> {
+        console.log('DEBUG: getCustomEmojisForPath called for:', filePath);
         const resolvedSettings = await this.getResolvedSettingsForPath(filePath);
+        console.log('DEBUG: resolvedSettings from getResolvedSettingsForPath:', resolvedSettings ? 'FOUND' : 'NULL');
         
         if (resolvedSettings) {
+            console.log('DEBUG: Using resolved settings for emojis:', {
+                normal: resolvedSettings['codeCounter.emojis.normal'],
+                warning: resolvedSettings['codeCounter.emojis.warning'],
+                danger: resolvedSettings['codeCounter.emojis.danger']
+            });
             return {
                 normal: resolvedSettings['codeCounter.emojis.normal'],
                 warning: resolvedSettings['codeCounter.emojis.warning'],
@@ -194,12 +206,15 @@ export class PathBasedSettingsService implements vscode.Disposable {
         }
 
         // Fallback to global settings
+        console.log('DEBUG: Falling back to global VS Code configuration for emojis');
         const config = vscode.workspace.getConfiguration('codeCounter.emojis');
-        return {
+        const fallbackEmojis = {
             normal: config.get<string>('normal', '🟢'),
             warning: config.get<string>('warning', '🟡'),
             danger: config.get<string>('danger', '🔴')
         };
+        console.log('DEBUG: Fallback emojis from global config:', fallbackEmojis);
+        return fallbackEmojis;
     }
 
     /**
@@ -230,6 +245,7 @@ export class PathBasedSettingsService implements vscode.Disposable {
      */
     async getThresholdConfigForPath(filePath: string): Promise<ColorThresholdConfig> {
         const resolvedSettings = await this.getResolvedSettingsForPath(filePath);
+        console.log('DEBUG: getThresholdConfigForPath resolvedSettings:', resolvedSettings);
         
         let midThreshold: number;
         let highThreshold: number;
@@ -237,6 +253,8 @@ export class PathBasedSettingsService implements vscode.Disposable {
         if (resolvedSettings) {
             midThreshold = resolvedSettings['codeCounter.lineThresholds.midThreshold'];
             highThreshold = resolvedSettings['codeCounter.lineThresholds.highThreshold'];
+            console.log('DEBUG: raw midThreshold:', midThreshold, 'raw highThreshold:', highThreshold);
+
         } else {
             // Fallback to global settings
             const config = vscode.workspace.getConfiguration('codeCounter.lineThresholds');
@@ -261,13 +279,18 @@ export class PathBasedSettingsService implements vscode.Disposable {
      * Get color threshold classification for line count at specific path
      */
     async getColorThresholdForPath(lineCount: number, filePath: string): Promise<ColorThreshold> {
+        console.log('DEBUG: getColorThresholdForPath called for lineCount:', lineCount, 'filePath:', filePath);
         const config = await this.getThresholdConfigForPath(filePath);
+        console.log('DEBUG: threshold config retrieved:', { midThreshold: config.midThreshold, highThreshold: config.highThreshold });
         
         if (lineCount >= config.highThreshold) {
+            console.log('DEBUG: returning danger (lineCount >= highThreshold)');
             return 'danger';
         } else if (lineCount >= config.midThreshold) {
+            console.log('DEBUG: returning warning (lineCount >= midThreshold)');
             return 'warning';
         } else {
+            console.log('DEBUG: returning normal (lineCount < midThreshold)');
             return 'normal';
         }
     }

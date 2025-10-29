@@ -249,32 +249,39 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     }
 
     async provideFileDecoration(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {
-        // Extension is enabled, so always show decorations based on mode
-        console.log('DEBUG: FileExplorerDecorationProvider.provideFileDecoration called for URI:', uri.toString(), 'scheme:', uri.scheme);
-        this.debug.verbose('provideFileDecoration called for URI', { uri: uri.toString(), scheme: uri.scheme });
-
-        // Skip decorations for non-file URIs to prevent filesystem errors
-        if (uri.scheme !== 'file') {
-            this.debug.verbose('Skipping decoration for non-file URI scheme', { scheme: uri.scheme });
-            return undefined;
-        }
-
+        console.log('**************** DECORATOR METHOD CALLED ****************', uri.fsPath);
         try {
+            // Extension is enabled, so always show decorations based on mode
+            console.log('DEBUG: FileExplorerDecorationProvider.provideFileDecoration called for URI:', uri.toString(), 'scheme:', uri.scheme, 'fsPath:', uri.fsPath);
+            this.debug.verbose('provideFileDecoration called for URI', { uri: uri.toString(), scheme: uri.scheme });
+
+            // Skip decorations for non-file URIs to prevent filesystem errors
+            if (uri.scheme !== 'file') {
+                console.log('DEBUG: provideFileDecoration - skipping non-file URI scheme:', uri.scheme);
+                this.debug.verbose('Skipping decoration for non-file URI scheme', { scheme: uri.scheme });
+                return undefined;
+            }
+
+            console.log('DEBUG: About to call vscode.workspace.fs.stat for:', uri.fsPath);
             this.debug.verbose('About to call vscode.workspace.fs.stat', { fsPath: uri.fsPath });
             const stat = await vscode.workspace.fs.stat(uri);
             const fileType = stat.type === vscode.FileType.Directory ? 'Directory' : 'File';
+            console.log('DEBUG: File stat result - fileType:', fileType, 'fsPath:', uri.fsPath);
             this.debug.verbose('File stat result', { fileType, fsPath: uri.fsPath });
             
             if (stat.type === vscode.FileType.Directory) {
                 // Handle folder decoration
+                console.log('DEBUG: Calling provideFolderDecoration for:', uri.fsPath);
                 this.debug.verbose('Calling provideFolderDecoration', { fsPath: uri.fsPath });
                 return await this.provideFolderDecoration(uri);
             } else {
                 // Handle file decoration
+                console.log('DEBUG: Calling provideFileDecorationForFile for:', uri.fsPath);
                 this.debug.verbose('Calling provideFileDecorationForFile', { fsPath: uri.fsPath });
                 return await this.provideFileDecorationForFile(uri);
             }
         } catch (error) {
+            console.log('DEBUG: Error in provideFileDecoration:', error, 'for fsPath:', uri.fsPath);
             this.debug.error('Error in provideFileDecoration', { error: error, fsPath: uri.fsPath });
             return undefined;
         }
@@ -284,14 +291,18 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         console.log('DEBUG: provideFileDecorationForFile called for:', uri.fsPath);
 
         // Skip certain file types
-        if (await this.shouldSkipFile(uri.fsPath)) {
+        const shouldSkip = await this.shouldSkipFile(uri.fsPath);
+        console.log('DEBUG: provideFileDecorationForFile - shouldSkipFile result:', shouldSkip, 'for file:', uri.fsPath);
+        if (shouldSkip) {
             console.log('DEBUG: provideFileDecorationForFile - shouldSkipFile returned true, skipping');
             return undefined;
         }
 
         try {
             console.log('DEBUG: provideFileDecorationForFile - getting line count for:', uri.fsPath);
+            console.log('DEBUG: About to call this.lineCountCache.getLineCount');
             const lineCount = await this.lineCountCache.getLineCount(uri.fsPath);
+            console.log('DEBUG: getLineCount returned:', lineCount);
             if (!lineCount) {
                 console.log('DEBUG: provideFileDecorationForFile - lineCount is null, returning undefined');
                 return undefined;

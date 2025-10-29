@@ -45,6 +45,7 @@ export class LineCountCacheService {
     private disposables: vscode.Disposable[] = [];
 
     constructor() {
+        console.log('DEBUG: LineCountCacheService constructor called');
         this.lineCounter = new LineCounterService();
         this.setupFileWatcher();
     }
@@ -96,17 +97,28 @@ export class LineCountCacheService {
     }
 
     async getLineCount(filePath: string): Promise<CachedLineCount | null> {
+        console.log('DEBUG: getLineCount ENTRY called for:', filePath);
         try {
+            console.log('DEBUG: getLineCount called for:', filePath);
+            console.log('DEBUG: About to call fs.promises.stat for:', filePath);
             const stats = await fs.promises.stat(filePath);
+            console.log('DEBUG: file stats:', { size: stats.size, modified: stats.mtimeMs });
             
             // Check if we have a valid cached entry
             const cached = this.cache.get(filePath);
             if (cached && cached.lastModified === stats.mtimeMs && cached.size === stats.size) {
+                console.log('DEBUG: returning cached line count:', cached);
                 return cached;
             }
 
             // Count lines and cache the result
+            console.log('DEBUG: calling lineCounter.countFileLines for:', filePath);
             const fileInfo = await this.lineCounter.countFileLines(filePath);
+            console.log('DEBUG: countFileLines returned:', fileInfo);
+            if (!fileInfo) {
+                console.log('DEBUG: fileInfo is null/undefined, returning null');
+                return null;
+            }
             const lineCount: CachedLineCount = {
                 lines: fileInfo.lines,
                 codeLines: fileInfo.codeLines,
@@ -117,9 +129,11 @@ export class LineCountCacheService {
             };
 
             this.cache.set(filePath, lineCount);
+            console.log('DEBUG: cached and returning line count:', lineCount);
             return lineCount;
             
         } catch (error) {
+            console.log('DEBUG: getLineCount CATCH block, error:', error);
             console.warn(`Failed to get line count for ${filePath}:`, error);
             return null;
         }

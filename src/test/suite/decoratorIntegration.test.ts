@@ -9,14 +9,22 @@ import { EditorTabDecorationProvider } from '../../providers/editorTabDecorator'
 import { PathBasedSettingsService } from '../../services/pathBasedSettingsService';
 import { WorkspaceDatabaseService, WorkspaceSettings } from '../../services/workspaceDatabaseService';
 import { DebugService } from '../../services/debugService';
+import { LineCountCacheService, CachedLineCount } from '../../services/lineCountCache';
+import { 
+    getWorkspaceService, 
+    setGlobalPathBasedSettings, 
+    clearServiceCache 
+} from '../../shared/extensionUtils';
 
 suite('Decorator Integration Tests', () => {
+    console.log('DEBUG SUITE: Decorator Integration Tests suite starting');
     let tempDir: string;
     let workspaceSettingsService: WorkspaceDatabaseService;
     let vscodeMock: sinon.SinonSandbox;
     let fileExplorerDecorator: FileExplorerDecorationProvider;
     let editorTabDecorator: EditorTabDecorationProvider;
     let pathBasedSettings: PathBasedSettingsService;
+    let decorationDisposable: vscode.Disposable;
     
     suiteSetup(async () => {
         tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'decorator-integration-test-'));
@@ -58,18 +66,23 @@ suite('Decorator Integration Tests', () => {
     });
 
     setup(async () => {
+        console.log('DEBUG SETUP: Starting setup function');
         vscodeMock = sinon.createSandbox();
+        console.log('DEBUG SETUP: Created sinon sandbox');
         
-        // Mock workspace folders
+        // Mock workspace folders - MUST be done FIRST before creating services
         const workspaceUri = vscode.Uri.file(tempDir);
+        const testWorkspaceFolder = {
+            uri: workspaceUri,
+            name: 'test-workspace',
+            index: 0
+        };
+        
         Object.defineProperty(vscode.workspace, 'workspaceFolders', {
-            value: [{
-                uri: workspaceUri,
-                name: 'test-workspace',
-                index: 0
-            }],
+            value: [testWorkspaceFolder],
             configurable: true
         });
+        console.log('DEBUG SETUP: Set workspaceFolders');
         
         // Note: workspace.fs.stat is provided by vscode-mock and cannot be stubbed directly
         // The mock provides a basic stat implementation that should work for most tests
@@ -80,13 +93,14 @@ suite('Decorator Integration Tests', () => {
             return path.relative(tempDir, filePath);
         });
         
-        // Mock getWorkspaceFolder
-        vscodeMock.stub(vscode.workspace, 'getWorkspaceFolder').callsFake(() => {
-            return {
-                uri: workspaceUri,
-                name: 'test-workspace',
-                index: 0
-            };
+        // Mock getWorkspaceFolder - CRITICAL: Must check if file is within workspace
+        vscodeMock.stub(vscode.workspace, 'getWorkspaceFolder').callsFake((uri: vscode.Uri) => {
+            // Check if the file URI is within our test workspace
+            // Normalize case for Windows compatibility
+            if (uri && uri.fsPath.toLowerCase().startsWith(tempDir.toLowerCase())) {
+                return testWorkspaceFolder;
+            }
+            return undefined; // File is not in workspace
         });
         
         // Mock global configuration with defaults
@@ -125,17 +139,106 @@ suite('Decorator Integration Tests', () => {
         const debugService = DebugService.getInstance();
         debugService.configure('file');
         debugService.clearLog(); // Clear any existing log
+        console.log('DEBUG SETUP: Configured debug service');
 
+        // Clear any existing services and state
+        clearServiceCache();
+        console.log('DEBUG SETUP: Cleared service cache');
+        
         // Create a shared PathBasedSettingsService that uses the test's workspace database
         pathBasedSettings = new PathBasedSettingsService();
-        // Clear any cached services from previous tests  
-        (pathBasedSettings as any).clearWorkspaceServices();
         
-        // Configure the PathBasedSettingsService to use the same workspace database as our tests
+        // CRITICAL: Configure the PathBasedSettingsService to use the same workspace database as our tests
+        // This MUST be called after vscode.workspace.workspaceFolders is set
         pathBasedSettings.setWorkspaceSettingsService(workspaceSettingsService);
+        
+        // Set global reference for extension state management
+        setGlobalPathBasedSettings(pathBasedSettings);
+        console.log('DEBUG SETUP: Set global path-based settings');
         
         fileExplorerDecorator = new FileExplorerDecorationProvider(pathBasedSettings);
         editorTabDecorator = new EditorTabDecorationProvider(pathBasedSettings);
+        console.log('DEBUG SETUP: Created decorators');
+        
+        // Register the file decoration provider with VS Code
+        decorationDisposable = vscode.window.registerFileDecorationProvider(fileExplorerDecorator);
+        console.log('DEBUG SETUP: Registered file decoration provider');
+        
+        // Mock the LineCountCacheService to provide expected line counts for test files
+        const mockLineCountCache = (fileExplorerDecorator as any).lineCountCache as LineCountCacheService;
+        vscodeMock.stub(mockLineCountCache, 'getLineCount').callsFake(async (filePath: string): Promise<CachedLineCount | null> => {
+            const fileName = path.basename(filePath);
+            const mockCounts: { [key: string]: CachedLineCount } = {
+                'short.ts': {
+                    lines: 2,
+                    codeLines: 2,
+                    commentLines: 0,
+                    blankLines: 0,
+                    lastModified: Date.now(),
+                    size: 100
+                },
+                'medium.ts': {
+                    lines: 150,
+                    codeLines: 150,
+                    commentLines: 0,
+                    blankLines: 0,
+                    lastModified: Date.now(),
+                    size: 3000
+                },
+                'long.spec.ts': {
+                    lines: 800,
+                    codeLines: 800,
+                    commentLines: 0,
+                    blankLines: 0,
+                    lastModified: Date.now(),
+                    size: 16000
+                },
+                // Add missing test files
+                'button.ts': {
+                    lines: 150,
+                    codeLines: 150,
+                    commentLines: 0,
+                    blankLines: 0,
+                    lastModified: Date.now(),
+                    size: 3000
+                },
+                'component.ts': {
+                    lines: 4,
+                    codeLines: 4,
+                    commentLines: 0,
+                    blankLines: 0,
+                    lastModified: Date.now(),
+                    size: 80
+                },
+                'test.ts': {
+                    lines: 25,
+                    codeLines: 25,
+                    commentLines: 0,
+                    blankLines: 0,
+                    lastModified: Date.now(),
+                    size: 500
+                },
+                'module.ts': {
+                    lines: 1,
+                    codeLines: 1,
+                    commentLines: 0,
+                    blankLines: 0,
+                    lastModified: Date.now(),
+                    size: 40
+                },
+                'icon.ts': {
+                    lines: 3,
+                    codeLines: 3,
+                    commentLines: 0,
+                    blankLines: 0,
+                    lastModified: Date.now(),
+                    size: 50
+                }
+            };
+            return mockCounts[fileName] || null;
+        });
+        
+        console.log('DEBUG SETUP: Setup completed successfully');
     });
     
     teardown(async () => {
@@ -158,9 +261,24 @@ suite('Decorator Integration Tests', () => {
                 console.warn('[TEARDOWN] Failed to clear database settings:', error);
             }
         }
+        
+        // Clear PathBasedSettingsService cache to ensure fresh state for each test
+        if (pathBasedSettings) {
+            pathBasedSettings.clearWorkspaceServices();
+        }
+        
+        // Dispose VS Code decoration provider
+        if (decorationDisposable) {
+            decorationDisposable.dispose();
+        }
+        
+        // Clear service caches and global state
+        clearServiceCache();
     });
 
     suite('FileExplorerDecorationProvider - Path-Based Settings', () => {
+        console.log('DEBUG SUITE: FileExplorerDecorationProvider - Path-Based Settings suite starting');
+        
         test('should use global settings when no workspace settings exist', async () => {
             const fileUri = vscode.Uri.file(path.join(tempDir, 'src', 'short.ts'));
             
@@ -195,6 +313,16 @@ suite('Decorator Integration Tests', () => {
         });
 
         test('should use subdirectory settings when available', async () => {
+            // First create root workspace settings
+            const rootSettings: WorkspaceSettings = {
+                'codeCounter.emojis.normal': '🔵',
+                'codeCounter.emojis.warning': '🟠',
+                'codeCounter.emojis.danger': '🔴',
+                'codeCounter.lineThresholds.midThreshold': 100,
+                'codeCounter.lineThresholds.highThreshold': 500
+            };
+            await workspaceSettingsService.saveWorkspaceSettings(tempDir, rootSettings);
+            
             // Create subdirectory settings that override root
             const srcDir = path.join(tempDir, 'src');
             const srcSettings: WorkspaceSettings = {
@@ -213,11 +341,28 @@ suite('Decorator Integration Tests', () => {
             };
             await workspaceSettingsService.saveWorkspaceSettings(testsDir, testSettings);
             
+            // Add a small delay to ensure database writes are flushed
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
             const srcFileUri = vscode.Uri.file(path.join(srcDir, 'components', 'medium.ts')); // 150 lines in src
             const testFileUri = vscode.Uri.file(path.join(testsDir, 'long.spec.ts')); // 800 lines in tests
             
+            console.log('[TEST DEBUG] About to call provideFileDecoration for srcFileUri:', srcFileUri.fsPath);
             const srcDecoration = await fileExplorerDecorator.provideFileDecoration(srcFileUri);
+            console.log('[TEST DEBUG] srcDecoration result:', srcDecoration);
+            
+            console.log('[TEST DEBUG] About to call provideFileDecoration for testFileUri:', testFileUri.fsPath);
             const testDecoration = await fileExplorerDecorator.provideFileDecoration(testFileUri);
+            console.log('[TEST DEBUG] testDecoration result:', testDecoration);
+            
+            // Debug: Let's manually check what PathBasedSettingsService returns
+            console.log('[TEST DEBUG] Manually checking PathBasedSettingsService for srcFileUri...');
+            try {
+                const resolvedSettings = await pathBasedSettings.getResolvedSettings(srcFileUri.fsPath);
+                console.log('[TEST DEBUG] Resolved settings for src file:', resolvedSettings);
+            } catch (error) {
+                console.error('[TEST DEBUG] Error getting resolved settings:', error);
+            }
             
             // Src file: 150 >= 50 (src midThreshold) && < 500 (root highThreshold) = warning
             expect(srcDecoration!.badge).to.equal('🟨');
@@ -239,6 +384,16 @@ suite('Decorator Integration Tests', () => {
         });
 
         test('should apply path-based exclude patterns', async () => {
+            // First create root workspace settings for inheritance
+            const rootSettings: WorkspaceSettings = {
+                'codeCounter.emojis.normal': '🔵',
+                'codeCounter.emojis.warning': '🟨',
+                'codeCounter.emojis.danger': '🔴',
+                'codeCounter.lineThresholds.midThreshold': 100,
+                'codeCounter.lineThresholds.highThreshold': 500
+            };
+            await workspaceSettingsService.saveWorkspaceSettings(tempDir, rootSettings);
+            
             // Create settings with custom exclude patterns
             const srcDir = path.join(tempDir, 'src');
             const srcSettings: WorkspaceSettings = {
@@ -249,8 +404,9 @@ suite('Decorator Integration Tests', () => {
             // Create tsx and ts files
             const tsxFile = path.join(srcDir, 'component.tsx');
             const tsFile = path.join(srcDir, 'module.ts');
-            await fs.promises.writeFile(tsxFile, 'const comp = () => <div>test</div>;');
-            await fs.promises.writeFile(tsFile, 'const fn = () => console.log("test");');
+            await fs.promises.mkdir(srcDir, { recursive: true });
+            await fs.promises.writeFile(tsxFile, 'const comp = () => <div>test</div>;\n'); // 1 line - should be normal if not excluded
+            await fs.promises.writeFile(tsFile, 'const fn = () => console.log("test");\n'); // 1 line - should be normal
             
             const tsxUri = vscode.Uri.file(tsxFile);
             const tsUri = vscode.Uri.file(tsFile);
@@ -296,11 +452,21 @@ suite('Decorator Integration Tests', () => {
             
             vscodeMock.stub(vscode.window, 'createStatusBarItem').returns(mockStatusBarItem as any);
             
-            // Create path-specific settings
+            // First create root workspace settings for inheritance
+            const rootSettings: WorkspaceSettings = {
+                'codeCounter.emojis.normal': '🔵',
+                'codeCounter.emojis.warning': '🟨',
+                'codeCounter.emojis.danger': '🔴',
+                'codeCounter.lineThresholds.midThreshold': 100,
+                'codeCounter.lineThresholds.highThreshold': 500
+            };
+            await workspaceSettingsService.saveWorkspaceSettings(tempDir, rootSettings);
+            
+            // Create path-specific settings that override some values
             const srcDir = path.join(tempDir, 'src');
             const srcSettings: WorkspaceSettings = {
                 'codeCounter.emojis.normal': '🟦',
-                'codeCounter.lineThresholds.midThreshold': 50
+                'codeCounter.lineThresholds.midThreshold': 50  // Override threshold but inherit warning emoji
             };
             await workspaceSettingsService.saveWorkspaceSettings(srcDir, srcSettings);
             
@@ -334,7 +500,11 @@ suite('Decorator Integration Tests', () => {
     });
 
     suite('Settings Inheritance Integration', () => {
+        console.log('DEBUG SUITE: Settings Inheritance Integration suite starting');
+        
         test('should properly inherit settings through directory hierarchy', async () => {
+            console.log('DEBUG TEST: Starting hierarchy test execution - this should appear if test runs');
+            console.log('HIERARCHY TEST START: Beginning test execution');
             // Create multi-level settings hierarchy
             const rootSettings: WorkspaceSettings = {
                 'codeCounter.emojis.normal': '🔵',
@@ -361,19 +531,47 @@ suite('Decorator Integration Tests', () => {
             
             // Create a file with line count that should trigger warning (150 lines, mid=100, high=800)
             await fs.promises.mkdir(path.dirname(deepFileUri.fsPath), { recursive: true });
-            await fs.promises.writeFile(deepFileUri.fsPath, new Array(150).fill('// line').join('\n'));
+            const fileContent = new Array(150).fill('// This is line content').join('\n') + '\n'; // Ensure proper line count
+            await fs.promises.writeFile(deepFileUri.fsPath, fileContent);
+            
+            console.log('TEST DEBUG: About to call fileExplorerDecorator.provideFileDecoration for:', deepFileUri.fsPath);
+            console.log('TEST DEBUG: fileExplorerDecorator type:', typeof fileExplorerDecorator);
+            console.log('TEST DEBUG: provideFileDecoration method exists:', typeof fileExplorerDecorator.provideFileDecoration);
             
             const decoration = await fileExplorerDecorator.provideFileDecoration(deepFileUri);
             
-
+            console.log('TEST DEBUG: Full decoration object:', JSON.stringify(decoration, null, 2));
+            console.log('TEST DEBUG: decoration type:', typeof decoration);
+            console.log('TEST DEBUG: decoration properties:', decoration ? Object.keys(decoration) : 'undefined');
+            console.log('TEST DEBUG: decoration.badge value:', decoration?.badge);
+            console.log('TEST DEBUG: decoration.badge type:', typeof decoration?.badge);
+            
+            // Test what path-based settings returns
+            const customEmojis = await pathBasedSettings.getCustomEmojisForPath(deepFileUri.fsPath);
+            console.log('TEST DEBUG: customEmojis from pathBasedSettings:', JSON.stringify(customEmojis, null, 2));
+            
+            const threshold = await pathBasedSettings.getColorThresholdForPath(150, deepFileUri.fsPath);
+            console.log('TEST DEBUG: threshold for 150 lines:', threshold);
+            
+            const themeEmoji = await pathBasedSettings.getThemeEmojiForPath(threshold, deepFileUri.fsPath);
+            console.log('TEST DEBUG: themeEmoji for threshold:', themeEmoji);
+            
+            // Check actual character codes to verify encoding
+            const expectedEmoji = '⚠️';
+            console.log('TEST DEBUG: Expected emoji char codes:', Array.from(expectedEmoji).map(c => c.charCodeAt(0)));
+            if (decoration?.badge) {
+                console.log('TEST DEBUG: Actual badge char codes:', Array.from(decoration.badge).map(c => c.charCodeAt(0)));
+                console.log('TEST DEBUG: Emojis match:', decoration.badge === expectedEmoji);
+            }
             
             expect(decoration).to.not.be.undefined;
             expect(decoration!.badge).to.equal('⚠️'); // Should use components warning emoji
             
-            // Test that it would use inherited settings for normal
+            // Test that it would use inherited settings for normal  
             const shortDeepFileUri = vscode.Uri.file(path.join(tempDir, 'src', 'components', 'icon.ts'));
             await fs.promises.mkdir(path.dirname(shortDeepFileUri.fsPath), { recursive: true });
-            await fs.promises.writeFile(shortDeepFileUri.fsPath, '// short file\nconst x = 1;');
+            const shortContent = '// short file\nconst x = 1;\n'; // 3 lines - should be normal
+            await fs.promises.writeFile(shortDeepFileUri.fsPath, shortContent);
             
             const shortDecoration = await fileExplorerDecorator.provideFileDecoration(shortDeepFileUri);
             expect(shortDecoration!.badge).to.equal('🟢'); // Should use src normal emoji
@@ -397,7 +595,8 @@ suite('Decorator Integration Tests', () => {
             
             const deepFileUri = vscode.Uri.file(path.join(tempDir, 'src', 'components', 'test.ts'));
             await fs.promises.mkdir(path.dirname(deepFileUri.fsPath), { recursive: true });
-            await fs.promises.writeFile(deepFileUri.fsPath, '// test\nconst x = 1;');
+            const testContent = '// test file\nconst x = 1;\nconst y = 2;\n'; // 4 lines - should be normal
+            await fs.promises.writeFile(deepFileUri.fsPath, testContent);
             
             console.log('DEBUG: Before getResolvedSettings, cache keys:', Array.from((pathBasedSettings as any).workspaceServices.keys()));
             

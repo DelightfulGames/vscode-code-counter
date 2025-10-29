@@ -206,24 +206,41 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         
         // Handle empty directoryPath or workspace root
         let relativePath: string;
-        if (!directoryPath || directoryPath === '' || path.normalize(directoryPath) === path.normalize(this.workspacePath)) {
+        const normalizedDir = path.normalize(directoryPath).toLowerCase();
+        const normalizedWorkspace = path.normalize(this.workspacePath).toLowerCase();
+        console.log('DEBUG: Path comparison - directoryPath:', directoryPath);
+        console.log('DEBUG: Path comparison - this.workspacePath:', this.workspacePath);
+        console.log('DEBUG: Path comparison - normalizedDir:', normalizedDir);
+        console.log('DEBUG: Path comparison - normalizedWorkspace:', normalizedWorkspace);
+        console.log('DEBUG: Path comparison - are equal:', normalizedDir === normalizedWorkspace);
+        
+        if (!directoryPath || directoryPath === '' || normalizedDir === normalizedWorkspace) {
+            console.log('DEBUG: Using workspace root relativePath (empty string)');
             relativePath = '';
         } else {
+            console.log('DEBUG: Computing relative path...');
             // Ensure we're working with absolute paths for safe relative calculation
             const normalizedWorkspacePath = path.resolve(path.normalize(this.workspacePath));
             const normalizedDirectoryPath = path.resolve(path.normalize(directoryPath));
+            console.log('DEBUG: normalizedWorkspacePath:', normalizedWorkspacePath);
+            console.log('DEBUG: normalizedDirectoryPath:', normalizedDirectoryPath);
             
-            // Security check: ensure directory is within workspace
-            if (!normalizedDirectoryPath.startsWith(normalizedWorkspacePath)) {
+            // Security check: ensure directory is within workspace (case-insensitive on Windows)
+            if (!normalizedDirectoryPath.toLowerCase().startsWith(normalizedWorkspacePath.toLowerCase())) {
                 console.error('SECURITY: Directory path is outside workspace bounds:', directoryPath);
+                console.error('SECURITY: normalizedDirectoryPath does not start with normalizedWorkspacePath');
                 relativePath = ''; // Fallback to workspace root
             } else {
+                console.log('DEBUG: Security check passed, calculating relative path...');
                 relativePath = path.relative(normalizedWorkspacePath, normalizedDirectoryPath).replace(/\\/g, '/');
+                console.log('DEBUG: Calculated relativePath before security check:', relativePath);
                 
                 // Additional security check for path traversal
                 if (relativePath.includes('..') || path.isAbsolute(relativePath)) {
                     console.error('SECURITY: Calculated relative path contains path traversal:', relativePath);
                     relativePath = ''; // Fallback to workspace root
+                } else {
+                    console.log('DEBUG: All security checks passed, final relativePath:', relativePath);
                 }
             }
         }

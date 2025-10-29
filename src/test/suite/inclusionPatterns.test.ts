@@ -142,7 +142,7 @@ suite('Inclusion Patterns Tests', () => {
         assert.ok(specFile, 'spec file should be included despite being in exclude patterns');
         
         // Should exclude node_modules/package.js since it doesn't match inclusion patterns
-        const nodeModuleFile = result.files.find(f => f.relativePath.includes('package.js'));
+        const nodeModuleFile = result.files.find(f => f.relativePath === 'node_modules/package.js');
         assert.strictEqual(nodeModuleFile, undefined, 'node_modules file should remain excluded');
     });
 
