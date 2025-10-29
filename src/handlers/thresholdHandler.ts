@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { WorkspaceDatabaseService, WorkspaceSettings } from '../services/workspaceDatabaseService';
+import { DebugService } from '../services/debugService';
 import { 
     getCurrentConfiguration,
     calculateTargetPath,
@@ -88,7 +89,7 @@ export class ThresholdHandler {
                 isNewFile = true;
             }
         } catch (error) {
-            console.log('Could not read existing workspace settings, starting with empty settings');
+            DebugService.getInstance().verbose('Could not read existing workspace settings, starting with empty settings');
             isNewFile = true;
         }
         

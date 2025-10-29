@@ -60,7 +60,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                 event.affectsConfiguration('codeCounter.excludePatterns')) {
                 // When exclude patterns change, invalidate all caches and refresh all decorations
                 if (event.affectsConfiguration('codeCounter.excludePatterns')) {
-                    console.log('Exclude patterns changed - invalidating all caches and refreshing decorations');
+                    this.debug.info('Exclude patterns changed - invalidating all caches and refreshing decorations');
                     this.lineCountCache.clearCache();
                 }
                 this._onDidChangeFileDecorations.fire(undefined);
@@ -70,7 +70,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
         // Listen for file saves to refresh decorations
         const saveWatcher = vscode.workspace.onDidSaveTextDocument(document => {
-            console.log('File saved:', document.uri.fsPath);
+            this.debug.verbose('File saved:', document.uri.fsPath);
             // Invalidate cache for the specific file that was saved
             this.lineCountCache.invalidateFileCache(document.uri.fsPath);
             // Invalidate cache for parent folders since their statistics may have changed
@@ -86,7 +86,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         const fileWatcher = vscode.workspace.createFileSystemWatcher('**/*');
         
         const onFileCreate = fileWatcher.onDidCreate(uri => {
-            console.log('File created:', uri.fsPath);
+            this.debug.verbose('File created:', uri.fsPath);
             // Invalidate cache for parent folders since their statistics changed
             this.lineCountCache.invalidateFolderCache(uri.fsPath);
             // Refresh the parent folder decoration
@@ -96,7 +96,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         });
         
         const onFileDelete = fileWatcher.onDidDelete(uri => {
-            console.log('File deleted:', uri.fsPath);
+            this.debug.verbose('File deleted:', uri.fsPath);
             // Invalidate cache for parent folders since their statistics changed
             this.lineCountCache.invalidateFolderCache(uri.fsPath);
             // Refresh the parent folder decoration
@@ -109,7 +109,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         // Settings changes will trigger cache invalidation through file watchers
         // Listen for database settings changes
         const dbSettingsWatcher = this.pathBasedSettings.onDidChangeSettings(() => {
-            console.log('Database settings changed - refreshing all decorations');
+            this.debug.info('Database settings changed - refreshing all decorations');
             this.lineCountCache.clearCache();
             this._onDidChangeFileDecorations.fire(undefined);
         });
@@ -123,7 +123,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         // Only refresh if parent is within workspace
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(parent);
         if (workspaceFolder) {
-            console.log('Refreshing parent folder:', parent.fsPath);
+            this.debug.verbose('Refreshing parent folder:', parent.fsPath);
             this._onDidChangeFileDecorations.fire(parent);
             
             // Also refresh grandparent folders up to workspace root
@@ -131,7 +131,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             while (currentParent.fsPath !== workspaceFolder.uri.fsPath && 
                    currentParent.fsPath !== path.dirname(currentParent.fsPath)) {
                 currentParent = vscode.Uri.file(path.dirname(currentParent.fsPath));
-                console.log('Refreshing ancestor folder:', currentParent.fsPath);
+                this.debug.verbose('Refreshing ancestor folder:', currentParent.fsPath);
                 this._onDidChangeFileDecorations.fire(currentParent);
             }
         }
@@ -144,7 +144,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         // Only refresh if parent is within workspace
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(parent);
         if (workspaceFolder && parent.fsPath !== changedDirectoryUri.fsPath) {
-            console.log('Refreshing parent directory for workspace change:', parent.fsPath);
+            this.debug.verbose('Refreshing parent directory for workspace change:', parent.fsPath);
             this._onDidChangeFileDecorations.fire(parent);
             
             // Recursively refresh parent directories up to workspace root
@@ -153,30 +153,30 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                    currentParent.fsPath !== path.dirname(currentParent.fsPath)) {
                 currentParent = vscode.Uri.file(path.dirname(currentParent.fsPath));
                 if (currentParent.fsPath !== workspaceFolder.uri.fsPath) {
-                    console.log('Refreshing ancestor directory for workspace change:', currentParent.fsPath);
+                    this.debug.verbose('Refreshing ancestor directory for workspace change:', currentParent.fsPath);
                     this._onDidChangeFileDecorations.fire(currentParent);
                 }
             }
             
             // Also refresh the workspace root itself
-            console.log('Refreshing workspace root for workspace change:', workspaceFolder.uri.fsPath);
+            this.debug.verbose('Refreshing workspace root for workspace change:', workspaceFolder.uri.fsPath);
             this._onDidChangeFileDecorations.fire(workspaceFolder.uri);
         }
     }
 
     private async refreshImmediateChildrenForWorkspaceChange(changedDirectoryUri: vscode.Uri): Promise<void> {
         try {
-            console.log('Refreshing immediate children for workspace settings change:', changedDirectoryUri.fsPath);
+            this.debug.verbose('Refreshing immediate children for workspace settings change:', changedDirectoryUri.fsPath);
             
             // Check if directory exists before trying to read it
             try {
                 const stat = await vscode.workspace.fs.stat(changedDirectoryUri);
                 if (stat.type !== vscode.FileType.Directory) {
-                    console.log('Path is not a directory, skipping refresh:', changedDirectoryUri.fsPath);
+                    this.debug.verbose('Path is not a directory, skipping refresh:', changedDirectoryUri.fsPath);
                     return;
                 }
             } catch (error) {
-                console.log('Directory does not exist, skipping refresh:', changedDirectoryUri.fsPath);
+                this.debug.verbose('Directory does not exist, skipping refresh:', changedDirectoryUri.fsPath);
                 return;
             }
             
@@ -185,17 +185,17 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             
             for (const [name, type] of entries) {
                 const childUri = vscode.Uri.joinPath(changedDirectoryUri, name);
-                console.log('Refreshing immediate child:', childUri.fsPath, type === vscode.FileType.Directory ? '(directory)' : '(file)');
+                this.debug.verbose('Refreshing immediate child:', childUri.fsPath, type === vscode.FileType.Directory ? '(directory)' : '(file)');
                 this._onDidChangeFileDecorations.fire(childUri);
             }
         } catch (error) {
-            console.warn('Error refreshing immediate children for workspace change:', error);
+            this.debug.warning('Error refreshing immediate children for workspace change:', error);
         }
     }
 
     private async refreshSubdirectoriesForWorkspaceChange(changedDirectoryUri: vscode.Uri): Promise<void> {
         try {
-            console.log('Refreshing all children for workspace settings change:', changedDirectoryUri.fsPath);
+            this.debug.verbose('Refreshing all children for workspace settings change:', changedDirectoryUri.fsPath);
             
             const workspaceFolder = vscode.workspace.getWorkspaceFolder(changedDirectoryUri);
             if (!workspaceFolder) {
@@ -211,7 +211,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             
             // Refresh all files found
             for (const fileUri of allFiles) {
-                console.log('Refreshing file for workspace change:', fileUri.fsPath);
+                this.debug.verbose('Refreshing file for workspace change:', fileUri.fsPath);
                 this._onDidChangeFileDecorations.fire(fileUri);
                 
                 // Also collect unique parent directories of these files
@@ -226,7 +226,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
             // Refresh all unique directories found
             for (const dirPath of uniqueDirectories) {
-                console.log('Refreshing directory for workspace change:', dirPath);
+                this.debug.verbose('Refreshing directory for workspace change:', dirPath);
                 this._onDidChangeFileDecorations.fire(vscode.Uri.file(dirPath));
             }
 
@@ -236,78 +236,71 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                 const entries = await vscode.workspace.fs.readDirectory(changedDirectoryUri);
                 for (const [name, type] of entries) {
                     const childUri = vscode.Uri.joinPath(changedDirectoryUri, name);
-                    console.log('Refreshing immediate child for workspace change:', childUri.fsPath);
+                    this.debug.verbose('Refreshing immediate child for workspace change:', childUri.fsPath);
                     this._onDidChangeFileDecorations.fire(childUri);
                 }
             } catch (readDirError) {
-                console.warn('Could not read directory for immediate children refresh:', readDirError);
+                this.debug.warning('Could not read directory for immediate children refresh:', readDirError);
             }
 
         } catch (error) {
-            console.warn('Error refreshing subdirectories for workspace change:', error);
+            this.debug.warning('Error refreshing subdirectories for workspace change:', error);
         }
     }
 
     async provideFileDecoration(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {
-        console.log('**************** DECORATOR METHOD CALLED ****************', uri.fsPath);
+        this.debug.verbose('**************** DECORATOR METHOD CALLED ****************', uri.fsPath);
         try {
             // Extension is enabled, so always show decorations based on mode
-            console.log('DEBUG: FileExplorerDecorationProvider.provideFileDecoration called for URI:', uri.toString(), 'scheme:', uri.scheme, 'fsPath:', uri.fsPath);
             this.debug.verbose('provideFileDecoration called for URI', { uri: uri.toString(), scheme: uri.scheme });
 
             // Skip decorations for non-file URIs to prevent filesystem errors
             if (uri.scheme !== 'file') {
-                console.log('DEBUG: provideFileDecoration - skipping non-file URI scheme:', uri.scheme);
                 this.debug.verbose('Skipping decoration for non-file URI scheme', { scheme: uri.scheme });
                 return undefined;
             }
 
-            console.log('DEBUG: About to call vscode.workspace.fs.stat for:', uri.fsPath);
             this.debug.verbose('About to call vscode.workspace.fs.stat', { fsPath: uri.fsPath });
             const stat = await vscode.workspace.fs.stat(uri);
             const fileType = stat.type === vscode.FileType.Directory ? 'Directory' : 'File';
-            console.log('DEBUG: File stat result - fileType:', fileType, 'fsPath:', uri.fsPath);
             this.debug.verbose('File stat result', { fileType, fsPath: uri.fsPath });
             
             if (stat.type === vscode.FileType.Directory) {
                 // Handle folder decoration
-                console.log('DEBUG: Calling provideFolderDecoration for:', uri.fsPath);
                 this.debug.verbose('Calling provideFolderDecoration', { fsPath: uri.fsPath });
                 return await this.provideFolderDecoration(uri);
             } else {
                 // Handle file decoration
-                console.log('DEBUG: Calling provideFileDecorationForFile for:', uri.fsPath);
-                this.debug.verbose('Calling provideFileDecorationForFile', { fsPath: uri.fsPath });
+                    this.debug.verbose('Calling provideFileDecorationForFile', { fsPath: uri.fsPath });
                 return await this.provideFileDecorationForFile(uri);
             }
         } catch (error) {
-            console.log('DEBUG: Error in provideFileDecoration:', error, 'for fsPath:', uri.fsPath);
             this.debug.error('Error in provideFileDecoration', { error: error, fsPath: uri.fsPath });
             return undefined;
         }
     }
 
     private async provideFileDecorationForFile(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {
-        console.log('DEBUG: provideFileDecorationForFile called for:', uri.fsPath);
+        this.debug.verbose('provideFileDecorationForFile called for:', uri.fsPath);
 
         // Skip certain file types
         const shouldSkip = await this.shouldSkipFile(uri.fsPath);
-        console.log('DEBUG: provideFileDecorationForFile - shouldSkipFile result:', shouldSkip, 'for file:', uri.fsPath);
+        this.debug.verbose('provideFileDecorationForFile - shouldSkipFile result:', shouldSkip, 'for file:', uri.fsPath);
         if (shouldSkip) {
-            console.log('DEBUG: provideFileDecorationForFile - shouldSkipFile returned true, skipping');
+            this.debug.verbose('provideFileDecorationForFile - shouldSkipFile returned true, skipping');
             return undefined;
         }
 
         try {
-            console.log('DEBUG: provideFileDecorationForFile - getting line count for:', uri.fsPath);
-            console.log('DEBUG: About to call this.lineCountCache.getLineCount');
+            this.debug.verbose('provideFileDecorationForFile - getting line count for:', uri.fsPath);
+            this.debug.verbose('About to call this.lineCountCache.getLineCount');
             const lineCount = await this.lineCountCache.getLineCount(uri.fsPath);
-            console.log('DEBUG: getLineCount returned:', lineCount);
+            this.debug.verbose('getLineCount returned:', lineCount);
             if (!lineCount) {
-                console.log('DEBUG: provideFileDecorationForFile - lineCount is null, returning undefined');
+                this.debug.verbose('provideFileDecorationForFile - lineCount is null, returning undefined');
                 return undefined;
             }
-            console.log('DEBUG: provideFileDecorationForFile - lineCount:', JSON.stringify(lineCount));
+            this.debug.verbose('provideFileDecorationForFile - lineCount:', JSON.stringify(lineCount));
 
             // Get the color classification for this line count using path-based settings
             const threshold = await this.pathBasedSettings.getColorThresholdForPath(lineCount.lines, uri.fsPath);
@@ -350,7 +343,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             };
 
         } catch (error) {
-            console.warn(`Failed to provide decoration for ${uri.fsPath}:`, error);
+            this.debug.warning(`Failed to provide decoration for ${uri.fsPath}:`, error);
             return undefined;
         }
     }
@@ -409,12 +402,12 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
     private async provideFolderDecoration(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {
         try {
-            console.log('Providing folder decoration for:', uri.fsPath);
+            this.debug.verbose('Providing folder decoration for:', uri.fsPath);
             const folderStats = await this.calculateFolderStats(uri.fsPath);
-            console.log('Folder stats:', folderStats);
+            this.debug.verbose('Folder stats:', folderStats);
             
             if (!folderStats) {
-                console.log('No folder stats found for:', uri.fsPath);
+                this.debug.verbose('No folder stats found for:', uri.fsPath);
                 return undefined;
             }
 
@@ -437,14 +430,14 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                            `🔥 Largest: ${fileName}`;
 
             const dualBadge = avgEmoji + maxEmoji;
-            console.log('Returning dual badge decoration:', { badge: dualBadge, avgEmoji, maxEmoji, tooltip });
+            this.debug.verbose('Returning dual badge decoration:', { badge: dualBadge, avgEmoji, maxEmoji, tooltip });
             
             return {
                 badge: dualBadge,
                 tooltip: tooltip,
             };
         } catch (error) {
-            console.warn(`Failed to provide folder decoration for ${uri.fsPath}:`, error);
+            this.debug.warning(`Failed to provide folder decoration for ${uri.fsPath}:`, error);
             return undefined;
         }
     }
@@ -458,17 +451,17 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         maxFilePath: string;
     } | undefined> {
         try {
-            console.log('Calculating folder stats for:', folderPath);
+            this.debug.verbose('Calculating folder stats for:', folderPath);
             
             // Check if directory exists before trying to read it
             try {
                 const stat = await vscode.workspace.fs.stat(vscode.Uri.file(folderPath));
                 if (stat.type !== vscode.FileType.Directory) {
-                    console.log('Path is not a directory:', folderPath);
+                    this.debug.verbose('Path is not a directory:', folderPath);
                     return undefined;
                 }
             } catch (error) {
-                console.log('Directory does not exist:', folderPath);
+                this.debug.verbose('Directory does not exist:', folderPath);
                 return undefined;
             }
             
@@ -476,7 +469,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
 
             // Get all files in folder (limit depth to prevent timeout)
             const files = await this.getAllFilesInFolder(folderPath, excludePatterns, 2); // Max 2 levels deep
-            console.log(`Found ${files.length} files in folder ${folderPath}`);
+            this.debug.verbose(`Found ${files.length} files in folder ${folderPath}`);
             
             if (files.length === 0) {
                 return undefined;
@@ -517,10 +510,10 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                 maxFilePath
             };
 
-            console.log('Calculated folder stats:', result);
+            this.debug.verbose('Calculated folder stats:', result);
             return result;
         } catch (error) {
-            console.warn(`Error calculating folder stats for ${folderPath}:`, error);
+            this.debug.warning(`Error calculating folder stats for ${folderPath}:`, error);
             return undefined;
         }
     }
@@ -557,7 +550,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                 }
             }
         } catch (error) {
-            console.warn(`Error reading directory ${folderPath}:`, error);
+            this.debug.warning(`Error reading directory ${folderPath}:`, error);
         }
 
         return files;

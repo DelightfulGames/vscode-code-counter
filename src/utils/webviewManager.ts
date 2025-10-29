@@ -319,8 +319,8 @@ export function getEmojiPickerWebviewContent(badges: any,
         const errorMessage = error instanceof Error ? error.message : String(error);
         const errorStack = error instanceof Error ? error.stack : String(error);
         
-        console.error('Error loading emoji picker template:', error);
-        console.error('Error details:', {
+        debug.error('Error loading emoji picker template:', error);
+        debug.error('Error details:', {
             message: errorMessage,
             stack: errorStack,
             workspaceData: workspaceData

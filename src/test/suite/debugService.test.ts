@@ -295,7 +295,7 @@ suite('DebugService Tests', () => {
             
             const logFilePath = debug.getLogFilePath();
             expect(logFilePath).to.not.be.null;
-            expect(logFilePath).to.include('code-counter.debug.log');
+            expect(logFilePath).to.include('code-counter/debug.log');
             
             // Check that file exists
             const fs = require('fs');
@@ -429,7 +429,7 @@ suite('DebugService Tests', () => {
             
             expect(fs.existsSync(vscodeDir)).to.be.true;
             const logFilePath = debug.getLogFilePath();
-            const expectedPath = path.resolve(path.join(vscodeDir, 'code-counter.debug.log'));
+            const expectedPath = path.resolve(path.join(vscodeDir, 'code-counter/debug.log'));
             expect(logFilePath).to.equal(expectedPath);
         });
 

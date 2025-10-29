@@ -466,11 +466,46 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
     </div>
 
     <script>
+        // Acquire VS Code API for webview communication
+        const vscode = acquireVsCodeApi();
+        
+        // Debug wrapper that sends messages to VS Code extension debugService
+        const debug = {
+            verbose: (...args) => {
+                vscode.postMessage({
+                    command: 'debugLog',
+                    level: 'verbose',
+                    message: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+                });
+            },
+            info: (...args) => {
+                vscode.postMessage({
+                    command: 'debugLog',
+                    level: 'info',
+                    message: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+                });
+            },
+            warning: (...args) => {
+                vscode.postMessage({
+                    command: 'debugLog',
+                    level: 'warning',
+                    message: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+                });
+            },
+            error: (...args) => {
+                vscode.postMessage({
+                    command: 'debugLog',
+                    level: 'error',
+                    message: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+                });
+            }
+        };
+
         // Theme detection and application
         let currentTheme = localStorage.getItem('theme') || 'auto';
         
         // Debug: Log initial state
-        console.log('Initial theme state:', {
+        debug.verbose('Initial theme state:', {
             storedTheme: localStorage.getItem('theme'),
             currentTheme: currentTheme,
             systemPrefersDark: window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : 'unknown'
@@ -480,7 +515,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
             const themeIcon = document.getElementById('theme-icon');
             const themeText = document.getElementById('theme-text');
             
-            console.log('updateThemeToggle called:', {
+            debug.verbose('updateThemeToggle called:', {
                 currentTheme,
                 themeIconExists: !!themeIcon,
                 themeTextExists: !!themeText,
@@ -489,14 +524,14 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
             
             // Check if elements exist (might be called before DOM ready)
             if (!themeIcon || !themeText) {
-                console.log('Theme toggle elements not found, skipping update');
+                debug.verbose('Theme toggle elements not found, skipping update');
                 return;
             }
             
             const prefersDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false;
             const actuallyDark = currentTheme === 'dark' || (currentTheme === 'auto' && prefersDark);
             
-            console.log('Theme toggle update details:', {
+            debug.verbose('Theme toggle update details:', {
                 prefersDark,
                 actuallyDark,
                 currentTheme
@@ -513,7 +548,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 themeText.textContent = 'Light';
             }
             
-            console.log('Updated button to:', {
+            debug.verbose('Updated button to:', {
                 icon: themeIcon.textContent,
                 text: themeText.textContent
             });
@@ -539,7 +574,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 document.documentElement.removeAttribute('data-theme');
             }
             
-            console.log('Applied theme:', {
+            debug.verbose('Applied theme:', {
                 currentTheme,
                 prefersDark,
                 dataTheme: document.documentElement.getAttribute('data-theme')
@@ -557,7 +592,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
             const currentIndex = themes.indexOf(currentTheme);
             const newTheme = themes[(currentIndex + 1) % themes.length];
             
-            console.log('Theme toggle:', {
+            debug.verbose('Theme toggle:', {
                 from: currentTheme,
                 to: newTheme,
                 systemPrefersDark: window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : 'unknown'
@@ -769,7 +804,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 restorePathPreference();
                 
             } catch (error) {
-                console.error('Error parsing report data:', error);
+                debug.error('Error parsing report data:', error);
                 const loadingIndicator = document.getElementById('loading-indicator');
                 const errorMessage = document.getElementById('error-message');
                 const errorText = document.getElementById('error-text');

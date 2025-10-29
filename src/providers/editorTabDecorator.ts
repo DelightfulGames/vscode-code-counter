@@ -32,8 +32,10 @@ import { LineCountCacheService, CachedLineCount } from '../services/lineCountCac
 import { lineThresholdService } from '../services/lineThresholdService';
 import { PathBasedSettingsService } from '../services/pathBasedSettingsService';
 import { WorkspaceDatabaseService } from '../services/workspaceDatabaseService';
+import { DebugService } from '../services/debugService';
 
 export class EditorTabDecorationProvider {
+    private debug = DebugService.getInstance();
     private lineCountCache: LineCountCacheService;
     private pathBasedSettings: PathBasedSettingsService;
     private disposables: vscode.Disposable[] = [];
@@ -73,7 +75,7 @@ export class EditorTabDecorationProvider {
 
         // Listen for database settings changes
         const dbSettingsWatcher = this.pathBasedSettings.onDidChangeSettings(() => {
-            console.log('Database settings changed - updating status bar');
+            this.debug.info('Database settings changed - updating status bar');
             this.updateStatusBar();
         });
 
@@ -108,7 +110,7 @@ export class EditorTabDecorationProvider {
             this.statusBarItem.show();
 
         } catch (error) {
-            console.warn('Failed to update status bar:', error);
+            this.debug.warning('Failed to update status bar:', error);
             this.statusBarItem.hide();
         }
     }

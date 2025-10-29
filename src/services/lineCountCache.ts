@@ -29,6 +29,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { LineCounterService } from './lineCounter';
+import { DebugService } from './debugService';
 
 export interface CachedLineCount {
     lines: number;
@@ -40,12 +41,13 @@ export interface CachedLineCount {
 }
 
 export class LineCountCacheService {
+    private debug = DebugService.getInstance();
     private cache = new Map<string, CachedLineCount>();
     private lineCounter: LineCounterService;
     private disposables: vscode.Disposable[] = [];
 
     constructor() {
-        console.log('DEBUG: LineCountCacheService constructor called');
+        this.debug.verbose('LineCountCacheService constructor called');
         this.lineCounter = new LineCounterService();
         this.setupFileWatcher();
     }
@@ -66,7 +68,7 @@ export class LineCountCacheService {
 
     public invalidateFileCache(filePath: string): void {
         this.invalidateCache(filePath);
-        console.log('Invalidated file cache for:', filePath);
+        this.debug.verbose('Invalidated file cache for:', filePath);
     }
 
     public invalidateFolderCache(filePath: string): void {
@@ -93,30 +95,30 @@ export class LineCountCacheService {
         }
         
         keysToDelete.forEach(key => this.cache.delete(key));
-        console.log('Invalidated folder cache for:', keysToDelete);
+        this.debug.verbose('Invalidated folder cache for:', keysToDelete);
     }
 
     async getLineCount(filePath: string): Promise<CachedLineCount | null> {
-        console.log('DEBUG: getLineCount ENTRY called for:', filePath);
+        this.debug.verbose('getLineCount ENTRY called for:', filePath);
         try {
-            console.log('DEBUG: getLineCount called for:', filePath);
-            console.log('DEBUG: About to call fs.promises.stat for:', filePath);
+            this.debug.verbose('getLineCount called for:', filePath);
+            this.debug.verbose('About to call fs.promises.stat for:', filePath);
             const stats = await fs.promises.stat(filePath);
-            console.log('DEBUG: file stats:', { size: stats.size, modified: stats.mtimeMs });
+            this.debug.verbose('file stats:', { size: stats.size, modified: stats.mtimeMs });
             
             // Check if we have a valid cached entry
             const cached = this.cache.get(filePath);
             if (cached && cached.lastModified === stats.mtimeMs && cached.size === stats.size) {
-                console.log('DEBUG: returning cached line count:', cached);
+                this.debug.verbose('returning cached line count:', cached);
                 return cached;
             }
 
             // Count lines and cache the result
-            console.log('DEBUG: calling lineCounter.countFileLines for:', filePath);
+            this.debug.verbose('calling lineCounter.countFileLines for:', filePath);
             const fileInfo = await this.lineCounter.countFileLines(filePath);
-            console.log('DEBUG: countFileLines returned:', fileInfo);
+            this.debug.verbose('countFileLines returned:', fileInfo);
             if (!fileInfo) {
-                console.log('DEBUG: fileInfo is null/undefined, returning null');
+                this.debug.verbose('fileInfo is null/undefined, returning null');
                 return null;
             }
             const lineCount: CachedLineCount = {
@@ -129,12 +131,12 @@ export class LineCountCacheService {
             };
 
             this.cache.set(filePath, lineCount);
-            console.log('DEBUG: cached and returning line count:', lineCount);
+            this.debug.verbose('cached and returning line count:', lineCount);
             return lineCount;
             
         } catch (error) {
-            console.log('DEBUG: getLineCount CATCH block, error:', error);
-            console.warn(`Failed to get line count for ${filePath}:`, error);
+            this.debug.verbose('getLineCount CATCH block, error:', error);
+            this.debug.warning(`Failed to get line count for ${filePath}:`, error);
             return null;
         }
     }

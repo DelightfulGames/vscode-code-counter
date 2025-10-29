@@ -31,8 +31,10 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { FileInfo, LineCountResult } from '../types';
 import { PathBasedSettingsService } from './pathBasedSettingsService';
+import { DebugService } from './debugService';
 
 export class LineCounterService {
+    private debug = DebugService.getInstance();
     
     async countLines(workspacePath: string, excludePatterns: string[] = []): Promise<LineCountResult> {
         const files = await this.getFiles(workspacePath, excludePatterns);
@@ -58,7 +60,7 @@ export class LineCounterService {
                 languageStats[fileInfo.language].lines += fileInfo.lines;
                 
             } catch (error) {
-                console.warn(`Failed to count lines in ${filePath}:`, error);
+                this.debug.warning(`Failed to count lines in ${filePath}:`, error);
             }
         }
 
@@ -96,7 +98,7 @@ export class LineCounterService {
                 languageStats[fileInfo.language].lines += fileInfo.lines;
                 
             } catch (error) {
-                console.warn(`Failed to count lines in ${filePath}:`, error);
+                this.debug.warning(`Failed to count lines in ${filePath}:`, error);
             }
         }
 
@@ -136,7 +138,7 @@ export class LineCounterService {
         
         const filteredFiles: string[] = [];
         
-        console.log('Debug - getFilesWithInclusions processing:', {
+        this.debug.verbose('getFilesWithInclusions processing:', {
             workspacePath,
             totalFilesToProcess: filePaths.length,
             excludePatterns,
@@ -170,7 +172,7 @@ export class LineCounterService {
             // Only exclude if the file is excluded AND doesn't match any inclusion pattern
         }
         
-        console.log('Debug - getFilesWithInclusions results:', {
+        this.debug.verbose('getFilesWithInclusions results:', {
             totalProcessed: filePaths.length,
             totalIncluded: filteredFiles.length,
             includedViaPattern,
@@ -313,7 +315,7 @@ export class LineCounterService {
         
         const filteredFiles: string[] = [];
         
-        console.log('Debug - countLinesWithPathBasedSettings processing:', {
+        this.debug.verbose('countLinesWithPathBasedSettings processing:', {
             workspacePath,
             totalFilesToProcess: allFiles.length
         });
@@ -343,7 +345,7 @@ export class LineCounterService {
                 filteredFiles.push(filePath);
                 if (isIncluded) {
                     includedViaPattern++;
-                    console.log('Debug - File included via path-based pattern:', {
+                    this.debug.verbose('File included via path-based pattern:', {
                         relativePath,
                         filePath,
                         matchedPattern: includePatterns.find(pattern => minimatch(relativePath, pattern)),
@@ -356,7 +358,7 @@ export class LineCounterService {
             }
         }
         
-        console.log('Debug - countLinesWithPathBasedSettings results:', {
+        this.debug.verbose('countLinesWithPathBasedSettings results:', {
             totalProcessed: allFiles.length,
             totalIncluded: filteredFiles.length,
             includedViaPattern,
@@ -385,7 +387,7 @@ export class LineCounterService {
                 languageStats[fileInfo.language].lines += fileInfo.lines;
                 
             } catch (error) {
-                console.warn(`Failed to count lines in ${filePath}:`, error);
+                this.debug.warning(`Failed to count lines in ${filePath}:`, error);
             }
         }
 

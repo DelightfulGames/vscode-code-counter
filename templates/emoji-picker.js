@@ -27,6 +27,39 @@
  */
 
 const vscode = acquireVsCodeApi();
+
+// Debug wrapper that sends messages to VS Code extension debugService
+const debug = {
+    verbose: (...args) => {
+        vscode.postMessage({
+            command: 'debugLog',
+            level: 'verbose',
+            message: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+        });
+    },
+    info: (...args) => {
+        vscode.postMessage({
+            command: 'debugLog',
+            level: 'info',
+            message: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+        });
+    },
+    warning: (...args) => {
+        vscode.postMessage({
+            command: 'debugLog',
+            level: 'warning',
+            message: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+        });
+    },
+    error: (...args) => {
+        vscode.postMessage({
+            command: 'debugLog',
+            level: 'error',
+            message: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+        });
+    }
+};
+
 let currentColorKey = '';
 let currentEmojiType = 'file';
 
@@ -163,14 +196,14 @@ function initializeEmojiPicker() {
             });
         }
     } catch (error) {
-        console.error('Error initializing emoji picker:', error);
+        debug.error('Error initializing emoji picker:', error);
     }
 }
 
 function displayEmojiCategory(category, emojiData) {
     const grid = document.getElementById('emojiGrid');
     if (!grid) {
-        console.log('Emoji grid not found');
+        debug.warning('Emoji grid not found');
         return;
     }
     
@@ -183,7 +216,7 @@ function displayEmojiCategory(category, emojiData) {
         emojisToShow = emojiData[category];
     }
     
-    console.log(`Displaying ${emojisToShow.length} emojis for category: ${category}`);
+    debug.verbose(`Displaying ${emojisToShow.length} emojis for category: ${category}`);
     
     if (emojisToShow.length === 0) {
         const noEmojiMsg = document.createElement('div');
@@ -407,7 +440,7 @@ function resetEmojis() {
 
 function updateNotificationSetting(isEnabled) {
     if (isEnabled === null || isEnabled === undefined) {
-        console.warn('updateNotificationSetting called with null/undefined parameter:', isEnabled);
+        debug.warning('updateNotificationSetting called with null/undefined parameter:', isEnabled);
         isEnabled = false; // Default to false if null/undefined
     }
     vscode.postMessage({
@@ -420,7 +453,7 @@ function updateDebugService() {
     const backendSelect = document.getElementById('debugBackend');
     
     if (!backendSelect) {
-        console.error('Debug service control not found');
+        debug.error('Debug service control not found');
         return;
     }
     
@@ -799,7 +832,7 @@ function initializeWorkspaceSettings() {
         const parentValue = parentSettings['codeCounter.lineThresholds.midThreshold'];
         
         // Debug threshold placeholder values
-        console.log('Debug - JavaScript threshold values:', {
+        debug.verbose('Debug - JavaScript threshold values:', {
             parentSettingsKeys: Object.keys(parentSettings || {}),
             currentSettingsKeys: Object.keys(currentSettings || {}),
             parentValueMid: parentValue,

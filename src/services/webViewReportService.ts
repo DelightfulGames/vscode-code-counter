@@ -31,6 +31,7 @@ import * as path from 'path';
 import { HtmlGeneratorService } from './htmlGenerator';
 import { XmlGeneratorService } from './xmlGenerator';
 import { LineCountResult } from '../types';
+import { DebugService } from './debugService';
 
 export interface ReportData {
     summary: {
@@ -64,6 +65,7 @@ export interface ReportData {
 }
 
 export class WebViewReportService {
+    private debug = DebugService.getInstance();
     private static instance: WebViewReportService;
     private currentPanel: vscode.WebviewPanel | undefined;
     private currentData: ReportData | undefined;
@@ -106,7 +108,7 @@ export class WebViewReportService {
         );
 
         // Set HTML content
-        console.log('WebView Report: Setting HTML content with data:', {
+        this.debug.verbose('WebView Report: Setting HTML content with data:', {
             totalFiles: data.summary.totalFiles,
             totalLines: data.summary.totalLines,
             languageCount: data.languages.length,
@@ -131,6 +133,26 @@ export class WebViewReportService {
                         // Handle export requests with current data
                         if (this.currentData) {
                             await this.exportReport(this.currentData);
+                        }
+                        break;
+                    case 'debugLog':
+                        // Handle debug messages from webview
+                        const webviewPrefix = '[WEBVIEW-REPORT]';
+                        switch (message.level) {
+                            case 'verbose':
+                                this.debug.verbose(webviewPrefix, message.message);
+                                break;
+                            case 'info':
+                                this.debug.info(webviewPrefix, message.message);
+                                break;
+                            case 'warning':
+                                this.debug.warning(webviewPrefix, message.message);
+                                break;
+                            case 'error':
+                                this.debug.error(webviewPrefix, message.message);
+                                break;
+                            default:
+                                this.debug.info(webviewPrefix, message.message);
                         }
                         break;
                 }
@@ -451,11 +473,11 @@ export class WebViewReportService {
             // Initialize report with data
             function initializeReport(data) {
                 try {
-                    console.log('WebView: Initializing report with data:', data);
+                    this.debug.verbose('WebView: Initializing report with data:', data);
                     populateReport(data);
-                    console.log('WebView: Report populated successfully');
+                    this.debug.verbose('WebView: Report populated successfully');
                 } catch (error) {
-                    console.error('Error initializing report:', error);
+                    this.debug.error('Error initializing report:', error);
                     showError('Failed to initialize report: ' + error.message);
                 }
             }
@@ -602,16 +624,16 @@ export class WebViewReportService {
             
             // Initialize on load
             document.addEventListener('DOMContentLoaded', () => {
-                console.log('WebView: DOM ready, initializing report...');
-                console.log('WebView: reportData available:', !!reportData, typeof reportData);
+                this.debug.verbose('WebView: DOM ready, initializing report...');
+                this.debug.verbose('WebView: reportData available:', !!reportData, typeof reportData);
                 initializeReport(reportData);
             });
             
             // Fallback initialization if DOM is already loaded
             if (document.readyState === 'loading') {
-                console.log('WebView: DOM still loading, waiting for DOMContentLoaded');
+                this.debug.verbose('WebView: DOM still loading, waiting for DOMContentLoaded');
             } else {
-                console.log('WebView: DOM already ready, initializing immediately');
+                this.debug.verbose('WebView: DOM already ready, initializing immediately');
                 setTimeout(() => initializeReport(reportData), 0);
             }
         `;

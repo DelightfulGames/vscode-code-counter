@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { WorkspaceDatabaseService } from '../services/workspaceDatabaseService';
+import { DebugService } from '../services/debugService';
 import { 
     getWorkspaceService, 
     notifySettingsChanged, 
@@ -82,7 +83,7 @@ export class EmojiHandler {
         fileExplorerDecorator: any
     ): Promise<void> {
         // Check if we're in workspace mode and have the necessary data
-        console.log('Reset emoji command received - Full debug:', { 
+        DebugService.getInstance().verbose('Reset emoji command received - Full debug:', { 
             message: message,
             isWorkspaceMode: message.isWorkspaceMode, 
             currentDirectory: message.currentDirectory,
@@ -125,7 +126,7 @@ export class EmojiHandler {
                 isNewFile = true;
             }
         } catch (error) {
-            console.log('Could not read existing workspace settings, starting with empty settings');
+            DebugService.getInstance().verbose('Could not read existing workspace settings, starting with empty settings');
             isNewFile = true;
         }
         
@@ -207,13 +208,13 @@ export class EmojiHandler {
      * Handle workspace emoji reset
      */
     private static async handleWorkspaceEmojiReset(message: EmojiMessage): Promise<void> {
-        console.log('Entering workspace mode reset branch');
+        DebugService.getInstance().verbose('Entering workspace mode reset branch');
         // Workspace mode: reset emoji fields in database
         if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
             const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
             const workspaceService = new WorkspaceDatabaseService(workspacePath);
             
-            console.log('Workspace details:', {
+            DebugService.getInstance().verbose('Workspace details:', {
                 workspacePath: workspacePath,
                 messageCurrentDirectory: message.currentDirectory
             });
@@ -231,7 +232,7 @@ export class EmojiHandler {
                     targetPath = workspacePath; // fallback
                 }
                 
-                console.log('Resetting emoji fields for directory:', targetPath);
+                DebugService.getInstance().verbose('Resetting emoji fields for directory:', targetPath);
                 
                 // Reset all emoji fields and thresholds using the database service
                 await workspaceService.resetField(targetPath, 'emojis.normal');
@@ -244,13 +245,13 @@ export class EmojiHandler {
                 await workspaceService.resetField(targetPath, 'lineThresholds.highThreshold');
                 
                 vscode.window.showInformationMessage('All emoji settings and thresholds reset to inherit from parent');
-                console.log('All emoji fields reset successfully');
+                DebugService.getInstance().info('All emoji fields reset successfully');
             } catch (error) {
-                console.error('Error resetting emoji fields:', error);
+                DebugService.getInstance().error('Error resetting emoji fields:', error);
                 vscode.window.showErrorMessage(`Failed to reset emoji settings: ${error}`);
             }
         } else {
-            console.log('No workspace folders found');
+            DebugService.getInstance().verbose('No workspace folders found');
         }
     }
 
@@ -258,7 +259,7 @@ export class EmojiHandler {
      * Handle global emoji reset
      */
     private static async handleGlobalEmojiReset(message: EmojiMessage): Promise<void> {
-        console.log('Entering global mode reset branch - Conditions:', {
+        DebugService.getInstance().verbose('Entering global mode reset branch - Conditions:', {
             isWorkspaceMode: message.isWorkspaceMode,
             currentDirectory: message.currentDirectory,
             currentDirectoryNotGlobal: message.currentDirectory !== '<global>'
@@ -298,8 +299,8 @@ export class EmojiHandler {
         const resolvedSettings = await workspaceService.getSettingsWithInheritance(targetPath);
         const inheritanceInfo = await workspaceService.getSettingsWithInheritance(targetPath);
         
-        console.log('Debug - All resolvedSettings keys:', Object.keys(resolvedSettings));
-        console.log('Debug - Folder emoji settings:', {
+        DebugService.getInstance().verbose('All resolvedSettings keys:', Object.keys(resolvedSettings));
+        DebugService.getInstance().verbose('Folder emoji settings:', {
             'folders.normal': resolvedSettings.resolvedSettings['codeCounter.emojis.folders.normal'],
             'folders.warning': resolvedSettings.resolvedSettings['codeCounter.emojis.folders.warning'],
             'folders.danger': resolvedSettings.resolvedSettings['codeCounter.emojis.folders.danger']
@@ -318,13 +319,13 @@ export class EmojiHandler {
             high: resolvedSettings.resolvedSettings['codeCounter.emojis.folders.danger'] || globalConfig.folderBadges.high
         };
         
-        console.log('Debug - Final workspaceFolderBadges:', workspaceFolderBadges);
+        DebugService.getInstance().verbose('Final workspaceFolderBadges:', workspaceFolderBadges);
         const workspaceThresholds = {
             mid: resolvedSettings.resolvedSettings['codeCounter.lineThresholds.midThreshold'] || globalConfig.thresholds.mid,
             high: resolvedSettings.resolvedSettings['codeCounter.lineThresholds.highThreshold'] || globalConfig.thresholds.high
         };
         
-        console.log('Debug - Final workspaceThresholds:', workspaceThresholds);
+        DebugService.getInstance().verbose('Final workspaceThresholds:', workspaceThresholds);
         const workspaceExcludePatterns = resolvedSettings.resolvedSettings['codeCounter.excludePatterns'];
         
         panel.webview.html = getEmojiPickerWebviewContent(
@@ -375,7 +376,7 @@ export class EmojiHandler {
                 inheritanceTargetDirectory = path.join(workspacePath, message.currentDirectory);
             }
             
-            console.log('Inheritance path resolution:', {
+            DebugService.getInstance().verbose('Inheritance path resolution:', {
                 messageCurrentDirectory: message.currentDirectory,
                 workspacePath: workspacePath,
                 resolvedInheritanceTargetDirectory: inheritanceTargetDirectory

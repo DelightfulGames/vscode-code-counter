@@ -32,8 +32,10 @@ import { XmlGeneratorService } from '../services/xmlGenerator';
 import { HtmlGeneratorService } from '../services/htmlGenerator';
 import { WebViewReportService, ReportData } from '../services/webViewReportService';
 import { WorkspaceDatabaseService } from '../services/workspaceDatabaseService';
+import { DebugService } from '../services/debugService';
 
 export class CountLinesCommand {
+    private debug = DebugService.getInstance();
     private lineCounter: LineCounterService;
     private xmlGenerator: XmlGeneratorService;
     private htmlGenerator: HtmlGeneratorService;
@@ -53,7 +55,7 @@ export class CountLinesCommand {
             const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(workspacePath);
             return settingsWithInheritance.resolvedSettings['codeCounter.excludePatterns'] || [];
         } catch (error) {
-            console.warn('Failed to get workspace exclusion patterns, falling back to global settings:', error);
+            this.debug.warning('Failed to get workspace exclusion patterns, falling back to global settings:', error);
             // Fallback to global settings if workspace settings fail
             const config = vscode.workspace.getConfiguration('codeCounter');
             return config.get<string[]>('excludePatterns', []);
@@ -69,7 +71,7 @@ export class CountLinesCommand {
             const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(workspacePath);
             return settingsWithInheritance.resolvedSettings['codeCounter.includePatterns'] || [];
         } catch (error) {
-            console.warn('Failed to get workspace inclusion patterns, falling back to global settings:', error);
+            this.debug.warning('Failed to get workspace inclusion patterns, falling back to global settings:', error);
             // Fallback to global settings if workspace settings fail
             const config = vscode.workspace.getConfiguration('codeCounter');
             return config.get<string[]>('includePatterns', []);
@@ -114,7 +116,7 @@ export class CountLinesCommand {
                 // Show in WebView panel using path-based settings
                 const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
                 
-                console.log('Debug - CountLinesCommand execute results (path-based):', {
+                this.debug.verbose('CountLinesCommand execute results (path-based):', {
                     totalFiles: results.files?.length || 0,
                     files: results.files?.map((f: any) => f.relativePath) || []
                 });
@@ -203,7 +205,7 @@ export class CountLinesCommand {
             }
             
             // Log for debugging auto-generation
-            console.log(`Auto-generated reports saved to: ${outputDirectory}`);
+            this.debug.info(`Auto-generated reports saved to: ${outputDirectory}`);
 
             // Count lines for notification (use first workspace folder for summary) using path-based settings
             const folder = workspaceFolders[0];
@@ -229,7 +231,7 @@ export class CountLinesCommand {
 
         } catch (error) {
             // Silently log errors for auto-generated reports to avoid spam
-            console.error('Auto line count failed:', error);
+            this.debug.error('Auto line count failed:', error);
         }
         
         // Refresh decorations after counting is complete

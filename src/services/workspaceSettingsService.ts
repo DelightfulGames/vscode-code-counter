@@ -28,6 +28,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { DebugService } from './debugService';
 
 // Event payload for workspace settings changes
 export interface WorkspaceSettingsChangeEvent {
@@ -103,6 +104,7 @@ export class WorkspaceSettingsService {
     private static readonly CONFIG_FILE_NAME = '.code-counter.json';
     private workspacePath: string;
     private static events = WorkspaceSettingsEvents.getInstance();
+    private debug = DebugService.getInstance();
 
     constructor(workspacePath: string) {
         this.workspacePath = workspacePath;
@@ -211,7 +213,7 @@ export class WorkspaceSettingsService {
             try {
                 currentSettings = await this.readSettingsFile(configPath);
             } catch (error) {
-                console.error(`Failed to read settings from ${configPath}:`, error);
+                this.debug.error(`Failed to read settings from ${configPath}:`, error);
             }
         }
 
@@ -277,7 +279,7 @@ export class WorkspaceSettingsService {
                     const source = currentPath === this.workspacePath ? 'workspace' : path.relative(this.workspacePath, currentPath);
                     chain.push({ settings, source });
                 } catch (error) {
-                    console.error(`Failed to read settings from ${configPath}:`, error);
+                    this.debug.error(`Failed to read settings from ${configPath}:`, error);
                 }
             }
 
@@ -371,7 +373,7 @@ export class WorkspaceSettingsService {
                 }
             } catch (error) {
                 // If we can't read/parse the file, leave it alone to be safe
-                console.log(`Could not check settings file ${configPath} for cleanup:`, error);
+                this.debug.warning(`Could not check settings file ${configPath} for cleanup:`, error);
             }
         }
     }
@@ -533,7 +535,7 @@ export class WorkspaceSettingsService {
                 }
             }
         } catch (error) {
-            console.error(`Error reading directory ${rootPath}:`, error);
+            this.debug.error(`Error reading directory ${rootPath}:`, error);
         }
 
         return nodes.sort((a, b) => a.name.localeCompare(b.name));
@@ -564,7 +566,7 @@ export class WorkspaceSettingsService {
                 }
             }
         } catch (error) {
-            console.error(`Error scanning directory ${dirPath}:`, error);
+            this.debug.error(`Error scanning directory ${dirPath}:`, error);
         }
     }
 
@@ -676,7 +678,7 @@ export class WorkspaceSettingsService {
                 await fs.promises.writeFile(settingsPath, JSON.stringify(cleanedSettings, null, 2));
             }
         } catch (error) {
-            console.error('Error resetting field:', error);
+            this.debug.error('Error resetting field:', error);
             throw error;
         }
     }

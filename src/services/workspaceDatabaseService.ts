@@ -30,6 +30,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import initSqlJs, { Database } from 'sql.js';
+import { DebugService } from './debugService';
 
 export interface WorkspaceSettings {
     'codeCounter.lineThresholds.midThreshold'?: number;
@@ -77,6 +78,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
     private dbPath: string;
     private initPromise: Promise<void>;
     private instanceId: string = Math.random().toString(36).substr(2, 9);
+    private debug = DebugService.getInstance();
 
     constructor(workspacePath: string) {
         this.workspacePath = workspacePath;
@@ -84,7 +86,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         this.reportsDir = path.join(this.codeCounterDir, 'reports');
         this.dbPath = path.join(this.codeCounterDir, 'code-counter.db');
         
-        console.log('DEBUG: WorkspaceDatabaseService created for path:', workspacePath, 'instanceId:', this.instanceId, 'dbPath:', this.dbPath);
+        this.debug.verbose('WorkspaceDatabaseService created for path:', workspacePath, 'instanceId:', this.instanceId, 'dbPath:', this.dbPath);
         
         // Ensure directory structure exists
         this.ensureDirectoryStructure();
@@ -110,7 +112,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     private async initializeDatabase(): Promise<void> {
         try {
-            console.log('DEBUG: Initializing database for path:', this.workspacePath);
+            this.debug.verbose('Initializing database for path:', this.workspacePath);
             const SQL = await initSqlJs({
                 // Use bundled wasm file
                 locateFile: (file: string) => path.join(__dirname, '../../node_modules/sql.js/dist/', file)
@@ -120,9 +122,9 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             let data: Uint8Array | undefined;
             if (fs.existsSync(this.dbPath)) {
                 data = fs.readFileSync(this.dbPath);
-                console.log('DEBUG: Loaded existing database file, size:', data.length, 'bytes from', this.dbPath);
+                this.debug.verbose('Loaded existing database file, size:', data.length, 'bytes from', this.dbPath);
             } else {
-                console.log('DEBUG: No existing database file found at', this.dbPath);
+                this.debug.verbose('No existing database file found at', this.dbPath);
             }
             
             this.db = new SQL.Database(data);
@@ -135,11 +137,11 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             stmt.bind([]);
             if (stmt.step()) {
                 const result = stmt.getAsObject();
-                console.log('DEBUG: Database initialized with', result.count, 'settings records');
+                this.debug.verbose('Database initialized with', result.count, 'settings records');
             }
             stmt.free();
         } catch (error) {
-            console.error('Failed to initialize database:', error);
+            this.debug.error('Failed to initialize database:', error);
             throw error;
         }
     }
@@ -180,11 +182,11 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         
         try {
             const data = this.db.export();
-            console.log('DEBUG: saveToFile exporting database size:', data.length, 'bytes to', this.dbPath);
+            this.debug.verbose('saveToFile exporting database size:', data.length, 'bytes to', this.dbPath);
             fs.writeFileSync(this.dbPath, data);
-            console.log('DEBUG: saveToFile completed successfully');
+            this.debug.verbose('saveToFile completed successfully');
         } catch (error) {
-            console.error('Failed to save database:', error);
+            this.debug.error('Failed to save database:', error);
         }
     }
 
@@ -208,44 +210,44 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         let relativePath: string;
         const normalizedDir = path.normalize(directoryPath).toLowerCase();
         const normalizedWorkspace = path.normalize(this.workspacePath).toLowerCase();
-        console.log('DEBUG: Path comparison - directoryPath:', directoryPath);
-        console.log('DEBUG: Path comparison - this.workspacePath:', this.workspacePath);
-        console.log('DEBUG: Path comparison - normalizedDir:', normalizedDir);
-        console.log('DEBUG: Path comparison - normalizedWorkspace:', normalizedWorkspace);
-        console.log('DEBUG: Path comparison - are equal:', normalizedDir === normalizedWorkspace);
+        this.debug.verbose('Path comparison - directoryPath:', directoryPath);
+        this.debug.verbose('Path comparison - this.workspacePath:', this.workspacePath);
+        this.debug.verbose('Path comparison - normalizedDir:', normalizedDir);
+        this.debug.verbose('Path comparison - normalizedWorkspace:', normalizedWorkspace);
+        this.debug.verbose('Path comparison - are equal:', normalizedDir === normalizedWorkspace);
         
         if (!directoryPath || directoryPath === '' || normalizedDir === normalizedWorkspace) {
-            console.log('DEBUG: Using workspace root relativePath (empty string)');
+            this.debug.verbose('Using workspace root relativePath (empty string)');
             relativePath = '';
         } else {
-            console.log('DEBUG: Computing relative path...');
+            this.debug.verbose('Computing relative path...');
             // Ensure we're working with absolute paths for safe relative calculation
             const normalizedWorkspacePath = path.resolve(path.normalize(this.workspacePath));
             const normalizedDirectoryPath = path.resolve(path.normalize(directoryPath));
-            console.log('DEBUG: normalizedWorkspacePath:', normalizedWorkspacePath);
-            console.log('DEBUG: normalizedDirectoryPath:', normalizedDirectoryPath);
+            this.debug.verbose('normalizedWorkspacePath:', normalizedWorkspacePath);
+            this.debug.verbose('normalizedDirectoryPath:', normalizedDirectoryPath);
             
             // Security check: ensure directory is within workspace (case-insensitive on Windows)
             if (!normalizedDirectoryPath.toLowerCase().startsWith(normalizedWorkspacePath.toLowerCase())) {
-                console.error('SECURITY: Directory path is outside workspace bounds:', directoryPath);
-                console.error('SECURITY: normalizedDirectoryPath does not start with normalizedWorkspacePath');
+                this.debug.error('SECURITY: Directory path is outside workspace bounds:', directoryPath);
+                this.debug.error('SECURITY: normalizedDirectoryPath does not start with normalizedWorkspacePath');
                 relativePath = ''; // Fallback to workspace root
             } else {
-                console.log('DEBUG: Security check passed, calculating relative path...');
+                this.debug.verbose('Security check passed, calculating relative path...');
                 relativePath = path.relative(normalizedWorkspacePath, normalizedDirectoryPath).replace(/\\/g, '/');
-                console.log('DEBUG: Calculated relativePath before security check:', relativePath);
+                this.debug.verbose('Calculated relativePath before security check:', relativePath);
                 
                 // Additional security check for path traversal
                 if (relativePath.includes('..') || path.isAbsolute(relativePath)) {
-                    console.error('SECURITY: Calculated relative path contains path traversal:', relativePath);
+                    this.debug.error('SECURITY: Calculated relative path contains path traversal:', relativePath);
                     relativePath = ''; // Fallback to workspace root
                 } else {
-                    console.log('DEBUG: All security checks passed, final relativePath:', relativePath);
+                    this.debug.verbose('All security checks passed, final relativePath:', relativePath);
                 }
             }
         }
         
-        console.log('DEBUG: getSettingsWithInheritance for', directoryPath, 'relativePath:', relativePath, 'instanceId:', this.instanceId, 'workspacePath:', this.workspacePath);
+        this.debug.verbose('getSettingsWithInheritance for', directoryPath, 'relativePath:', relativePath, 'instanceId:', this.instanceId, 'workspacePath:', this.workspacePath);
         
         // Get all settings that apply to this path (including parent paths)
         const query = `
@@ -254,8 +256,8 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             WHERE (directory_path = '' OR directory_path = ? OR ? LIKE directory_path || '/%')
             ORDER BY LENGTH(directory_path) ASC
         `;
-        console.log('DEBUG: SQL Query:', query);
-        console.log('DEBUG: Query parameters:', [relativePath, relativePath]);
+        this.debug.verbose('SQL Query:', query);
+        this.debug.verbose('Query parameters:', [relativePath, relativePath]);
         
         const stmt = this.db!.prepare(query);
         
@@ -266,7 +268,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         }
         stmt.free();
         
-        console.log('DEBUG: Found rows:', rows);
+        this.debug.verbose('Found rows:', rows);
         
         // Debug: Show what's actually in the database
         const debugStmt = this.db!.prepare('SELECT directory_path, setting_key, setting_value FROM workspace_settings ORDER BY directory_path, setting_key');
@@ -276,8 +278,8 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             allRows.push(debugStmt.getAsObject());
         }
         debugStmt.free();
-        console.log('DEBUG: All rows in database:', allRows.length, 'total rows');
-        console.log('DEBUG: All rows:', allRows);
+        this.debug.verbose('All rows in database:', allRows.length, 'total rows');
+        this.debug.verbose('All rows:', allRows);
         
         let resolvedSettings: any = this.getGlobalDefaults();
         let currentSettings: WorkspaceSettings = {};
@@ -335,21 +337,21 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             
             // SECURITY: Validate that the relative path doesn't escape workspace
             if (calculatedRelative.includes('..') || path.isAbsolute(calculatedRelative)) {
-                console.error('SECURITY: Invalid directory path detected in saveWorkspaceSettings:', directoryPath);
-                console.error('SECURITY: Calculated relative path contains path traversal:', calculatedRelative);
-                console.error('SECURITY: Workspace path:', this.workspacePath);
+                this.debug.error('SECURITY: Invalid directory path detected in saveWorkspaceSettings:', directoryPath);
+                this.debug.error('SECURITY: Calculated relative path contains path traversal:', calculatedRelative);
+                this.debug.error('SECURITY: Workspace path:', this.workspacePath);
                 throw new Error(`Invalid directory path: Path traversal detected in ${directoryPath}`);
             }
             
             relativePath = calculatedRelative;
         }
         
-        console.log('DEBUG: saveWorkspaceSettings called for', directoryPath, 'relativePath:', relativePath, 'settings:', settings, 'instanceId:', this.instanceId, 'dbPath:', this.dbPath);
+        this.debug.verbose('saveWorkspaceSettings called for', directoryPath, 'relativePath:', relativePath, 'settings:', settings, 'instanceId:', this.instanceId, 'dbPath:', this.dbPath);
         
         // Process all settings
         for (const [key, value] of Object.entries(settings)) {
             if (value !== undefined) {
-                console.log('DEBUG: Saving setting', key, '=', value, 'for path', relativePath);
+                this.debug.verbose('Saving setting', key, '=', value, 'for path', relativePath);
                 try {
                     const stmt = this.db!.prepare(`
                         INSERT OR REPLACE INTO workspace_settings 
@@ -358,17 +360,17 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
                     `);
 
                     const result = stmt.run([relativePath, key, JSON.stringify(value)]);
-                    console.log(`DEBUG: Insert result for ${key}:`, result, 'changes:', this.db!.getRowsModified());
+                    this.debug.verbose(`Insert result for ${key}:`, result, 'changes:', this.db!.getRowsModified());
                     stmt.free();
                 } catch (error) {
-                    console.error(`ERROR: Failed to save setting ${key}:`, error);
+                    this.debug.error(`Failed to save setting ${key}:`, error);
                     throw error;
                 }
             }
         }
         
         this.saveToFile();
-        console.log('DEBUG: saveWorkspaceSettings completed, data saved to file');
+        this.debug.verbose('saveWorkspaceSettings completed, data saved to file');
         
         // Add a small delay to ensure file operation completes
         await new Promise(resolve => setTimeout(resolve, 10));
@@ -383,7 +385,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             allRows.push(allDataStmt.getAsObject());
         }
         allDataStmt.free();
-        console.log(`DEBUG: All database contents after save:`, allRows);
+        this.debug.verbose(`All database contents after save:`, allRows);
         
         // Then verify the specific path
         const verifyStmt = this.db!.prepare(`
@@ -397,7 +399,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             verifyRows.push(verifyStmt.getAsObject());
         }
         verifyStmt.free();
-        console.log(`DEBUG: Verification query results for path '${relativePath}':`, verifyRows.length > 0 ? verifyRows.map(r => `${r.setting_key}=${r.setting_value}`) : 'NO RESULTS FOUND');
+        this.debug.verbose(`Verification query results for path '${relativePath}':`, verifyRows.length > 0 ? verifyRows.map(r => `${r.setting_key}=${r.setting_value}`) : 'NO RESULTS FOUND');
     }
 
     /**
@@ -448,6 +450,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             'emojis.folders.warning': 'codeCounter.emojis.folders.warning',
             'emojis.folders.danger': 'codeCounter.emojis.folders.danger',
             'excludePatterns': 'codeCounter.excludePatterns',
+            'includePatterns': 'codeCounter.includePatterns',
             // Support group resets
             'emojis': [
                 'codeCounter.emojis.normal',
@@ -465,7 +468,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         
         const settingKeys = fieldMappings[fieldPath];
         if (!settingKeys) {
-            console.warn(`Unknown field path for reset: ${fieldPath}`);
+            this.debug.warning(`Unknown field path for reset: ${fieldPath}`);
             return;
         }
         
@@ -638,11 +641,11 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
                     await this.saveWorkspaceSettings(directoryPath, settings);
                     
                     migrated++;
-                    console.log(`Migrated settings from ${jsonFile}`);
+                    this.debug.info(`Migrated settings from ${jsonFile}`);
                 } catch (error) {
                     const errorMsg = `Failed to migrate ${jsonFile}: ${error}`;
                     errors.push(errorMsg);
-                    console.error(errorMsg);
+                    this.debug.error(errorMsg);
                 }
             }
         } catch (error) {

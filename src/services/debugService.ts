@@ -96,7 +96,7 @@ export class FileBackend implements ILogBackend {
             }
         }
 
-        this.logFilePath = path.resolve(path.join(vscodeDir, 'code-counter.debug.log'));
+        this.logFilePath = path.resolve(path.join(vscodeDir, 'code-counter/debug.log'));
         // Normalize path case on Windows
         if (process.platform === 'win32' && this.logFilePath) {
             // Ensure drive letter is uppercase to match expectations

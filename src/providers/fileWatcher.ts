@@ -30,8 +30,10 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { CountLinesCommand } from '../commands/countLines';
 import { GlobUtils } from '../utils/globUtils';
+import { DebugService } from '../services/debugService';
 
 export class FileWatcherProvider implements vscode.Disposable {
+    private debug = DebugService.getInstance();
     private fileWatcher: vscode.FileSystemWatcher;
     private countLinesCommand: CountLinesCommand;
     private documentSaveWatcher!: vscode.Disposable;
@@ -66,7 +68,7 @@ export class FileWatcherProvider implements vscode.Disposable {
         const config = vscode.workspace.getConfiguration('codeCounter');
         const autoGenerate = config.get<boolean>('autoGenerate', true);
 
-        console.log(`File changed: ${uri.fsPath}, autoGenerate: ${autoGenerate}`);
+        this.debug.verbose(`File changed: ${uri.fsPath}, autoGenerate: ${autoGenerate}`);
 
         if (!autoGenerate) {
             return;
@@ -83,7 +85,7 @@ export class FileWatcherProvider implements vscode.Disposable {
         }
 
         // Debounce the regeneration to avoid too frequent updates
-        console.log(`Triggering auto-generation for: ${relativePath}`);
+        this.debug.info(`Triggering auto-generation for: ${relativePath}`);
         this.debounceRegenerate();
     }
 

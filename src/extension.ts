@@ -77,8 +77,6 @@ import {
 const debug = DebugService.getInstance();
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Code Counter extension is now active!');
-
     // Initialize debug service with configuration monitoring
     const debug = DebugService.getInstance();
     debug.initialize(context);
@@ -92,16 +90,16 @@ export function activate(context: vscode.ExtensionContext) {
         // Trigger migration asynchronously 
         workspaceService.migrateFromJsonFiles().then(migrationResult => {
             if (migrationResult.migrated > 0) {
-                console.log(`VS Code Code Counter: Migrated ${migrationResult.migrated} settings files to database`);
+                debug.info(`VS Code Code Counter: Migrated ${migrationResult.migrated} settings files to database`);
                 vscode.window.showInformationMessage(
                     `Code Counter: Successfully migrated ${migrationResult.migrated} settings files to new database format!`
                 );
             }
             if (migrationResult.errors.length > 0) {
-                console.warn('Migration errors:', migrationResult.errors);
+                debug.warning('Migration errors:', migrationResult.errors);
             }
         }).catch(error => {
-            console.log('Migration check completed:', error);
+            debug.info('Migration check completed:', error);
         });
     }
 
@@ -122,21 +120,21 @@ export function activate(context: vscode.ExtensionContext) {
     
     // Handle .code-counter.json file changes (creation, modification, deletion)
     const onConfigFileChange = configFileWatcher.onDidChange(async (uri) => {
-        console.log('Configuration file changed:', uri.fsPath);
+        debug.verbose('Configuration file changed:', uri.fsPath);
         // Refresh decorators when config files are modified
         fileExplorerDecorator.refresh();
         // EditorTabDecorator will refresh automatically through workspace settings events
     });
     
     const onConfigFileCreate = configFileWatcher.onDidCreate(async (uri) => {
-        console.log('Configuration file created:', uri.fsPath);
+        debug.verbose('Configuration file created:', uri.fsPath);
         // Refresh decorators when new config files are created
         fileExplorerDecorator.refresh();
         // EditorTabDecorator will refresh automatically through workspace settings events
     });
     
     const onConfigFileDelete = configFileWatcher.onDidDelete(async (uri) => {
-        console.log('Configuration file deleted:', uri.fsPath);
+        debug.verbose('Configuration file deleted:', uri.fsPath);
         // Refresh decorators when config files are deleted
         fileExplorerDecorator.refresh();
         // EditorTabDecorator will refresh automatically through workspace settings events

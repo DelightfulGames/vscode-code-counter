@@ -313,6 +313,27 @@ export class SettingsWebviewHandler {
                 await SettingsHandler.handleOpenDebugLogFile();
                 break;
             
+            case 'debugLog':
+                // Handle debug messages from webview
+                const webviewPrefix = '[WEBVIEW]';
+                switch (message.level) {
+                    case 'verbose':
+                        debug.verbose(webviewPrefix, message.message);
+                        break;
+                    case 'info':
+                        debug.info(webviewPrefix, message.message);
+                        break;
+                    case 'warning':
+                        debug.warning(webviewPrefix, message.message);
+                        break;
+                    case 'error':
+                        debug.error(webviewPrefix, message.message);
+                        break;
+                    default:
+                        debug.info(webviewPrefix, message.message);
+                }
+                break;
+            
             default:
                 debug.error(`Unknown webview command: ${message.command}`);
         }

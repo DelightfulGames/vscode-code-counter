@@ -27,8 +27,10 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
+import { DebugService } from './debugService';
 
 export class HtmlGeneratorService {
+    private debug = DebugService.getInstance();
     
     async generateHtmlReport(xmlData: string, workspacePath: string, outputDirectory: string): Promise<void> {
         // Ensure output directory exists
@@ -62,7 +64,7 @@ export class HtmlGeneratorService {
         const xmlFilePath = path.join(fullOutputPath, 'code-counter-data.xml');
         await fs.promises.writeFile(xmlFilePath, xmlData);
         
-        console.log(`Reports generated: ${htmlFilePath} and ${xmlFilePath}`);
+        this.debug.info(`Reports generated: ${htmlFilePath} and ${xmlFilePath}`);
     }
     
     private async ensureDirectoryExists(dirPath: string): Promise<void> {

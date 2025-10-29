@@ -10,6 +10,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { getCurrentConfiguration } from './extensionUtils';
 import type { WorkspaceData } from './extensionUtils';
+import { DebugService } from '../services/debugService';
+
+// Module-level debug instance
+const debug = DebugService.getInstance();
 
 /**
  * Escape HTML for safe rendering
@@ -220,7 +224,7 @@ export function getEmojiPickerWebviewContent(badges: any,
                 workspaceData: workspaceData || null
             };
         } catch (parseError) {
-            console.error('Error parsing emoji data:', parseError);
+            debug.error('Error parsing emoji data:', parseError);
             embeddedData = {
                 emojiData: {},
                 emojiSearchData: {},
@@ -379,7 +383,7 @@ export function getEmojiPickerWebviewContent(badges: any,
         const errorMessage = error instanceof Error ? error.message : String(error);
         const errorStack = error instanceof Error ? error.stack : String(error);
         
-        console.error('Error loading emoji picker template:', error);
+        debug.error('Error loading emoji picker template:', error);
         return `<!DOCTYPE html>
             <html>
             <head><title>Code Counter Settings</title></head>

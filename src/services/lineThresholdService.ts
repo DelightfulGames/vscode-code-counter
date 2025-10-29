@@ -26,6 +26,7 @@
  * Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter
  */
 import * as vscode from 'vscode';
+import { DebugService } from './debugService';
 
 export type ColorThreshold = 'normal' | 'warning' | 'danger';
 
@@ -42,6 +43,7 @@ export interface CustomEmojis {
 }
 
 export class lineThresholdService {
+    private static debug = DebugService.getInstance();
     
     static getCustomEmojis(): CustomEmojis {
         const config = vscode.workspace.getConfiguration('codeCounter.emojis');
@@ -61,7 +63,7 @@ export class lineThresholdService {
         // Ensure High threshold is higher than mid threshold
         if (highThreshold <= midThreshold) {
             highThreshold = midThreshold + 100;
-            console.warn(`High threshold (${config.get('highThreshold')}) must be higher than mid threshold (${midThreshold}). Using ${highThreshold} instead.`);
+            this.debug.warning(`High threshold (${config.get('highThreshold')}) must be higher than mid threshold (${midThreshold}). Using ${highThreshold} instead.`);
         }
         
         return {
