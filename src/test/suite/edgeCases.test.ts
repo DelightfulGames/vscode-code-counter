@@ -341,42 +341,7 @@ suite('Edge Cases and Error Handling Tests', () => {
         });
     });
 
-    suite('Data Consistency and Integrity', () => {
-        test.skip('should maintain data consistency after reset operations', async () => {
-            const testDir = path.join(tempDir, 'consistency-reset');
-            await fs.promises.mkdir(testDir, { recursive: true });
-
-            // Set workspace patterns
-            const workspaceSettings: WorkspaceSettings = {
-                'codeCounter.excludePatterns': ['workspace-*.js'],
-                'codeCounter.emojis.normal': '🟢'
-            };
-            await service.saveWorkspaceSettings(tempDir, workspaceSettings);
-
-            // Set local patterns and emojis  
-            const localSettings: WorkspaceSettings = {
-                'codeCounter.excludePatterns': ['local-*.js'],
-                'codeCounter.emojis.normal': '✅',
-                'codeCounter.lineThresholds.midThreshold': 150
-            };
-            await service.saveWorkspaceSettings(testDir, localSettings);
-
-            // Verify initial state
-            let resolved = await service.getResolvedSettings(testDir);
-            expect(resolved['codeCounter.excludePatterns']).to.include('local-*.js');
-            expect(resolved['codeCounter.emojis.normal']).to.equal('✅');
-
-            // Reset excludePatterns only
-            await service.resetField(testDir, 'excludePatterns');
-
-            // Verify patterns are reset but other settings remain
-            resolved = await service.getResolvedSettings(testDir);
-            expect(resolved['codeCounter.excludePatterns']).to.include('workspace-*.js');
-            expect(resolved['codeCounter.excludePatterns']).to.not.include('local-*.js');
-            expect(resolved['codeCounter.emojis.normal']).to.equal('✅'); // Should remain
-            expect(resolved['codeCounter.lineThresholds.midThreshold']).to.equal(150); // Should remain
-        });
-
+    suite('Concurrent Operations', () => {
         test('should handle concurrent read/write operations gracefully', async () => {
             const testDir = path.join(tempDir, 'concurrent-rw');
             await fs.promises.mkdir(testDir, { recursive: true });

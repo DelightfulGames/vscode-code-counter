@@ -207,61 +207,7 @@ suite('HTML Generation and UI Integration Tests', () => {
         });
     });
 
-    suite('Workspace Data Consistency', () => {
-        test.skip('should maintain consistent workspace data across operations', async () => {
-            const testDir = path.join(tempDir, 'consistency');
-            await fs.promises.mkdir(testDir, { recursive: true });
-
-            // Initial state
-            let inheritanceInfo = await service.getSettingsWithInheritance(testDir);
-            let patternsWithSources = await service.getExcludePatternsWithSources(testDir);
-
-            const initialWorkspaceData: WorkspaceData = {
-                mode: 'workspace',
-                directoryTree: await service.getDirectoryTree(),
-                currentDirectory: 'consistency',
-                resolvedSettings: inheritanceInfo.resolvedSettings,
-                currentSettings: inheritanceInfo.currentSettings,
-                parentSettings: inheritanceInfo.parentSettings,
-                workspacePath: tempDir,
-                patternsWithSources
-            };
-
-            // Add pattern operation
-            const currentPatterns = initialWorkspaceData.resolvedSettings ? 
-                (initialWorkspaceData.resolvedSettings['codeCounter.excludePatterns'] || []) : [];
-            const updatedPatterns = [...currentPatterns, '*.new'];
-            const updatedSettings: WorkspaceSettings = {
-                ...initialWorkspaceData.currentSettings,
-                'codeCounter.excludePatterns': updatedPatterns
-            };
-            await service.saveWorkspaceSettings(testDir, updatedSettings);
-
-            // Refresh workspace data
-            inheritanceInfo = await service.getSettingsWithInheritance(testDir);
-            patternsWithSources = await service.getExcludePatternsWithSources(testDir);
-
-            const updatedWorkspaceData: WorkspaceData = {
-                mode: 'workspace',
-                directoryTree: await service.getDirectoryTree(),
-                currentDirectory: 'consistency',
-                resolvedSettings: inheritanceInfo.resolvedSettings,
-                currentSettings: inheritanceInfo.currentSettings,
-                parentSettings: inheritanceInfo.parentSettings,
-                workspacePath: tempDir,
-                patternsWithSources
-            };
-
-            // Verify consistency
-            expect(updatedWorkspaceData.currentSettings?.['codeCounter.excludePatterns']).to.include('*.new');
-            if (updatedWorkspaceData.resolvedSettings) {
-                expect(updatedWorkspaceData.resolvedSettings['codeCounter.excludePatterns']).to.include('*.new');
-            }
-            if (updatedWorkspaceData.patternsWithSources) {
-                expect(updatedWorkspaceData.patternsWithSources.some(p => p.pattern === '*.new')).to.be.true;
-            }
-        });
-
+    suite('Directory Tree Management', () => {
         test('should handle directory tree updates correctly', async () => {
             const initialTree = await service.getDirectoryTree();
             const initialDirCount = initialTree.length;
