@@ -399,6 +399,8 @@ export function getEmojiPickerWebviewContent(badges: any,
     }
 }
 
+
+
 /**
  * Generate workspace settings HTML
  */
@@ -421,6 +423,9 @@ export function generateWorkspaceSettingsHtml(workspaceData: any): string {
                         workspaceData.currentDirectory === workspaceData.workspacePath ? '<workspace>' :
                         workspaceData.currentDirectory.replace(workspaceData.workspacePath, '').replace(/^[\\\/]/, '');
     
+    // Check if workspace has settings stored in database
+    const workspaceHasSettings = workspaceData?.hasWorkspaceSettings || false;
+    
     return `
         <div class="workspace-settings-container">
             <h3>📁 Directory Settings</h3>
@@ -433,7 +438,7 @@ export function generateWorkspaceSettingsHtml(workspaceData: any): string {
                     <span class="directory-icon">🌐</span>
                     &lt;global&gt;
                 </div>
-                <div class="directory-item ${fs.existsSync(workspaceData.workspacePath + '/.code-counter.json') ? 'has-workspace-settings' : ''} ${workspaceData.currentDirectory === '<workspace>' ? 'selected' : ''}" 
+                <div class="directory-item ${workspaceHasSettings ? 'has-workspace-settings' : ''} ${workspaceData.currentDirectory === '<workspace>' ? 'selected' : ''}" 
                      onclick="selectDirectory('<workspace>')">
                     <span class="directory-icon">📁</span>
                     &lt;workspace&gt;

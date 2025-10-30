@@ -43,6 +43,9 @@ export class SettingsWebviewHandler {
         context: vscode.ExtensionContext, 
         pathBasedSettings: PathBasedSettingsService
     ): Promise<void> {
+        try {
+            debug.info('SettingsWebviewHandler.showCodeCounterSettings called');
+            
         // Create a webview panel for the emoji picker
         const panel = vscode.window.createWebviewPanel(
             'emojiPicker',
@@ -68,7 +71,7 @@ export class SettingsWebviewHandler {
             
             // Migrate from old .code-counter.json files if needed
             try {
-                const migrationResult = await workspaceService.migrateFromJsonFiles();
+                const migrationResult = await workspaceService.migrateAndCleanupJsonFiles();
                 if (migrationResult.migrated > 0) {
                     debug.info(`Migrated ${migrationResult.migrated} settings files to database`);
                 }
@@ -176,7 +179,8 @@ export class SettingsWebviewHandler {
                 } as any,
                 parentSettings: addSourceToSettings(inheritanceInfo.parentSettings),
                 workspacePath,
-                patternsWithSources
+                patternsWithSources,
+                hasWorkspaceSettings
             };
         } else {
             // Fallback to global settings if no workspace
@@ -212,6 +216,11 @@ export class SettingsWebviewHandler {
             setGlobalEmojiPickerPanel(null);
             debug.info('Code Counter settings panel disposed');
         });
+        
+        } catch (error) {
+            debug.error('Failed to show Code Counter settings:', error);
+            throw error;
+        }
     }
 
     /**

@@ -641,6 +641,27 @@ function updateFieldDisplay(field, resolvedSettings) {
 
 // Initialize workspace mode
 function initializeWorkspaceMode() {
+    // Debug: Log workspace data to help diagnose display issues
+    debug.info('initializeWorkspaceMode - workspaceData available:', !!window.workspaceData);
+    if (window.workspaceData) {
+        debug.info('initializeWorkspaceMode - currentDirectory:', window.workspaceData.currentDirectory);
+        debug.info('initializeWorkspaceMode - workspacePath:', window.workspaceData.workspacePath);
+        debug.info('initializeWorkspaceMode - mode:', window.workspaceData.mode);
+        if (window.workspaceData.currentSettings) {
+            const excludePatterns = window.workspaceData.currentSettings['codeCounter.excludePatterns'] || [];
+            debug.info('initializeWorkspaceMode - currentSettings excludePatterns count:', excludePatterns.length);
+            debug.info('initializeWorkspaceMode - currentSettings excludePatterns:', excludePatterns);
+        }
+        if (window.workspaceData.patternsWithSources) {
+            debug.info('initializeWorkspaceMode - patternsWithSources count:', window.workspaceData.patternsWithSources.length);
+            debug.info('initializeWorkspaceMode - patternsWithSources:', window.workspaceData.patternsWithSources.map(p => ({
+                pattern: p.pattern,
+                source: p.source,
+                level: p.level
+            })));
+        }
+    }
+    
     const workspaceModeIndicator = document.getElementById('workspaceModeIndicator');
     
     if (window.workspaceData && window.workspaceData.currentDirectory !== '<global>') {

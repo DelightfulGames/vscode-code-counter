@@ -603,7 +603,7 @@ suite('WorkspaceDatabaseService Comprehensive Tests', () => {
         test('should handle migration from non-existent JSON files', async () => {
             console.log('Testing migration from non-existent JSON files');
             
-            const result = await service.migrateFromJsonFiles();
+            const result = await service.migrateAndCleanupJsonFiles();
             
             console.log('Migration result:', result);
             assert.strictEqual(result.migrated, 0, 'Should migrate 0 files');
@@ -626,7 +626,7 @@ suite('WorkspaceDatabaseService Comprehensive Tests', () => {
             fs.writeFileSync(jsonPath, JSON.stringify(jsonSettings, null, 2));
             
             // Run migration
-            const result = await service.migrateFromJsonFiles();
+            const result = await service.migrateAndCleanupJsonFiles();
             
             console.log('Migration result:', result);
             assert.strictEqual(result.migrated, 1, 'Should migrate 1 file');
@@ -646,7 +646,7 @@ suite('WorkspaceDatabaseService Comprehensive Tests', () => {
             const jsonPath = path.join(subDir, '.code-counter.json');
             fs.writeFileSync(jsonPath, '{ invalid json content');
             
-            const result = await service.migrateFromJsonFiles();
+            const result = await service.migrateAndCleanupJsonFiles();
             
             console.log('Migration result with errors:', result);
             assert.strictEqual(result.migrated, 0, 'Should migrate 0 files');

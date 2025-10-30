@@ -12,6 +12,7 @@ tsconfig.json
 node_modules/**
 !node_modules/fast-xml-parser/**
 !node_modules/strnum/**
+!node_modules/sql.js/**
 
 # Documentation files (exclude all internal docs)
 docs/**

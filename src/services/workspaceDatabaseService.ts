@@ -114,8 +114,19 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         try {
             this.debug.verbose('Initializing database for path:', this.workspacePath);
             const SQL = await initSqlJs({
-                // Use bundled wasm file
-                locateFile: (file: string) => path.join(__dirname, '../../node_modules/sql.js/dist/', file)
+                // Use bundled wasm file - handle both development and packaged extension paths
+                locateFile: (file: string) => {
+                    // Try packaged extension path first
+                    const packagedPath = path.join(__dirname, '../node_modules/sql.js/dist/', file);
+                    if (fs.existsSync(packagedPath)) {
+                        this.debug.verbose('Using packaged sql.js file:', packagedPath);
+                        return packagedPath;
+                    }
+                    // Fallback to development path
+                    const devPath = path.join(__dirname, '../../node_modules/sql.js/dist/', file);
+                    this.debug.verbose('Using development sql.js file:', devPath);
+                    return devPath;
+                }
             });
             
             // Load existing database or create new one
@@ -623,17 +634,27 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
     }
 
     /**
-     * Migrate from old .code-counter.json files
+     * Migrate and cleanup .code-counter.json files
+     * Imports all settings to database and then deletes the JSON files
      */
-    async migrateFromJsonFiles(): Promise<{ migrated: number; errors: string[] }> {
+    async migrateAndCleanupJsonFiles(): Promise<{ migrated: number; deleted: number; errors: string[] }> {
         const errors: string[] = [];
         let migrated = 0;
+        let deleted = 0;
         
         try {
             const jsonFiles = await this.findCodeCounterJsonFiles();
             
+            if (jsonFiles.length === 0) {
+                this.debug.verbose('No .code-counter.json files found to migrate');
+                return { migrated: 0, deleted: 0, errors: [] };
+            }
+            
+            this.debug.info(`Found ${jsonFiles.length} .code-counter.json files to migrate and cleanup`);
+            
             for (const jsonFile of jsonFiles) {
                 try {
+                    // First, try to migrate the settings
                     const content = await fs.promises.readFile(jsonFile, 'utf8');
                     const settings = JSON.parse(content) as WorkspaceSettings;
                     
@@ -642,17 +663,31 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
                     
                     migrated++;
                     this.debug.info(`Migrated settings from ${jsonFile}`);
-                } catch (error) {
-                    const errorMsg = `Failed to migrate ${jsonFile}: ${error}`;
+                    
+                    // After successful migration, delete the JSON file immediately
+                    try {
+                        await fs.promises.unlink(jsonFile);
+                        deleted++;
+                        this.debug.info(`Deleted migrated file: ${jsonFile}`);
+                        
+                    } catch (deleteError) {
+                        const errorMsg = `Failed to delete ${jsonFile} after migration: ${deleteError}`;
+                        errors.push(errorMsg);
+                        this.debug.warning(errorMsg);
+                    }
+                    
+                } catch (migrationError) {
+                    const errorMsg = `Failed to migrate ${jsonFile}: ${migrationError}`;
                     errors.push(errorMsg);
                     this.debug.error(errorMsg);
+                    // Don't delete if migration failed
                 }
             }
         } catch (error) {
             errors.push(`Migration scan failed: ${error}`);
         }
         
-        return { migrated, errors };
+        return { migrated, deleted, errors };
     }
 
     /**

@@ -27,6 +27,7 @@ import {
     getDirectoryTreeFromDatabase, 
     getResolvedSettingsFromDatabase 
 } from '../utils/workspaceUtils';
+import { SettingsWebviewHandler } from '../handlers/settingsWebviewHandler';
 
 const debug = DebugService.getInstance();
 
@@ -424,6 +425,5 @@ function extractInheritanceInfo(workspaceData: WorkspaceData | undefined) {
  */
 export async function showCodeCounterSettings(fileExplorerDecorator: FileExplorerDecorationProvider, context: vscode.ExtensionContext, pathBasedSettings: PathBasedSettingsService): Promise<void> {
     // Delegate to the proper handler class
-    const { SettingsWebviewHandler } = await import('../handlers/settingsWebviewHandler');
     return SettingsWebviewHandler.showCodeCounterSettings(fileExplorerDecorator, context, pathBasedSettings);
 }

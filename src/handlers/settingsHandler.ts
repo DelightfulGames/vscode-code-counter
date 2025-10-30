@@ -228,6 +228,9 @@ export class SettingsHandler {
             // Get exclusion patterns with sources for this directory
             const patternsWithSources = await workspaceService.getExcludePatternsWithSources(targetPath);
 
+            // Check if workspace has settings
+            const hasWorkspaceSettings = directoriesWithSettings.includes(workspacePath);
+            
             // Prepare workspace data for the selected directory
             const workspaceData = {
                 mode: currentDirectory === '<global>' ? 'global' : 'workspace',
@@ -243,7 +246,8 @@ export class SettingsHandler {
                 },
                 parentSettings: addSourceToSettings(inheritanceInfo.parentSettings),
                 workspacePath,
-                patternsWithSources
+                patternsWithSources,
+                hasWorkspaceSettings
             };
 
             // Get badges and settings for this directory

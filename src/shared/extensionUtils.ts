@@ -195,6 +195,7 @@ export interface WorkspaceData {
     workspacePath: string;
     patternsWithSources?: any[];
     includePatternsWithSources?: any[];
+    hasWorkspaceSettings?: boolean;
 }
 
 /**

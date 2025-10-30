@@ -87,19 +87,27 @@ export function activate(context: vscode.ExtensionContext) {
         const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
         const workspaceService = new WorkspaceDatabaseService(workspacePath);
         
-        // Trigger migration asynchronously 
-        workspaceService.migrateFromJsonFiles().then(migrationResult => {
+        // Trigger migration and cleanup asynchronously 
+        workspaceService.migrateAndCleanupJsonFiles().then(migrationResult => {
             if (migrationResult.migrated > 0) {
-                debug.info(`VS Code Code Counter: Migrated ${migrationResult.migrated} settings files to database`);
-                vscode.window.showInformationMessage(
-                    `Code Counter: Successfully migrated ${migrationResult.migrated} settings files to new database format!`
-                );
+                debug.info(`VS Code Code Counter: Migrated ${migrationResult.migrated} settings files and deleted ${migrationResult.deleted} JSON files`);
+                
+                let message = `Code Counter: Successfully migrated ${migrationResult.migrated} settings files to new database format!`;
+                if (migrationResult.deleted > 0) {
+                    message += ` Cleaned up ${migrationResult.deleted} legacy JSON files.`;
+                }
+                
+                vscode.window.showInformationMessage(message);
             }
             if (migrationResult.errors.length > 0) {
                 debug.warning('Migration errors:', migrationResult.errors);
+                vscode.window.showWarningMessage(
+                    `Code Counter: Migration completed with ${migrationResult.errors.length} errors. Check output for details.`
+                );
             }
         }).catch(error => {
-            debug.info('Migration check completed:', error);
+            debug.error('Migration and cleanup failed:', error);
+            vscode.window.showWarningMessage('Code Counter: Failed to migrate legacy settings files. Extension will still work with default settings.');
         });
     }
 
@@ -166,7 +174,14 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const openColorSettingsDisposable = vscode.commands.registerCommand('codeCounter.openSettings', async () => {
-        await showCodeCounterSettings(fileExplorerDecorator, context, pathBasedSettings);
+        try {
+            debug.info('Opening Code Counter settings...');
+            await showCodeCounterSettings(fileExplorerDecorator, context, pathBasedSettings);
+            debug.info('Code Counter settings opened successfully');
+        } catch (error) {
+            debug.error('Failed to open Code Counter settings:', error);
+            vscode.window.showErrorMessage(`Failed to open Code Counter settings: ${error instanceof Error ? error.message : String(error)}`);
+        }
     });
 
     const showReportPanelDisposable = vscode.commands.registerCommand('codeCounter.showReportPanel', async () => {
