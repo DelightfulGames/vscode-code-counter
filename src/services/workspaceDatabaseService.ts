@@ -116,16 +116,30 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             const SQL = await initSqlJs({
                 // Use bundled wasm file - handle both development and packaged extension paths
                 locateFile: (file: string) => {
-                    // Try packaged extension path first
-                    const packagedPath = path.join(__dirname, '../node_modules/sql.js/dist/', file);
-                    if (fs.existsSync(packagedPath)) {
-                        this.debug.verbose('Using packaged sql.js file:', packagedPath);
-                        return packagedPath;
+                    // Multiple path attempts for different extension deployment scenarios
+                    const pathsToTry = [
+                        // Packaged extension - node_modules at same level as out/
+                        path.join(__dirname, '../node_modules/sql.js/dist/', file),
+                        // Development - node_modules at root level
+                        path.join(__dirname, '../../node_modules/sql.js/dist/', file),
+                        // Alternative packaged path - if bundled differently
+                        path.join(__dirname, 'node_modules/sql.js/dist/', file),
+                        // Extension root relative path
+                        path.join(__dirname, '../../../node_modules/sql.js/dist/', file)
+                    ];
+                    
+                    for (const attemptPath of pathsToTry) {
+                        if (fs.existsSync(attemptPath)) {
+                            this.debug.verbose('Using sql.js file:', attemptPath);
+                            return attemptPath;
+                        } else {
+                            this.debug.verbose('sql.js file not found at:', attemptPath);
+                        }
                     }
-                    // Fallback to development path
-                    const devPath = path.join(__dirname, '../../node_modules/sql.js/dist/', file);
-                    this.debug.verbose('Using development sql.js file:', devPath);
-                    return devPath;
+                    
+                    // If none found, log all attempted paths and return default
+                    this.debug.error('sql.js WASM file not found at any expected location:', pathsToTry);
+                    return file; // Let sql.js try to find it
                 }
             });
             
@@ -448,7 +462,38 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     async resetField(directoryPath: string, fieldPath: string): Promise<void> {
         await this.ensureInitialized();
+        
+        if (!this.db) {
+            this.debug.error('❌ Database not initialized in resetField');
+            throw new Error('Database not initialized');
+        }
+        
         const relativePath = path.relative(this.workspacePath, directoryPath).replace(/\\/g, '/');
+        
+        this.debug.info('🔍 resetField called with:', {
+            directoryPath,
+            fieldPath,
+            relativePath,
+            workspacePath: this.workspacePath,
+            dbPath: this.dbPath
+        });
+        
+        // Check current state of database before deletion
+        const checkStmt = this.db.prepare(`
+            SELECT setting_key, setting_value FROM workspace_settings 
+            WHERE directory_path = ?
+        `);
+        const beforeEntries: any[] = [];
+        checkStmt.bind([relativePath]);
+        while (checkStmt.step()) {
+            beforeEntries.push(checkStmt.getAsObject());
+        }
+        checkStmt.free();
+        
+        this.debug.info('📋 Current entries for directory before reset:', {
+            directory: relativePath,
+            entries: beforeEntries
+        });
         
         // Map field paths to database setting keys
         const fieldMappings: { [key: string]: string | string[] } = {
@@ -488,17 +533,115 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         
         // Delete each setting key for this directory
         for (const settingKey of keysToDelete) {
+            this.debug.info('🗑️ Deleting setting from database:', { 
+                directory: relativePath, 
+                settingKey: settingKey 
+            });
+            
             const stmt = this.db!.prepare(`
                 DELETE FROM workspace_settings 
                 WHERE directory_path = ? AND setting_key = ?
             `);
             
             stmt.run([relativePath, settingKey]);
+            this.debug.info('📊 Delete executed for setting:', settingKey);
+            
             stmt.free();
         }
         
+        // Verify deletions by checking remaining entries
+        const verifyStmt = this.db!.prepare(`
+            SELECT setting_key FROM workspace_settings 
+            WHERE directory_path = ? AND setting_key IN (${keysToDelete.map(() => '?').join(',')})
+        `);
+        const remainingEntries: any[] = [];
+        while (verifyStmt.step()) {
+            remainingEntries.push(verifyStmt.getAsObject());
+        }
+        verifyStmt.free();
+        
+        if (remainingEntries.length > 0) {
+            this.debug.warning('⚠️ Some entries were not deleted:', remainingEntries);
+        } else {
+            this.debug.info('✅ All target entries successfully deleted from database');
+        }
+        
+        // Check final state after deletions
+        const finalCheckStmt = this.db.prepare(`
+            SELECT setting_key, setting_value FROM workspace_settings 
+            WHERE directory_path = ?
+        `);
+        const afterEntries: any[] = [];
+        finalCheckStmt.bind([relativePath]);
+        while (finalCheckStmt.step()) {
+            afterEntries.push(finalCheckStmt.getAsObject());
+        }
+        finalCheckStmt.free();
+        
+        this.debug.info('📋 Final entries for directory after reset:', {
+            directory: relativePath,
+            entriesBefore: beforeEntries.length,
+            entriesAfter: afterEntries.length,
+            remainingEntries: afterEntries
+        });
+        
         // Save changes to disk
+        this.debug.info('💾 Saving database changes to disk');
         this.saveToFile();
+        
+        // Verify the file was actually saved by checking its modification time
+        try {
+            const stats = fs.statSync(this.dbPath);
+            this.debug.info('📄 Database file after save:', {
+                path: this.dbPath,
+                size: stats.size,
+                modified: stats.mtime.toISOString()
+            });
+        } catch (error) {
+            this.debug.error('❌ Failed to check database file after save:', error);
+        }
+        
+        // Double-check by re-reading from disk and verifying changes persisted
+        try {
+            const savedData = fs.readFileSync(this.dbPath);
+            const initSqlJs = (await import('sql.js')).default;
+            const SQL = await initSqlJs();
+            const testDb = new SQL.Database(savedData);
+            const verifyStmt = testDb.prepare(`
+                SELECT COUNT(*) as count FROM workspace_settings 
+                WHERE directory_path = ? AND setting_key IN (${keysToDelete.map(() => '?').join(',')})
+            `);
+            verifyStmt.bind([relativePath, ...keysToDelete]);
+            if (verifyStmt.step()) {
+                const result = verifyStmt.getAsObject() as { count: number };
+                this.debug.info('🔍 Verification from saved file - entries still present:', result.count);
+            }
+            verifyStmt.free();
+            testDb.close();
+        } catch (error) {
+            this.debug.error('❌ Failed to verify saved database:', error);
+        }
+    }
+
+    /**
+     * Debug method to get all current settings in database
+     */
+    async getAllSettingsForDebugging(): Promise<{ directory: string; key: string; value: string }[]> {
+        await this.ensureInitialized();
+        const stmt = this.db!.prepare(`
+            SELECT directory_path as directory, setting_key as key, setting_value as value
+            FROM workspace_settings
+            ORDER BY directory_path, setting_key
+        `);
+        
+        const settings: { directory: string; key: string; value: string }[] = [];
+        while (stmt.step()) {
+            settings.push(stmt.getAsObject() as any);
+        }
+        stmt.free();
+        
+        this.debug.info('📊 Current database contents:', settings);
+        return settings;
     }
 
     /**

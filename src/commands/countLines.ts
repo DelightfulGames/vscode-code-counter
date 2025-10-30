@@ -79,12 +79,17 @@ export class CountLinesCommand {
     }
 
     async execute(): Promise<void> {
+        this.debug.info('🚀 CountLinesCommand.execute() called');
+        
         const workspaceFolders = vscode.workspace.workspaceFolders;
         
         if (!workspaceFolders) {
+            this.debug.error('❌ No workspace folder is open');
             vscode.window.showErrorMessage('No workspace folder is open');
             return;
         }
+        
+        this.debug.info('📁 Found workspace folders:', workspaceFolders.length);
 
         // Ask user for output preference
         const choice = await vscode.window.showQuickPick([
@@ -116,11 +121,32 @@ export class CountLinesCommand {
                 // Show in WebView panel using path-based settings
                 const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
                 
-                this.debug.verbose('CountLinesCommand execute results (path-based):', {
+                this.debug.info('CountLinesCommand execute results (path-based):', {
                     totalFiles: results.files?.length || 0,
-                    files: results.files?.map((f: any) => f.relativePath) || []
+                    totalLines: results.totalLines || 0,
+                    workspacePath: results.workspacePath,
+                    languageStats: results.languageStats,
+                    sampleFiles: results.files?.slice(0, 3).map((f: any) => ({ 
+                        path: f.relativePath, 
+                        lines: f.lines, 
+                        language: f.language 
+                    })) || []
                 });
+                
+                this.debug.info('Converting results to report data...');
                 const reportData = this.convertToReportData(results, folder.uri.fsPath);
+                
+                this.debug.info('Converted report data:', {
+                    totalFiles: reportData.summary?.totalFiles || 0,
+                    totalLines: reportData.summary?.totalLines || 0,
+                    filesCount: reportData.files?.length || 0,
+                    languagesCount: reportData.languages?.length || 0,
+                    sampleReportFiles: reportData.files?.slice(0, 3).map(f => ({
+                        path: f.relativePath,
+                        lines: f.lines,
+                        language: f.language
+                    })) || []
+                });
                 
                 const webViewService = WebViewReportService.getInstance();
                 await webViewService.showReport(reportData);
@@ -239,6 +265,15 @@ export class CountLinesCommand {
     }
 
     private convertToReportData(results: any, workspacePath: string): ReportData {
+        this.debug.info('🔍 DEBUG: convertToReportData called with:');
+        this.debug.info('- Results type:', typeof results);
+        this.debug.info('- Results keys:', Object.keys(results || {}));
+        this.debug.info('- Files array length:', results.files?.length || 0);
+        
+        if (results.files && results.files.length > 0) {
+            this.debug.info('- First file sample:', JSON.stringify(results.files[0], null, 2));
+        }
+        
         // Calculate summary statistics
         const summary = {
             totalFiles: results.files?.length || 0,
@@ -248,6 +283,8 @@ export class CountLinesCommand {
             totalBlankLines: results.files?.reduce((sum: number, file: any) => sum + (file.blankLines || 0), 0) || 0,
             languageCount: 0
         };
+        
+        this.debug.info('📊 DEBUG: Calculated summary:', summary);
 
         // Group files by language
         const languageGroups: { [key: string]: any[] } = {};
@@ -286,13 +323,22 @@ export class CountLinesCommand {
             size: file.size || 0
         })) || [];
 
-        return {
+        const reportData = {
             summary,
             languages,
             files,
             workspacePath,
             generatedDate: new Date().toLocaleString()
         };
+        
+        this.debug.info('✅ DEBUG: Final ReportData structure:');
+        this.debug.info('- Summary:', reportData.summary);
+        this.debug.info('- Languages count:', reportData.languages.length);
+        this.debug.info('- Files count:', reportData.files.length);
+        this.debug.info('- First language sample:', reportData.languages[0] || 'none');
+        this.debug.info('- First file sample:', reportData.files[0] || 'none');
+        
+        return reportData;
     }
 
     private refreshDecorations(): void {

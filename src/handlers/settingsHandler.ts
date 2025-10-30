@@ -111,7 +111,7 @@ export class SettingsHandler {
     }
 
     /**
-     * Handle resetEmoji command
+     * Handle resetEmoji command (Reset All Emojis)
      */
     static async handleResetEmoji(
         message: any,
@@ -121,9 +121,92 @@ export class SettingsHandler {
         folderBadges: any,
         thresholds: any
     ): Promise<void> {
-        // This is a complex handler that will be implemented based on the original function
-        // For now, return a placeholder
-        vscode.window.showInformationMessage('Reset emoji functionality needs to be implemented');
+        try {
+            const { currentDirectory, isWorkspaceMode } = message;
+            const debug = DebugService.getInstance();
+            
+            debug.info('🔄 handleResetEmoji (Reset All) called:', { currentDirectory, isWorkspaceMode });
+            
+            if (isWorkspaceMode && currentDirectory && currentDirectory !== '<global>') {
+                // Resolve workspace path and directory correctly for reset all emojis
+                if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+                    debug.error('No workspace folders available for reset all emojis operation');
+                    vscode.window.showErrorMessage('No workspace folders available for reset all emojis operation');
+                    return;
+                }
+
+                const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                let targetDirectory: string;
+
+                if (currentDirectory === '<workspace>') {
+                    targetDirectory = workspaceRoot;
+                } else {
+                    targetDirectory = path.join(workspaceRoot, currentDirectory);
+                }
+
+                debug.info('🎯 Resolved paths for reset all:', { 
+                    workspaceRoot, 
+                    currentDirectory, 
+                    targetDirectory 
+                });
+
+                // Get the workspace service for the workspace root
+                const workspaceService = await getWorkspaceService(workspaceRoot);
+                if (!workspaceService) {
+                    debug.error('Could not find workspace service for workspace root:', workspaceRoot);
+                    vscode.window.showErrorMessage('Could not find workspace service for workspace root');
+                    return;
+                }
+
+                debug.info('📂 Resetting all emoji fields for workspace directory:', targetDirectory);
+                
+                // Reset all emoji fields using the 'emojis' group reset
+                await workspaceService.resetField(targetDirectory, 'emojis');
+                
+                debug.info('✅ All emoji fields reset for workspace');
+                vscode.window.showInformationMessage('All emoji indicators reset to parent/default values successfully!');
+            } else {
+                // Global reset - reset all emojis to their default values
+                debug.info('🌍 Resetting all emoji indicators to global defaults');
+                
+                const config = vscode.workspace.getConfiguration('codeCounter');
+                const emojiDefaults = {
+                    'emojis.normal': '🟢',
+                    'emojis.warning': '🟡',
+                    'emojis.danger': '🔴',
+                    'emojis.folders.normal': '🟩',
+                    'emojis.folders.warning': '🟨',
+                    'emojis.folders.danger': '🟥'
+                };
+                
+                for (const [key, defaultValue] of Object.entries(emojiDefaults)) {
+                    await config.update(key, defaultValue, vscode.ConfigurationTarget.Global);
+                }
+                
+                debug.info('✅ All global emoji settings reset to defaults');
+                vscode.window.showInformationMessage('All emoji indicators reset to default values successfully!');
+            }
+
+            // Refresh decorations to reflect changes
+            if (fileExplorerDecorator && typeof fileExplorerDecorator.refresh === 'function') {
+                fileExplorerDecorator.refresh();
+                debug.info('🔄 File explorer decorations refreshed');
+            }
+
+            // Send refresh message to webview to update the UI
+            if (panel && panel.webview) {
+                panel.webview.postMessage({
+                    command: 'allEmojisReset',
+                    directory: currentDirectory
+                });
+                debug.info('📤 Sent allEmojisReset message to webview');
+            }
+
+        } catch (error) {
+            const debug = DebugService.getInstance();
+            debug.error('Error in handleResetEmoji:', error);
+            vscode.window.showErrorMessage(`Failed to reset emojis: ${error}`);
+        }
     }
 
     /**
@@ -325,8 +408,99 @@ export class SettingsHandler {
         panel: vscode.WebviewPanel,
         fileExplorerDecorator: any
     ): Promise<void> {
-        // This handler resets workspace field
-        vscode.window.showInformationMessage('Reset workspace field functionality needs to be implemented');
+        try {
+            const { field, directory } = message;
+            const debug = DebugService.getInstance();
+            
+            debug.info('🔄 handleResetWorkspaceField called:', { field, directory });
+            
+            if (!field || !directory) {
+                debug.error('Invalid reset field request: missing field or directory', { field, directory });
+                vscode.window.showErrorMessage('Invalid reset field request: missing field or directory');
+                return;
+            }
+
+            // Resolve workspace path and directory correctly
+            if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+                debug.error('No workspace folders available for reset operation');
+                vscode.window.showErrorMessage('No workspace folders available for reset operation');
+                return;
+            }
+
+            const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+            let targetDirectory: string;
+
+            if (directory === '<global>') {
+                debug.error('Cannot reset workspace field in global mode');
+                vscode.window.showErrorMessage('Cannot reset workspace field in global mode');
+                return;
+            } else if (directory === '<workspace>') {
+                targetDirectory = workspaceRoot;
+            } else {
+                targetDirectory = path.join(workspaceRoot, directory);
+            }
+
+            debug.info('🎯 Resolved paths:', { 
+                workspaceRoot, 
+                directory, 
+                targetDirectory 
+            });
+
+            // Get the workspace service for the workspace root
+            const workspaceService = await getWorkspaceService(workspaceRoot);
+            if (!workspaceService) {
+                debug.error('Could not find workspace service for workspace root:', workspaceRoot);
+                vscode.window.showErrorMessage('Could not find workspace service for workspace root');
+                return;
+            }
+
+            debug.info('📂 Found workspace service, resetting field:', { field, targetDirectory });
+            
+            // Remove the specific field from the workspace settings
+            await workspaceService.resetField(targetDirectory, field);
+            
+            debug.info('✅ Field reset completed in database');
+            
+            // Debug: Check what's currently in the database after reset
+            await workspaceService.getAllSettingsForDebugging();
+
+            // Refresh decorations to reflect the change
+            if (fileExplorerDecorator && typeof fileExplorerDecorator.refresh === 'function') {
+                fileExplorerDecorator.refresh();
+            }
+
+            // Send a fieldReset message back to the webview to update the UI
+            if (panel && panel.webview) {
+                panel.webview.postMessage({
+                    command: 'fieldReset',
+                    field: field,
+                    directory: directory
+                });
+            }
+
+            // Determine field type for user-friendly message
+            let fieldDisplayName = field;
+            if (field.includes('emoji')) {
+                if (field.includes('folders')) {
+                    fieldDisplayName = `Folder ${field.split('.').pop()} emoji`;
+                } else {
+                    fieldDisplayName = `File ${field.split('.').pop()} emoji`;
+                }
+            } else if (field.includes('threshold')) {
+                fieldDisplayName = field.includes('mid') ? 'Warning threshold' : 'Danger threshold';
+            } else if (field.includes('exclude')) {
+                fieldDisplayName = 'Exclude patterns';
+            } else if (field.includes('include')) {
+                fieldDisplayName = 'Include patterns';
+            }
+
+            vscode.window.showInformationMessage(`${fieldDisplayName} reset to parent/default successfully`);
+
+        } catch (error) {
+            const debug = DebugService.getInstance();
+            debug.error('Error in handleResetWorkspaceField:', error);
+            vscode.window.showErrorMessage(`Failed to reset field: ${error}`);
+        }
     }
 
     /**

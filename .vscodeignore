@@ -11,12 +11,17 @@ tsconfig.json
 # Exclude dev dependencies but keep runtime dependencies
 node_modules/**
 !node_modules/fast-xml-parser/**
-!node_modules/strnum/**
-!node_modules/minimatch/**
 !node_modules/sql.js/**
+!node_modules/minimatch/**
+!node_modules/@isaacs/brace-expansion/**
+!node_modules/@isaacs/balanced-match/**
+!node_modules/strnum/**
 
 # Documentation files (exclude all internal docs)
 docs/**
+coverage/**
+marketplace/**
+!marketplace/images/codeCounter-icon.png
 
 # Build artifacts
 *.vsix

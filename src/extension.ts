@@ -77,10 +77,12 @@ import {
 const debug = DebugService.getInstance();
 
 export function activate(context: vscode.ExtensionContext) {
-    // Initialize debug service with configuration monitoring
-    const debug = DebugService.getInstance();
-    debug.initialize(context);
-    debug.info('Code Counter extension activated');
+    try {
+        // Initialize debug service with configuration monitoring
+        const debug = DebugService.getInstance();
+        debug.initialize(context);
+        debug.info('Code Counter extension activated');
+        console.log('[CODE-COUNTER] Extension activation started');
 
     // Auto-migrate from .code-counter.json files to database on startup
     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
@@ -153,6 +155,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register commands
     const countLinesDisposable = vscode.commands.registerCommand('codeCounter.countLines', () => {
+        console.log('[CODE-COUNTER] codeCounter.countLines command triggered!');
         countLinesCommand.execute();
     });
 
@@ -202,6 +205,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Add all disposables to context
+    console.log('[CODE-COUNTER] All commands registered successfully');
     context.subscriptions.push(
         countLinesDisposable,
         refreshDecorationsDisposable,
@@ -220,6 +224,27 @@ export function activate(context: vscode.ExtensionContext) {
         onConfigFileCreate,
         onConfigFileDelete
     );
+    
+    } catch (error) {
+        console.error('[CODE-COUNTER] Extension activation failed:', error);
+        const debug = DebugService.getInstance();
+        debug.error('Extension activation failed:', error);
+        
+        // Show user-friendly error message
+        vscode.window.showErrorMessage(
+            `Code Counter extension failed to activate: ${error instanceof Error ? error.message : String(error)}. Check the Developer Console for details.`
+        );
+        
+        // Still try to register a minimal command to help with debugging
+        const diagnosticCommand = vscode.commands.registerCommand('codeCounter.diagnostics', () => {
+            vscode.window.showErrorMessage(`Code Counter activation error: ${error instanceof Error ? error.message : String(error)}`);
+        });
+        
+        context.subscriptions.push(diagnosticCommand);
+        
+        // Re-throw to ensure VS Code knows activation failed
+        throw error;
+    }
 }
 
 export function deactivate() {

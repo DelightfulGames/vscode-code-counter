@@ -113,20 +113,98 @@ export class LineCounterService {
     }
 
     private async getFiles(workspacePath: string, excludePatterns: string[]): Promise<string[]> {
+        this.debug.info('getFiles starting with:', { workspacePath, excludePatterns });
+        
         // Use VS Code's workspace API instead of glob
         const includePattern = new vscode.RelativePattern(workspacePath, '**/*');
         const excludePattern = excludePatterns.length > 0 
             ? `{${excludePatterns.join(',')}}` 
             : undefined;
         
+        this.debug.info('VS Code findFiles patterns:', { includePattern: includePattern.pattern, excludePattern });
+        
         const files = await vscode.workspace.findFiles(includePattern, excludePattern);
+        
+        this.debug.info('VS Code findFiles results:', { 
+            totalFilesFound: files.length,
+            sampleFiles: files.slice(0, 5).map(f => f.fsPath)
+        });
+        
         return files.map(file => file.fsPath);
     }
 
+    /**
+     * Fallback method to get files using Node.js file system when VS Code API fails
+     */
+    private async getFilesWithNodeJS(workspacePath: string): Promise<vscode.Uri[]> {
+        const fs = require('fs').promises;
+        const path = require('path');
+        const files: vscode.Uri[] = [];
+
+        async function walkDir(dir: string): Promise<void> {
+            try {
+                const entries = await fs.readdir(dir, { withFileTypes: true });
+                
+                for (const entry of entries) {
+                    const fullPath = path.join(dir, entry.name);
+                    
+                    if (entry.isDirectory()) {
+                        // Skip common directories that should be ignored
+                        if (!entry.name.startsWith('.') && 
+                            entry.name !== 'node_modules' && 
+                            entry.name !== 'out' && 
+                            entry.name !== 'dist') {
+                            await walkDir(fullPath);
+                        }
+                    } else if (entry.isFile()) {
+                        // Add file to results
+                        files.push(vscode.Uri.file(fullPath));
+                    }
+                }
+            } catch (error) {
+                // Skip directories we can't read
+                console.warn('Cannot read directory:', dir, error);
+            }
+        }
+
+        await walkDir(workspacePath);
+        return files;
+    }
+
     private async getFilesWithInclusions(workspacePath: string, excludePatterns: string[], includePatterns: string[]): Promise<string[]> {
+        this.debug.info('getFilesWithInclusions starting with workspacePath:', workspacePath);
+        
         // Get all files first without any filtering
-        const allFiles = await vscode.workspace.findFiles(new vscode.RelativePattern(workspacePath, '**/*'));
-        const minimatch = require('minimatch').minimatch;
+        let allFiles = await vscode.workspace.findFiles(new vscode.RelativePattern(workspacePath, '**/*'));
+        const { minimatch } = require('minimatch');
+        
+        // Configure minimatch options for v10+ compatibility
+        const minimatchOptions = {
+            dot: true,
+            nocase: false,
+            flipNegate: false,
+            nobrace: false,
+            noglobstar: false,
+            noext: false,
+            nonull: false,
+            windowsPathsNoEscape: true
+        };
+        
+        this.debug.info('VS Code file discovery results in getFilesWithInclusions:', {
+            workspacePath,
+            totalFilesFound: allFiles.length,
+            sampleFiles: allFiles.slice(0, 5).map(f => f.fsPath)
+        });
+        
+        // Fallback: If VS Code findFiles returns nothing, use Node.js fallback
+        if (allFiles.length === 0) {
+            this.debug.warning('VS Code findFiles returned 0 files in getFilesWithInclusions, using Node.js fallback');
+            allFiles = await this.getFilesWithNodeJS(workspacePath);
+            this.debug.info('Node.js fallback results in getFilesWithInclusions:', {
+                totalFilesFound: allFiles.length,
+                sampleFiles: allFiles.slice(0, 5).map(f => f.fsPath)
+            });
+        }
         
         // Convert to file paths
         const filePaths = allFiles.map(file => file.fsPath);
@@ -152,10 +230,10 @@ export class LineCounterService {
             const relativePath = path.relative(workspacePath, filePath).replace(/\\/g, '/');
             
             // Check if file matches any exclusion pattern
-            const isExcluded = excludePatterns.some(pattern => minimatch(relativePath, pattern));
+            const isExcluded = excludePatterns.some(pattern => minimatch(relativePath, pattern, minimatchOptions));
             
             // Check if file matches any inclusion pattern
-            const isIncluded = includePatterns.some(pattern => minimatch(relativePath, pattern));
+            const isIncluded = includePatterns.some(pattern => minimatch(relativePath, pattern, minimatchOptions));
             
             // Inclusion patterns act as overrides for exclusions:
             // 1. If file matches inclusion pattern -> include (even if also excluded)
@@ -309,61 +387,197 @@ export class LineCounterService {
     async countLinesWithPathBasedSettings(workspacePath: string): Promise<LineCountResult> {
         const pathBasedSettings = new PathBasedSettingsService();
         
-        // Get all files first without any filtering
-        const allFiles = await vscode.workspace.findFiles(new vscode.RelativePattern(workspacePath, '**/*'));
-        const minimatch = require('minimatch').minimatch;
+        this.debug.info('countLinesWithPathBasedSettings starting with workspacePath:', workspacePath);
         
-        const filteredFiles: string[] = [];
-        
-        this.debug.verbose('countLinesWithPathBasedSettings processing:', {
-            workspacePath,
-            totalFilesToProcess: allFiles.length
+        // Debug: Check what patterns are available for the workspace root
+        const rootExcludePatterns = await pathBasedSettings.getExcludePatternsForPath(workspacePath);
+        const rootIncludePatterns = await pathBasedSettings.getIncludePatternsForPath(workspacePath);
+        this.debug.info('Root workspace patterns:', {
+            excludePatterns: rootExcludePatterns,
+            includePatterns: rootIncludePatterns
         });
         
+        // Get all files first without any filtering
+        let allFiles = await vscode.workspace.findFiles(new vscode.RelativePattern(workspacePath, '**/*'));
+        const { minimatch } = require('minimatch');
+        
+        // Configure minimatch options for v10+ compatibility
+        const minimatchOptions = {
+            dot: true,           // Match dotfiles (like .gitignore)
+            nocase: false,       // Case sensitive matching
+            flipNegate: false,   // Standard negation behavior
+            nobrace: false,      // Allow brace expansion
+            noglobstar: false,   // Allow ** globstar
+            noext: false,        // Allow extglob patterns
+            nonull: false,       // Don't return null for non-matches
+            windowsPathsNoEscape: true  // Handle Windows paths properly
+        };
+        
+        this.debug.info('VS Code file discovery results:', {
+            workspacePath,
+            totalFilesFound: allFiles.length,
+            sampleFiles: allFiles.slice(0, 5).map(f => f.fsPath)
+        });
+        
+        // Fallback: If VS Code findFiles returns nothing, use Node.js file system
+        if (allFiles.length === 0) {
+            this.debug.warning('VS Code findFiles returned 0 files, using Node.js fallback');
+            allFiles = await this.getFilesWithNodeJS(workspacePath);
+            this.debug.info('Node.js fallback file discovery results:', {
+                totalFilesFound: allFiles.length,
+                sampleFiles: allFiles.slice(0, 5).map(f => f.fsPath || f)
+            });
+        }
+        
+        const filteredFiles: string[] = [];
         let includedViaPattern = 0;
         let excludedCount = 0;
+        
+        /**
+         * Filter out problematic patterns and replace with safe alternatives
+         */
+        const filterProblematicPatterns = (patterns: string[]): string[] => {
+            const safePatterns: string[] = [];
+            
+            for (const pattern of patterns) {
+                const trimmed = pattern.trim();
+                
+                // Remove patterns that would match everything
+                const globalMatchers = ['**/*', '*', '**', '**/**', '**.*', '*.*'];
+                if (globalMatchers.includes(trimmed)) {
+                    this.debug.warning('Filtered out global matcher pattern:', pattern);
+                    continue;
+                }
+                
+                // Handle hidden directory patterns - keep them as they work correctly
+                if (trimmed === '**/.*/**' || trimmed === '**/.*') {
+                    this.debug.verbose('Keeping hidden pattern (works correctly):', pattern);
+                    safePatterns.push(pattern);
+                    continue;
+                }
+                
+                // Keep other reasonable patterns
+                this.debug.verbose('Keeping exclude pattern:', pattern);
+                safePatterns.push(pattern);
+            }
+            
+            return safePatterns;
+        };
         
         for (const fileUri of allFiles) {
             const filePath = fileUri.fsPath;
             const relativePath = path.relative(workspacePath, filePath).replace(/\\/g, '/');
             
-            // Get path-specific patterns for this file
-            const excludePatterns = await pathBasedSettings.getExcludePatternsForPath(filePath);
-            const includePatterns = await pathBasedSettings.getIncludePatternsForPath(filePath);
+            // Get path-specific patterns for this file (restored hierarchical settings)
+            let rawExcludePatterns = await pathBasedSettings.getExcludePatternsForPath(filePath);
+            let includePatterns = await pathBasedSettings.getIncludePatternsForPath(filePath);
             
-            // Check if file matches any exclusion pattern
-            const isExcluded = excludePatterns.some(pattern => minimatch(relativePath, pattern));
+            // Filter out problematic exclude patterns
+            const excludePatterns = filterProblematicPatterns(rawExcludePatterns);
             
-            // Check if file matches any inclusion pattern
-            const isIncluded = includePatterns.some(pattern => minimatch(relativePath, pattern));
+            // Debug first few files to see what's happening
+            if (filteredFiles.length < 10) {
+                this.debug.info('File filtering debug:', {
+                    filePath,
+                    relativePath,
+                    rawExcludePatterns,
+                    filteredExcludePatterns: excludePatterns,
+                    includePatterns,
+                    // Test the problematic pattern manually
+                    manualTestDotPattern: minimatch(relativePath, '**/.*/**', minimatchOptions),
+                    pathParts: relativePath.split('/'),
+                    hasHiddenDirInPath: relativePath.split('/').some(part => part.startsWith('.') && part !== '.' && part !== '..')
+                });
+            }
             
-            // Inclusion patterns act as overrides for exclusions:
-            // 1. If file matches inclusion pattern -> include (even if also excluded)
-            // 2. If file doesn't match inclusion pattern but is excluded -> exclude
-            // 3. If file doesn't match inclusion pattern and is not excluded -> include
-            if (isIncluded || !isExcluded) {
-                filteredFiles.push(filePath);
-                if (isIncluded) {
-                    includedViaPattern++;
-                    this.debug.verbose('File included via path-based pattern:', {
-                        relativePath,
-                        filePath,
-                        matchedPattern: includePatterns.find(pattern => minimatch(relativePath, pattern)),
-                        includePatterns,
-                        excludePatterns
-                    });
+            // Check if file matches any exclusion pattern with detailed logging
+            let isExcluded = false;
+            let excludingPattern = '';
+            for (const pattern of excludePatterns) {
+                if (minimatch(relativePath, pattern, minimatchOptions)) {
+                    isExcluded = true;
+                    excludingPattern = pattern;
+                    break;
                 }
+            }
+            
+            // Check if file matches any inclusion pattern (only when include patterns exist)
+            const hasIncludePatterns = includePatterns.length > 0;
+            const matchesInclusionPattern = hasIncludePatterns && includePatterns.some((pattern: string) => minimatch(relativePath, pattern, minimatchOptions));
+            
+            // Debug pattern matching results for first few files
+            if (filteredFiles.length < 10) {
+                this.debug.info('Pattern matching details:', {
+                    relativePath,
+                    isExcluded,
+                    excludingPattern: excludingPattern || 'none',
+                    hasIncludePatterns,
+                    matchesInclusionPattern,
+                    includePatterns,
+                    fileExtension: path.extname(relativePath),
+                    // Test simple patterns manually
+                    testSimple: {
+                        matchesNodeModules: minimatch(relativePath, '**/node_modules/**', minimatchOptions),
+                        matchesDotGit: minimatch(relativePath, '**/.git/**', minimatchOptions),
+                        matchesAnyJs: minimatch(relativePath, '**/*.js', minimatchOptions),
+                        matchesAnyTs: minimatch(relativePath, '**/*.ts', minimatchOptions),
+                        isRootFile: !relativePath.includes('/') && !relativePath.includes('\\')
+                    }
+                });
+            }
+            
+            // Apply inclusion/exclusion logic exactly like the decorator:
+            // - If include patterns exist and file matches one, include it (overrides exclusion)
+            // - If include patterns exist and file doesn't match any, exclude it
+            // - If no include patterns exist, include unless excluded
+            let shouldIncludeFile: boolean;
+            if (hasIncludePatterns) {
+                shouldIncludeFile = matchesInclusionPattern; // Only include if explicitly included
+            } else {
+                shouldIncludeFile = !isExcluded; // Include unless explicitly excluded
+            }
+            
+            if (shouldIncludeFile) {
+                filteredFiles.push(filePath);
+                if (matchesInclusionPattern) {
+                    includedViaPattern++;
+                }
+                this.debug.verbose('File included:', { 
+                    relativePath, 
+                    matchesInclusionPattern, 
+                    isExcluded,
+                    hasIncludePatterns,
+                    reason: matchesInclusionPattern ? 'inclusion pattern override' : 'not excluded' 
+                });
             } else {
                 excludedCount++;
+                this.debug.verbose('File excluded:', { 
+                    relativePath, 
+                    isExcluded, 
+                    excludingPattern: excludingPattern || 'none',
+                    matchesInclusionPattern,
+                    hasIncludePatterns,
+                    reason: hasIncludePatterns ? 'no inclusion pattern match' : 'matched exclusion pattern'
+                });
             }
         }
         
-        this.debug.verbose('countLinesWithPathBasedSettings results:', {
+        // Analyze file extensions in the workspace
+        const allExtensions = new Set(allFiles.map(f => path.extname(f.fsPath).toLowerCase()));
+        const includedExtensions = new Set(filteredFiles.map(f => path.extname(f).toLowerCase()));
+        
+        this.debug.info('countLinesWithPathBasedSettings filtering results:', {
             totalProcessed: allFiles.length,
             totalIncluded: filteredFiles.length,
             includedViaPattern,
-            excludedCount
+            excludedCount,
+            sampleIncludedFiles: filteredFiles.slice(0, 5),
+            allIncludedFiles: filteredFiles.slice(0, 20).map(f => path.relative(workspacePath, f).replace(/\\/g, '/')),
+            allExtensionsFound: Array.from(allExtensions).sort(),
+            includedExtensions: Array.from(includedExtensions).sort()
         });
+        
+        this.debug.info('Starting line counting for filtered files...');
         
         // Now count lines for the filtered files
         const fileInfos: FileInfo[] = [];
@@ -373,7 +587,14 @@ export class LineCounterService {
 
         for (const filePath of filteredFiles) {
             try {
+                this.debug.verbose(`Counting lines in: ${filePath}`);
                 const fileInfo = await this.countFileLines(filePath, workspacePath);
+                this.debug.verbose(`Line count result for ${filePath}:`, {
+                    lines: fileInfo.lines,
+                    language: fileInfo.language,
+                    fileSize: fileInfo.size || 'unknown'
+                });
+                
                 fileInfos.push(fileInfo);
                 
                 totalLines += fileInfo.lines;
@@ -387,9 +608,17 @@ export class LineCounterService {
                 languageStats[fileInfo.language].lines += fileInfo.lines;
                 
             } catch (error) {
-                this.debug.warning(`Failed to count lines in ${filePath}:`, error);
+                this.debug.error(`Failed to count lines in ${filePath}:`, error);
             }
         }
+        
+        this.debug.info('Line counting completed:', {
+            totalFilesProcessed: filteredFiles.length,
+            successfulCounts: fileInfos.length,
+            totalLines,
+            totalFiles,
+            languageStats
+        });
 
         return {
             workspacePath,

@@ -32,6 +32,7 @@ import { HtmlGeneratorService } from './htmlGenerator';
 import { XmlGeneratorService } from './xmlGenerator';
 import { LineCountResult } from '../types';
 import { DebugService } from './debugService';
+import { LineCounterService } from './lineCounter';
 
 export interface ReportData {
     summary: {
@@ -85,6 +86,13 @@ export class WebViewReportService {
     }
 
     public async showReport(data: ReportData): Promise<void> {
+        this.debug.info('🌐 DEBUG: WebViewReportService.showReport called');
+        this.debug.info('- Data type:', typeof data);
+        this.debug.info('- Data keys:', Object.keys(data || {}));
+        this.debug.info('- Summary data:', data?.summary);
+        this.debug.info('- Files count:', data?.files?.length || 0);
+        this.debug.info('- Languages count:', data?.languages?.length || 0);
+        
         // Store current data for export functionality
         this.currentData = data;
         
@@ -114,7 +122,7 @@ export class WebViewReportService {
             languageCount: data.languages.length,
             fileCount: data.files.length
         });
-        this.currentPanel.webview.html = this.generateWebViewHTML(data);
+        this.currentPanel.webview.html = await this.generateWebViewHTML(data);
 
         // Handle panel disposal
         this.currentPanel.onDidDispose(() => {
@@ -126,8 +134,31 @@ export class WebViewReportService {
             async message => {
                 switch (message.command) {
                     case 'refresh':
-                        // Trigger refresh by asking for new data
-                        vscode.commands.executeCommand('codeCounter.showReportPanel');
+                        // Trigger refresh by regenerating data and updating current panel
+                        this.debug.info('🔄 Refresh requested from webview');
+                        try {
+                            const workspaceFolders = vscode.workspace.workspaceFolders;
+                            
+                            if (!workspaceFolders) {
+                                this.debug.error('❌ No workspace folder is open for refresh');
+                                return;
+                            }
+
+                            // Generate new data using the same pattern as CountLinesCommand
+                            this.debug.info('🔄 Regenerating line count data...');
+                            const lineCounter = new LineCounterService();
+                            const folder = workspaceFolders[0];
+                            const results = await lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
+                            
+                            // Convert to ReportData format (using the same conversion logic)
+                            const newData = this.convertLineCountToReportData(results, folder.uri.fsPath);
+                            
+                            this.debug.info('🔄 New data generated, updating panel');
+                            await this.updatePanelData(newData);
+                            
+                        } catch (error) {
+                            this.debug.error('❌ Error during refresh:', error);
+                        }
                         break;
                     case 'export':
                         // Handle export requests with current data
@@ -160,11 +191,17 @@ export class WebViewReportService {
         );
     }
 
-    private updatePanelData(data: ReportData): void {
+    private async updatePanelData(data: ReportData): Promise<void> {
+        this.debug.info('🔄 DEBUG: updatePanelData called');
+        this.debug.info('- Data summary:', data?.summary);
+        this.debug.info('- Data files count:', data?.files?.length || 0);
+        this.debug.info('- Panel exists:', !!this.currentPanel);
+        
         // Store the updated data
         this.currentData = data;
         
         if (this.currentPanel) {
+            this.debug.info('📤 DEBUG: Posting message to webview with data');
             // Send new data to existing panel
             this.currentPanel.webview.postMessage({
                 command: 'updateData',
@@ -173,88 +210,27 @@ export class WebViewReportService {
         }
     }
 
-    private generateWebViewHTML(data: ReportData): string {
-        // Separate the data from presentation
-        const jsonData = JSON.stringify(data, null, 2);
+    private async generateWebViewHTML(data: ReportData): Promise<string> {
+        // Read the webview-specific template file
+        const templatePath = path.join(__dirname, '../../templates/webview-report.html');
+        let htmlTemplate = await fs.promises.readFile(templatePath, 'utf8');
         
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Code Counter Report</title>
-    <style>
-        ${this.getWebViewStyles()}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>📊 Code Counter Report</h1>
-            <p>Generated on <span id="generated-date"></span></p>
-            <p>Workspace: <span id="workspace-path"></span></p>
-            <div class="actions">
-                <button id="refresh-btn" title="Refresh Data">🔄 Refresh</button>
-                <button id="export-btn" title="Export to HTML">📄 Export</button>
-            </div>
-        </div>
-
-        <div id="loading-indicator" class="loading hidden">
-            <div class="spinner"></div>
-            Loading report data...
-        </div>
-
-        <div id="error-message" class="error hidden">
-            <strong>Error:</strong> <span id="error-text"></span>
-        </div>
-
-        <div id="report-content">
-            <div class="stats-grid" id="summary-stats">
-                <!-- Will be populated by JavaScript -->
-            </div>
-
-            <div class="section">
-                <h2>📈 Language Statistics</h2>
-                <div class="language-stats" id="language-stats">
-                    <!-- Will be populated by JavaScript -->
-                </div>
-            </div>
-
-            <div class="section">
-                <h2>📁 File Details</h2>
-                <input type="text" class="search-box" id="file-search" placeholder="Search files..." />
-                <div class="table-container">
-                    <table class="files-table">
-                        <thead>
-                            <tr>
-                                <th>File Path</th>
-                                <th>Language</th>
-                                <th>Total Lines</th>
-                                <th>Code Lines</th>
-                                <th>Comment Lines</th>
-                                <th>Blank Lines</th>
-                                <th>File Size</th>
-                            </tr>
-                        </thead>
-                        <tbody id="files-tbody">
-                            <!-- Will be populated by JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Data is embedded but kept separate from presentation logic
-        const reportData = ${jsonData};
+        // Replace template placeholders with actual data
+        htmlTemplate = htmlTemplate.replace('{{GENERATED_DATE}}', data.generatedDate);
+        htmlTemplate = htmlTemplate.replace('{{WORKSPACE_PATH}}', data.workspacePath);
         
-        ${this.getWebViewScript()}
-    </script>
-</body>
-</html>`;
+        // Embed JSON data directly (much simpler than XML conversion)
+        const jsonData = JSON.stringify(data).replace(/\\/g, '\\\\')
+                                           .replace(/\r?\n/g, '\\n')
+                                           .replace(/'/g, "\\'");
+        
+        // Embed the JSON data for the template to use
+        htmlTemplate = htmlTemplate.replace('{{JSON_DATA}}', jsonData);
+        
+        return htmlTemplate;
     }
 
+    // UNUSED: Now using template file instead of inline HTML
     private getWebViewStyles(): string {
         return `
             body {
@@ -465,180 +441,6 @@ export class WebViewReportService {
         `;
     }
 
-    private getWebViewScript(): string {
-        return `
-            // VS Code API for message passing
-            const vscode = acquireVsCodeApi();
-            
-            // Initialize report with data
-            function initializeReport(data) {
-                try {
-                    this.debug.verbose('WebView: Initializing report with data:', data);
-                    populateReport(data);
-                    this.debug.verbose('WebView: Report populated successfully');
-                } catch (error) {
-                    this.debug.error('Error initializing report:', error);
-                    showError('Failed to initialize report: ' + error.message);
-                }
-            }
-            
-            // Populate report sections
-            function populateReport(data) {
-                // Update header
-                document.getElementById('generated-date').textContent = data.generatedDate;
-                document.getElementById('workspace-path').textContent = data.workspacePath;
-                
-                // Populate summary statistics
-                const summaryDiv = document.getElementById('summary-stats');
-                summaryDiv.innerHTML = createSummaryHTML(data.summary);
-                
-                // Populate language statistics
-                const langDiv = document.getElementById('language-stats');
-                langDiv.innerHTML = createLanguageStatsHTML(data.languages);
-                
-                // Populate files table
-                const tbody = document.getElementById('files-tbody');
-                tbody.innerHTML = createFilesTableHTML(data.files);
-                
-                // Setup search functionality
-                setupFileSearch();
-                
-                // Setup action buttons
-                setupActionButtons();
-            }
-            
-            function createSummaryHTML(summary) {
-                const avgLinesPerFile = summary.totalFiles > 0 ? Math.round(summary.totalLines / summary.totalFiles) : 0;
-                
-                return \`
-                    <div class="stat-card">
-                        <h3>Total Files</h3>
-                        <p class="value">\${formatNumber(summary.totalFiles)}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Total Lines</h3>
-                        <p class="value">\${formatNumber(summary.totalLines)}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Code Lines</h3>
-                        <p class="value">\${formatNumber(summary.totalCodeLines)}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Languages</h3>
-                        <p class="value">\${summary.languageCount}</p>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Avg Lines/File</h3>
-                        <p class="value">\${formatNumber(avgLinesPerFile)}</p>
-                    </div>
-                \`;
-            }
-            
-            function createLanguageStatsHTML(languages) {
-                return languages.map(lang => \`
-                    <div class="language-item">
-                        <div class="language-name">\${escapeHtml(lang.name)}</div>
-                        <div class="language-details">
-                            <span>Files: \${formatNumber(lang.files)}</span>
-                            <span>Lines: \${formatNumber(lang.lines)}</span>
-                            <span>Code: \${formatNumber(lang.codeLines)}</span>
-                            <span>Comments: \${formatNumber(lang.commentLines)}</span>
-                        </div>
-                    </div>
-                \`).join('');
-            }
-            
-            function createFilesTableHTML(files) {
-                return files.map(file => \`
-                    <tr>
-                        <td class="file-path" title="\${escapeHtml(file.path)}">\${escapeHtml(file.relativePath || file.path)}</td>
-                        <td><span class="language-badge">\${escapeHtml(file.language)}</span></td>
-                        <td>\${formatNumber(file.lines)}</td>
-                        <td>\${formatNumber(file.codeLines)}</td>
-                        <td>\${formatNumber(file.commentLines)}</td>
-                        <td>\${formatNumber(file.blankLines)}</td>
-                        <td>\${formatBytes(file.size)}</td>
-                    </tr>
-                \`).join('');
-            }
-            
-            function setupFileSearch() {
-                const searchBox = document.getElementById('file-search');
-                const tbody = document.getElementById('files-tbody');
-                
-                searchBox.addEventListener('input', function() {
-                    const filter = this.value.toLowerCase();
-                    const rows = tbody.querySelectorAll('tr');
-                    
-                    rows.forEach(row => {
-                        const filePath = row.querySelector('.file-path').textContent.toLowerCase();
-                        row.style.display = filePath.includes(filter) ? '' : 'none';
-                    });
-                });
-            }
-            
-            function setupActionButtons() {
-                document.getElementById('refresh-btn').addEventListener('click', () => {
-                    vscode.postMessage({ command: 'refresh' });
-                });
-                
-                document.getElementById('export-btn').addEventListener('click', () => {
-                    vscode.postMessage({ command: 'export' });
-                });
-            }
-            
-            // Utility functions
-            function formatNumber(num) {
-                return num.toLocaleString();
-            }
-            
-            function formatBytes(bytes) {
-                if (bytes === 0) return '0 B';
-                const k = 1024;
-                const sizes = ['B', 'KB', 'MB', 'GB'];
-                const i = Math.floor(Math.log(bytes) / Math.log(k));
-                return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-            }
-            
-            function escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
-            
-            function showError(message) {
-                document.getElementById('error-text').textContent = message;
-                document.getElementById('error-message').classList.remove('hidden');
-                document.getElementById('report-content').classList.add('hidden');
-            }
-            
-            // Handle messages from extension
-            window.addEventListener('message', event => {
-                const message = event.data;
-                switch (message.command) {
-                    case 'updateData':
-                        populateReport(message.data);
-                        break;
-                }
-            });
-            
-            // Initialize on load
-            document.addEventListener('DOMContentLoaded', () => {
-                this.debug.verbose('WebView: DOM ready, initializing report...');
-                this.debug.verbose('WebView: reportData available:', !!reportData, typeof reportData);
-                initializeReport(reportData);
-            });
-            
-            // Fallback initialization if DOM is already loaded
-            if (document.readyState === 'loading') {
-                this.debug.verbose('WebView: DOM still loading, waiting for DOMContentLoaded');
-            } else {
-                this.debug.verbose('WebView: DOM already ready, initializing immediately');
-                setTimeout(() => initializeReport(reportData), 0);
-            }
-        `;
-    }
-
     private async exportReport(data: ReportData): Promise<void> {
         // Show export options to user
         const exportChoice = await vscode.window.showQuickPick([
@@ -779,22 +581,32 @@ export class WebViewReportService {
     }
 
     private async generateStandaloneHtml(data: ReportData, xmlData: string): Promise<string> {
-        // Read the template
+        // Use the report.html template (not webview template) for standalone exports
         const templatePath = path.join(__dirname, '../../templates/report.html');
-        let htmlTemplate = await fs.promises.readFile(templatePath, 'utf8');
+        let htmlContent = await fs.promises.readFile(templatePath, 'utf8');
         
-        // Replace placeholders with embedded data (standalone version)
-        htmlTemplate = htmlTemplate.replace('{{GENERATED_DATE}}', data.generatedDate);
-        htmlTemplate = htmlTemplate.replace('{{WORKSPACE_PATH}}', data.workspacePath);
+        // Replace template placeholders like the HTML generator does
+        htmlContent = htmlContent.replace('{{GENERATED_DATE}}', data.generatedDate);
+        htmlContent = htmlContent.replace('{{WORKSPACE_PATH}}', data.workspacePath);
         
-        // Embed XML data as fallback (this will work even with file:// protocol)
-        const escapedXmlData = xmlData.replace(/\\/g, '\\\\')
-                                        .replace(/\r?\n/g, '\\n')
-                                        .replace(/'/g, "\\'");
-                                        
-        htmlTemplate = htmlTemplate.replace('{{XML_DATA_FALLBACK}}', escapedXmlData);
+        // Get version from package.json
+        const packageJsonPath = path.join(__dirname, '../../package.json');
+        const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, 'utf8'));
+        const version = packageJson.version;
+        htmlContent = htmlContent.replace(/v0\.12\.1/g, `v${version}`);
         
-        return htmlTemplate;
+        // Embed the XML data (this is the key fix!)
+        const escapedXmlData = this.escapeForJavaScript(xmlData);
+        htmlContent = htmlContent.replace('{{XML_DATA_FALLBACK}}', escapedXmlData);
+        
+        // Add a note about being exported
+        htmlContent = htmlContent.replace(
+            '<h1>Code Counter Report</h1>',
+            '<h1>Code Counter Report</h1>\n        <div style="background: #e8f4f8; padding: 8px; border-radius: 4px; margin-bottom: 16px; font-size: 0.9em; color: #0066cc;">📄 Exported HTML Report - Standalone Version</div>'
+        );
+        
+        this.debug.info('Standalone HTML generated successfully with embedded XML data');
+        return htmlContent;
     }
 
     private async generateLinkedHtml(data: ReportData, xmlFileName: string): Promise<string> {
@@ -806,17 +618,103 @@ export class WebViewReportService {
         htmlTemplate = htmlTemplate.replace('{{GENERATED_DATE}}', data.generatedDate);
         htmlTemplate = htmlTemplate.replace('{{WORKSPACE_PATH}}', data.workspacePath);
         
-        // Don't embed XML data - let it load from external file
-        htmlTemplate = htmlTemplate.replace('{{XML_DATA_FALLBACK}}', '');
+        // Get version from package.json
+        const packageJsonPath = path.join(__dirname, '../../package.json');
+        const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, 'utf8'));
+        const version = packageJson.version;
+        htmlTemplate = htmlTemplate.replace(/v0\.12\.1/g, `v${version}`);
         
-        // Update the fetch URL to point to the specific XML file
-        htmlTemplate = htmlTemplate.replace('./code-counter-data.xml', `./${xmlFileName}`);
+        // Generate and embed XML data (even though we also save a separate XML file)
+        // This ensures the HTML works standalone if the XML file is missing
+        const xmlData = this.convertReportDataToXml(data);
+        const escapedXmlData = this.escapeForJavaScript(xmlData);
+        htmlTemplate = htmlTemplate.replace('{{XML_DATA_FALLBACK}}', escapedXmlData);
+        
+        // Add a note about the separate XML file
+        htmlTemplate = htmlTemplate.replace(
+            '<h1>Code Counter Report</h1>',
+            `<h1>Code Counter Report</h1>\n        <div style="background: #e8f4f8; padding: 8px; border-radius: 4px; margin-bottom: 16px; font-size: 0.9em; color: #0066cc;">📊 HTML + XML Export - Data also available in: ${xmlFileName}</div>`
+        );
         
         return htmlTemplate;
+    }
+
+    private convertLineCountToReportData(results: any, workspacePath: string): ReportData {
+        this.debug.info('🔍 Converting line count results to ReportData');
+        
+        // Calculate summary statistics
+        const summary = {
+            totalFiles: results.files?.length || 0,
+            totalLines: results.files?.reduce((sum: number, file: any) => sum + (file.lines || 0), 0) || 0,
+            totalCodeLines: results.files?.reduce((sum: number, file: any) => sum + (file.codeLines || 0), 0) || 0,
+            totalCommentLines: results.files?.reduce((sum: number, file: any) => sum + (file.commentLines || 0), 0) || 0,
+            totalBlankLines: results.files?.reduce((sum: number, file: any) => sum + (file.blankLines || 0), 0) || 0,
+            languageCount: 0
+        };
+
+        // Group files by language
+        const languageGroups: { [key: string]: any[] } = {};
+        results.files?.forEach((file: any) => {
+            const lang = file.language || 'Unknown';
+            if (!languageGroups[lang]) {
+                languageGroups[lang] = [];
+            }
+            languageGroups[lang].push(file);
+        });
+
+        // Calculate language statistics
+        const languages = Object.keys(languageGroups).map(langName => {
+            const langFiles = languageGroups[langName];
+            return {
+                name: langName,
+                files: langFiles.length,
+                lines: langFiles.reduce((sum, file) => sum + (file.lines || 0), 0),
+                codeLines: langFiles.reduce((sum, file) => sum + (file.codeLines || 0), 0),
+                commentLines: langFiles.reduce((sum, file) => sum + (file.commentLines || 0), 0),
+                blankLines: langFiles.reduce((sum, file) => sum + (file.blankLines || 0), 0)
+            };
+        });
+
+        summary.languageCount = languages.length;
+
+        // Prepare files data
+        const files = results.files?.map((file: any) => ({
+            path: file.path || '',
+            relativePath: file.relativePath || '',
+            language: file.language || 'Unknown',
+            lines: file.lines || 0,
+            codeLines: file.codeLines || 0,
+            commentLines: file.commentLines || 0,
+            blankLines: file.blankLines || 0,
+            size: file.size || 0
+        })) || [];
+
+        return {
+            summary,
+            languages,
+            files,
+            workspacePath,
+            generatedDate: new Date().toISOString()
+        };
     }
 
     private getDateString(): string {
         const now = new Date();
         return now.toISOString().slice(0, 19).replace(/[:.]/g, '-');
+    }
+
+    private escapeForJavaScript(xmlData: string): string {
+        return xmlData
+            .replace(/\\/g, '\\\\')    // Escape backslashes first
+            .replace(/'/g, "\\'")      // Escape single quotes
+            .replace(/"/g, '\\"')      // Escape double quotes
+            .replace(/\r?\n/g, '\\n')  // Escape newlines
+            .replace(/\r/g, '\\r')     // Escape carriage returns
+            .replace(/\t/g, '\\t')     // Escape tabs
+            .replace(/\f/g, '\\f')     // Escape form feeds
+            .replace(/\v/g, '\\v')     // Escape vertical tabs
+            .replace(/\0/g, '\\0')     // Escape null characters
+            .replace(/\u2028/g, '\\u2028') // Escape line separator
+            .replace(/\u2029/g, '\\u2029'); // Escape paragraph separator
     }
 }
