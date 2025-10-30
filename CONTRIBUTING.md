@@ -20,7 +20,7 @@ cd vscode-code-counter
 ```bash
 npm install
 ```
-3. Run all 51 tests
+3. Run all 249 tests
 ```bash
 npm run test
 ```

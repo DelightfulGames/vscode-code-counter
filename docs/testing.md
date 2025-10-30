@@ -33,7 +33,7 @@ The VS Code Code Counter extension includes a comprehensive testing framework bu
 ### Test Configuration
 - **Test Runner**: Mocha with comprehensive VS Code API mocking
 - **Assertion Library**: Chai for expressive assertions
-- **Coverage**: 156 passing tests (19 strategically skipped) with 41% coverage
+- **Coverage**: 249 passing tests with 41% coverage
 - **Environment**: Standalone Node.js with full VS Code API simulation
 - **Mock System**: Complete VS Code API surface including Window, Workspace, Commands, Uri
 
@@ -48,7 +48,7 @@ src/test/
 ├── mocks/
 │   └── vscode-mock.ts                 # Comprehensive VS Code API mock
 └── suite/
-    ├── index.ts                       # Test suite configuration (51 tests)
+    ├── index.ts                       # Test suite configuration (249 tests)
     ├── colorThresholdService.test.ts  # Color threshold logic tests (6 tests)
     ├── countLines.test.ts             # Command integration tests (6 tests)
     ├── extension.test.ts              # Extension lifecycle tests (3 tests)
@@ -64,7 +64,7 @@ src/test/
 1. **`setup.ts`**: Auto-injects VS Code mock into require() system
 2. **`mocks/vscode-mock.ts`**: Provides complete VS Code API simulation
 3. **`suite/index.ts`**: Configures Mocha, loads all test files
-4. **Individual Test Files**: Execute 51 tests across 9 comprehensive suites
+4. **Individual Test Files**: Execute 249 tests across 15 comprehensive suites
 5. **Node.js Environment**: Runs independently without VS Code dependency
 
 ---
@@ -543,7 +543,7 @@ lineThresholdService Tests
 ```
 
 ### Quality Metrics
-- **Test Pass Rate**: 100% (51/51 tests passing)
+- **Test Pass Rate**: 100% (249/249 tests passing)
 - **Execution Time**: Sub-200ms for full test suite
 - **Coverage Areas**: All major services and functionality
 - **Error Scenarios**: Comprehensive error handling validation

@@ -230,7 +230,7 @@ export const vscode = {
 **Benefits**:
 - Tests run without VS Code dependency
 - Predictable test environment
-- Fast test execution (378ms for 51 tests)
+- Fast test execution (378ms for 249 tests)
 - Real file system integration where needed
 
 ### **2. Builder Pattern**

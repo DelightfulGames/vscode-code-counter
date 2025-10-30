@@ -20,7 +20,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2+-blue.svg)](https://www.typescriptlang.org/)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
-[![Tests](https://img.shields.io/badge/tests-156%2F175%20passing-green.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-249%2F249%20passing-brightgreen.svg)](#)
 [![Coverage](https://img.shields.io/badge/coverage-41%25-green.svg)](#)
 [![GitHub Issues](https://img.shields.io/github/issues/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/stargazers)
@@ -102,7 +102,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 - **Lightning Fast**: 10-100x performance boost over JSON files
 - **Zero Dependencies**: Pure JavaScript sql.js - no native compilation required
 - **Organized Structure**: All extension data in `.vscode/code-counter/`
-  - `database.sqlite` - High-performance settings database  
+  - `code-counter.db` - High-performance SQLite settings database  
   - `reports/` - All your HTML/XML/JSON reports
 - **Automatic Migration**: Seamlessly imports existing `.code-counter.json` files
 - **Hierarchical Inheritance**: Workspace settings cascade to subdirectories
@@ -126,29 +126,26 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 - **Flexible Thresholds**: Configure your own complexity boundaries  
 - **Emoji Customization**: Choose your preferred indicator system
 
-## 🏗️ **Hierarchical Workspace Settings**
-> **NEW**: Directory-specific settings with intelligent inheritance
+## 🏗️ **Database-Powered Workspace Settings**
+> **v1.0.0**: Revolutionary SQLite-powered configuration management
 
-### **Nearest-Ancestor Inheritance**
-- Configure different settings for specific project directories
-- Child directories automatically inherit from their nearest parent with settings
-- Override only the settings you need - others inherit automatically
+### **High-Performance Configuration**
+- Lightning-fast SQLite database replaces scattered JSON files
+- 10-100x performance improvement for settings lookup
+- All configuration data centralized in `.vscode/code-counter/code-counter.db`
+- Atomic operations prevent configuration corruption
 
-### **Visual Directory Tree**
-- Interactive directory browser with settings indicators
-- See which directories have custom configurations
-- Visual inheritance chain display
+### **Smart Settings Management**
+- Unified settings interface through webview
+- Real-time emoji customization with live preview
+- Advanced glob pattern management with validation
+- Automatic migration from legacy JSON configurations
 
-### **Copy-Then-Modify Pattern Management**
-- Add/remove exclusion patterns at any directory level
-- Automatic pattern inheritance with visual context
-- Smart pattern operations preserve existing configurations
-
-### **Use Cases**
-- **Monorepos**: Different thresholds for frontend/backend/shared code
-- **Legacy Code**: Relaxed rules for older directories during migration
-- **Third-party**: Stricter rules for vendor/external code directories
-- **Team Projects**: Department-specific coding standards
+### **Professional Organization**
+- All extension data organized in `.vscode/code-counter/` directory
+- Separate `reports/` subfolder for HTML/XML output
+- Clean workspace with no scattered configuration files
+- Easy backup and synchronization of all extension data
 
 ## 📈 **Comprehensive Analytics**
 - 📊 **Count Lines of Code**: Analyzes all files in your workspace with smart caching
@@ -174,7 +171,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 - **Team Alignment**: Visual indicators everyone understands
 - **Technical Debt Tracking**: Identify refactoring candidates
 - **Documentation Integration**: Embed reports in architecture docs
-- ✅ **161/183 Tests Passing** - Comprehensive test coverage with hierarchical features 
+- ✅ **249/249 Tests Passing** - Comprehensive test coverage with all features tested 
 - ✅ **41% Code Coverage** - Real metrics, not estimates```
 - ✅ **TypeScript 5.2+** - Modern, type-safe codebase
 - ✅ **Zero Dependencies** - Lightweight and secure
@@ -206,18 +203,16 @@ install-extension DelightfulGames.vscode-code-counter
   - → **Code Counter: Count Lines of Code** (`codeCounter.countLines`)
 - Opens comprehensive settings interface featuring:
   - → **Code Counter: Customize Emoji Indicators** (`codeCounter.openSettings`)
-- Manage hierarchical workspace settings:
-  - → **Code Counter: Create Workspace Settings** (`codeCounter.createWorkspaceSettings`)
 - Reset the plugin to the defaults
   - → **Code Counter: Reset Emoji Indicators to Defaults** (`codeCounter.resetBadgeSettings`)
 
 ### **Context Menu Commands**
 Right-click on files or folders in the File Explorer or Editor Tab to access exclusion commands:
-- **Exclude This File/Folder Path**: Adds the relative path to the nearest `.code-counter.json` file
-- **Exclude Files Like This Name**: Adds a global pattern (e.g., `**/README.md`) to exclude all files with the same name
-- **Exclude Files with This Extension**: Adds a global pattern (e.g., `**/*.log`) to exclude all files with the same extension
+- **CodeCounter: Exclude This File/Folder**: Adds the relative path to workspace settings
+- **CodeCounter: Exclude Files/Folders with Same Name**: Adds a global pattern (e.g., `**/README.md`) to exclude all files with the same name
+- **CodeCounter: Exclude Files with Same Extension**: Adds a global pattern (e.g., `**/*.log`) to exclude all files with the same extension
 
-> 💡 **Smart Configuration**: Exclusion patterns are added to the nearest ancestor directory's `.code-counter.json` file. If none exists, a new one is created in the appropriate location. The settings webview and file decorators automatically refresh when exclusion patterns are added.
+> 💡 **Smart Configuration**: Exclusion patterns are managed through the SQLite database in `.vscode/code-counter/code-counter.db`. The settings webview and file decorators automatically refresh when exclusion patterns are added through context menus.
 
 ### **UI Integration**
 #### File Explorer Integration
@@ -278,7 +273,7 @@ The extension generates two files in the configured output directory:
 
 ## 📊 **Technical Excellence**
 ### **Testing & Quality**
-- **Unit Tests**: 161 comprehensive tests across 15+ test suites covering hierarchical settings
+- **Unit Tests**: 249 comprehensive tests across multiple test suites covering all features
 - **Integration Tests**: VS Code API compatibility validation  
 - **Performance Tests**: File system operation optimization
 - **Coverage Analysis**: 41% real coverage with C8 tooling

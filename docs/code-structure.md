@@ -34,7 +34,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 │   ├── types/
 │   │   └── index.ts                    # TypeScript type definitions
 │   └── test/
-│       └── suite/                      # Comprehensive test suite (51 tests)
+│       └── suite/                      # Comprehensive test suite (249 tests)
 ├── templates/
 │   ├── emoji-picker.html           # Settings WebView template with placeholder system
 │   └── report.html                 # HTML report template

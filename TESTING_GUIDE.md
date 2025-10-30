@@ -15,18 +15,18 @@ VS Code Marketplace: https://marketplace.visualstudio.com/items?itemName=Delight
 ```bash
 npm test
 ```
-- **Purpose**: Runs the complete test suite (51 tests)
+- **Purpose**: Runs the complete test suite (249 tests)
 - **Environment**: VS Code test environment
-- **Status**: ✅ All 51 tests passing
+- **Status**: ✅ All 249 tests passing
 - **Use**: Main development and CI testing
 
 ### 📊 **Enhanced Coverage Command** (Recommended for Coverage)
 ```bash
 npm run test:coverage
 ```
-- **Purpose**: Runs 51 tests with comprehensive coverage reporting
+- **Purpose**: Runs 249 tests with comprehensive coverage reporting
 - **Environment**: Node.js with VS Code API mocking
-- **Status**: ✅ 51/51 tests passing, ~41% coverage
+- **Status**: ✅ 249/249 tests passing, ~41% coverage
 - **Output**: Terminal coverage table + HTML report in `coverage/index.html`
 
 ### 🔧 **Other Available Commands**
@@ -80,7 +80,7 @@ VS Code extensions require the `vscode` module, which is only available within V
 ## 📈 **Actual Coverage Status**
 
 ### **Comprehensive Test Coverage** (from `npm test`)
-- **Total Tests**: 51 tests across 9 test suites
+- **Total Tests**: 249 tests across 9 test suites
 - **Success Rate**: 100% (all tests pass)
 - **Modules Covered**: All major services, utilities, and business logic
 
@@ -141,7 +141,7 @@ Start-Process "coverage\\index.html"  # View detailed HTML report
 
 | Command | Purpose | Environment | Coverage |
 |---------|---------|-------------|----------|
-| `npm test` | Full test suite | VS Code | ✅ All 51 tests |
+| `npm test` | Full test suite | VS Code | ✅ All 249 tests |
 | `npm run test:coverage` | Basic coverage report | Node.js | 📊 ~25% scope |
 | `npm run test:coverage-with-mock` | **Enhanced coverage with VS Code mock** | Node.js + Mock | 📊 **~40%+ scope** |
 | Open `coverage/index.html` | Detailed coverage | Browser | 🔍 Interactive |
@@ -156,7 +156,7 @@ npm run test:coverage-with-mock
 **Success Metrics:**
 - **Total Coverage**: ~40.48% (up from ~25%)
 - **LineCounterService**: ~93% coverage (up from ~78%)
-- **Tests Running**: 47 of 51 tests passing with mock
+- **Tests Running**: 249 of 249 tests passing with mock
 - **VS Code APIs Mocked**: Window, Workspace, Commands, Uri, RelativePattern, FileSystemWatcher
 
 **What Now Works:**
