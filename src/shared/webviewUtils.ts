@@ -187,22 +187,36 @@ export function getEmojiPickerWebviewContent(badges: any,
         }
 
         // Load the JavaScript content, CSS and JSON data
-        const scriptPath = path.join(__dirname, '..', '..', 'templates', 'emoji-picker.js');
-        const cssPath = path.join(__dirname, '..', '..', 'templates', 'emoji-picker.css');
-        const emojiDataPath = path.join(__dirname, '..', '..', 'templates', 'emoji-data.json');
-        const emojiSearchDataPath = path.join(__dirname, '..', '..', 'templates', 'emoji-search-data.json');
+        const templatesDir = path.join(__dirname, '..', '..', 'templates');
+        const jsModules = [
+            'core.js',
+            'emoji-picker-module.js', 
+            'glob-patterns.js',
+            'settings.js',
+            'workspace.js',
+            'main.js'
+        ];
         
-        const scriptContent = fs.readFileSync(scriptPath, 'utf8');
+        const cssPath = path.join(templatesDir, 'emoji-picker.css');
+        const emojiDataPath = path.join(templatesDir, 'emoji-data.json');
+        const emojiSearchDataPath = path.join(templatesDir, 'emoji-search-data.json');
+        
+        // Combine all JavaScript modules into one script
+        const scriptContent = jsModules
+            .map(module => fs.readFileSync(path.join(templatesDir, module), 'utf8'))
+            .join('\n\n');
         const cssContent = fs.readFileSync(cssPath, 'utf8');
         const emojiData = fs.readFileSync(emojiDataPath, 'utf8');
         const emojiSearchData = fs.readFileSync(emojiSearchDataPath, 'utf8');
         
         // Create webview URIs for the JavaScript and CSS files
-        const scriptUri = webview ? webview.asWebviewUri(vscode.Uri.file(scriptPath)) : null;
+        const scriptUris = webview ? jsModules.map(module => 
+            webview.asWebviewUri(vscode.Uri.file(path.join(templatesDir, module)))
+        ) : null;
         const cssUri = webview ? webview.asWebviewUri(vscode.Uri.file(cssPath)) : null;
         
         // Fallback: if no webview provided, embed the script and CSS inline (backward compatibility)
-        let useInlineScript = !webview || !scriptUri;
+        let useInlineScript = !webview || !scriptUris;
         
         // Cleanup metadata entries from emoji search data
         let emojiDB = JSON.parse(emojiData);
@@ -363,7 +377,7 @@ export function getEmojiPickerWebviewContent(badges: any,
             htmlContent = htmlContent.replace(/{{emojiData}}/g, 'null');
             htmlContent = htmlContent.replace(/{{emojiSearchData}}/g, 'null');
             htmlContent = htmlContent.replace(/{{workspaceData}}/g, 'null');
-            htmlContent = htmlContent.replace(/{{scriptUri}}/g, '');
+            htmlContent = htmlContent.replace(/{{scriptTags}}/g, '');
             htmlContent = htmlContent.replace(/{{cssUri}}/g, '');
             // Add fallback style and script tags with inline content
             htmlContent = htmlContent.replace('</head>', `<style>${cssContent}</style></head>`);
@@ -373,7 +387,12 @@ export function getEmojiPickerWebviewContent(badges: any,
             htmlContent = htmlContent.replace(/{{emojiData}}/g, JSON.stringify(embeddedData.emojiData));
             htmlContent = htmlContent.replace(/{{emojiSearchData}}/g, JSON.stringify(embeddedData.emojiSearchData));
             htmlContent = htmlContent.replace(/{{workspaceData}}/g, JSON.stringify(embeddedData.workspaceData));
-            htmlContent = htmlContent.replace(/{{scriptUri}}/g, scriptUri ? scriptUri.toString() : '');
+            
+            // Generate script tags for all modules
+            const scriptTags = scriptUris ? scriptUris.map(uri => 
+                `<script src="${uri.toString()}"></script>`
+            ).join('\n        ') : '';
+            htmlContent = htmlContent.replace(/{{scriptTags}}/g, scriptTags);
             htmlContent = htmlContent.replace(/{{cssUri}}/g, cssUri ? cssUri.toString() : '');
         }
         

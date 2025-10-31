@@ -226,14 +226,23 @@ export class LineCounterService {
         let includedViaPattern = 0;
         let excludedCount = 0;
         
+        // Normalize patterns by removing leading slashes to fix minimatch compatibility
+        const normalizePattern = (pattern: string): string => {
+            // Remove leading slash if present, as minimatch works with relative paths
+            return pattern.startsWith('/') ? pattern.substring(1) : pattern;
+        };
+
+        const normalizedExcludePatterns = excludePatterns.map(normalizePattern);
+        const normalizedIncludePatterns = includePatterns.map(normalizePattern);
+
         for (const filePath of filePaths) {
             const relativePath = path.relative(workspacePath, filePath).replace(/\\/g, '/');
             
-            // Check if file matches any exclusion pattern
-            const isExcluded = excludePatterns.some(pattern => minimatch(relativePath, pattern, minimatchOptions));
+            // Check if file matches any exclusion pattern (using normalized patterns)
+            const isExcluded = normalizedExcludePatterns.some(pattern => minimatch(relativePath, pattern, minimatchOptions));
             
-            // Check if file matches any inclusion pattern
-            const isIncluded = includePatterns.some(pattern => minimatch(relativePath, pattern, minimatchOptions));
+            // Check if file matches any inclusion pattern (using normalized patterns)
+            const isIncluded = normalizedIncludePatterns.some(pattern => minimatch(relativePath, pattern, minimatchOptions));
             
             // Inclusion patterns act as overrides for exclusions:
             // 1. If file matches inclusion pattern -> include (even if also excluded)
@@ -490,10 +499,18 @@ export class LineCounterService {
                 });
             }
             
+            // Normalize patterns by removing leading slashes to fix minimatch compatibility
+            const normalizePattern = (pattern: string): string => {
+                return pattern.startsWith('/') ? pattern.substring(1) : pattern;
+            };
+
+            const normalizedExcludePatterns = excludePatterns.map(normalizePattern);
+            const normalizedIncludePatterns = includePatterns.map(normalizePattern);
+
             // Check if file matches any exclusion pattern with detailed logging
             let isExcluded = false;
             let excludingPattern = '';
-            for (const pattern of excludePatterns) {
+            for (const pattern of normalizedExcludePatterns) {
                 if (minimatch(relativePath, pattern, minimatchOptions)) {
                     isExcluded = true;
                     excludingPattern = pattern;
@@ -502,8 +519,8 @@ export class LineCounterService {
             }
             
             // Check if file matches any inclusion pattern (only when include patterns exist)
-            const hasIncludePatterns = includePatterns.length > 0;
-            const matchesInclusionPattern = hasIncludePatterns && includePatterns.some((pattern: string) => minimatch(relativePath, pattern, minimatchOptions));
+            const hasIncludePatterns = normalizedIncludePatterns.length > 0;
+            const matchesInclusionPattern = hasIncludePatterns && normalizedIncludePatterns.some((pattern: string) => minimatch(relativePath, pattern, minimatchOptions));
             
             // Debug pattern matching results for first few files
             if (filteredFiles.length < 10) {

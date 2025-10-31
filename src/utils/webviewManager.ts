@@ -308,8 +308,9 @@ export function getEmojiPickerWebviewContent(badges: any,
             processedHtml = processedHtml.replace(/{{EMBEDDED_SCRIPT}}/g, fullScriptContent);
             processedHtml = processedHtml.replace(/{{EMBEDDED_CSS}}/g, cssContent);
         } else {
-            const scriptUri = webview?.asWebviewUri(vscode.Uri.file(path.join(__dirname, '..', '..', 'templates', 'emoji-picker.js')));
-            const cssUri = webview?.asWebviewUri(vscode.Uri.file(path.join(__dirname, '..', '..', 'templates', 'emoji-picker.css')));
+            const templatesDir = path.join(__dirname, '..', '..', 'templates');
+            const scriptUri = webview?.asWebviewUri(vscode.Uri.file(path.join(templatesDir, 'core.js')));
+            const cssUri = webview?.asWebviewUri(vscode.Uri.file(path.join(templatesDir, 'emoji-picker.css')));
             processedHtml = processedHtml.replace(/{{SCRIPT_URI}}/g, scriptUri?.toString() || '');
             processedHtml = processedHtml.replace(/{{CSS_URI}}/g, cssUri?.toString() || '');
         }

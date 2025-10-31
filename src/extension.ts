@@ -30,6 +30,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { CountLinesCommand } from './commands/countLines';
+import { TestExclusionCommand } from './commands/testExclusion';
 import { FileWatcherProvider } from './providers/fileWatcher';
 import { FileExplorerDecorationProvider } from './providers/fileExplorerDecorator';
 import { EditorTabDecorationProvider } from './providers/editorTabDecorator';
@@ -52,6 +53,7 @@ import {
     getWorkspaceService,
     invalidateWorkspaceServiceCache,
     clearServiceCache,
+    initializeCacheInvalidation,
     setGlobalPathBasedSettings, 
     setGlobalFileExplorerDecorator,
     setGlobalEmojiPickerPanel,
@@ -83,6 +85,10 @@ export function activate(context: vscode.ExtensionContext) {
         debug.initialize(context);
         debug.info('Code Counter extension activated');
         console.log('[CODE-COUNTER] Extension activation started');
+
+        // CRITICAL: Initialize automatic cache invalidation system
+        // This ensures that any database changes automatically invalidate cached services
+        initializeCacheInvalidation();
 
     // Auto-migrate from .code-counter.json files to database on startup
     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
@@ -204,6 +210,11 @@ export function activate(context: vscode.ExtensionContext) {
         await handleExcludeExtension(resource);
     });
 
+    // Test command for exclusion functionality
+    const testExclusionDisposable = vscode.commands.registerCommand('codeCounter.testExclusion', async () => {
+        await TestExclusionCommand.testCurrentFileExclusion();
+    });
+
     // Add all disposables to context
     console.log('[CODE-COUNTER] All commands registered successfully');
     context.subscriptions.push(
@@ -215,6 +226,7 @@ export function activate(context: vscode.ExtensionContext) {
         excludeRelativePathDisposable,
         excludeFilePatternDisposable,
         excludeExtensionDisposable,
+        testExclusionDisposable,
         decorationProvider,
         fileWatcher,
         fileExplorerDecorator,

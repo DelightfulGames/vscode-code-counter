@@ -2,7 +2,7 @@
   "name": "vscode-code-counter",
   "displayName": "Code Counter Pro",
   "description": "Visual line counting with customizable emoji indicators and comprehensive project reports",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "DelightfulGames",
   "icon": "marketplace/images/codeCounter-icon.png",
   "galleryBanner": {
@@ -49,6 +49,10 @@
       {
         "command": "codeCounter.excludeExtension",
         "title": "CodeCounter: Exclude Files with Same Extension"
+      },
+      {
+        "command": "codeCounter.testExclusion",
+        "title": "CodeCounter: Test File Exclusion (Debug)"
       }
     ],
     "configuration": {

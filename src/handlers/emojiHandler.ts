@@ -17,6 +17,7 @@ import {
     calculateTargetPath, 
     addSourceToSettings,
     refreshFileExplorerDecorator,
+    invalidateWorkspaceServiceCache,
     WorkspaceData 
 } from '../shared/extensionUtils';
 import { getDirectoryTreeFromDatabase } from '../shared/directoryUtils';
@@ -156,6 +157,10 @@ export class EmojiHandler {
             };
             
             await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+            
+            // CRITICAL: Invalidate the workspace service cache after database changes
+            invalidateWorkspaceServiceCache(workspacePath);
+            
             notifySettingsChanged();
             
             const emojiType = message.type === 'folder' ? 'folder' : 'file';
@@ -243,6 +248,13 @@ export class EmojiHandler {
                 await workspaceService.resetField(targetPath, 'emojis.folders.danger');
                 await workspaceService.resetField(targetPath, 'lineThresholds.midThreshold');
                 await workspaceService.resetField(targetPath, 'lineThresholds.highThreshold');
+                
+                // CRITICAL: Invalidate the workspace service cache after database changes
+                invalidateWorkspaceServiceCache(workspacePath);
+                
+                // Notify about settings changes and refresh decorators
+                notifySettingsChanged();
+                refreshFileExplorerDecorator();
                 
                 vscode.window.showInformationMessage('All emoji settings and thresholds reset to inherit from parent');
                 DebugService.getInstance().info('All emoji fields reset successfully');

@@ -190,20 +190,32 @@ export function loadWebviewAssets(webview?: vscode.Webview): {
     };
     useInlineScript: boolean;
 } {
-    const templatePath = path.join(__dirname, '..', '..', 'templates', 'emoji-picker.html');
-    const scriptPath = path.join(__dirname, '..', '..', 'templates', 'emoji-picker.js');
-    const cssPath = path.join(__dirname, '..', '..', 'templates', 'emoji-picker.css');
-    const emojiDataPath = path.join(__dirname, '..', '..', 'templates', 'emoji-data.json');
-    const emojiSearchDataPath = path.join(__dirname, '..', '..', 'templates', 'emoji-search-data.json');
+    const templatesDir = path.join(__dirname, '..', '..', 'templates');
+    const templatePath = path.join(templatesDir, 'emoji-picker.html');
+    const cssPath = path.join(templatesDir, 'emoji-picker.css');
+    const emojiDataPath = path.join(templatesDir, 'emoji-data.json');
+    const emojiSearchDataPath = path.join(templatesDir, 'emoji-search-data.json');
+    
+    // Load all JavaScript modules
+    const jsModules = [
+        'core.js',
+        'emoji-picker-module.js', 
+        'glob-patterns.js',
+        'settings.js',
+        'workspace.js',
+        'main.js'
+    ];
     
     const htmlContent = fs.readFileSync(templatePath, 'utf8');
-    const scriptContent = fs.readFileSync(scriptPath, 'utf8');
+    const scriptContent = jsModules
+        .map(module => fs.readFileSync(path.join(templatesDir, module), 'utf8'))
+        .join('\n\n');
     const cssContent = fs.readFileSync(cssPath, 'utf8');
     const emojiData = fs.readFileSync(emojiDataPath, 'utf8');
     const emojiSearchData = fs.readFileSync(emojiSearchDataPath, 'utf8');
     
     // Create webview URIs for the JavaScript and CSS files
-    const scriptUri = webview ? webview.asWebviewUri(vscode.Uri.file(scriptPath)) : null;
+    const scriptUri = webview ? webview.asWebviewUri(vscode.Uri.file(path.join(templatesDir, 'core.js'))) : null;
     const useInlineScript = !webview || !scriptUri;
     
     // Cleanup metadata entries from emoji search data

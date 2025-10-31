@@ -88,6 +88,9 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         
         this.debug.verbose('WorkspaceDatabaseService created for path:', workspacePath, 'instanceId:', this.instanceId, 'dbPath:', this.dbPath);
         
+        // Register this instance for future reloading
+        this.registerInstance();
+        
         // Ensure directory structure exists
         this.ensureDirectoryStructure();
         
@@ -348,6 +351,33 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
     }
 
     /**
+     * Normalize patterns in settings to remove leading slashes for consistency
+     */
+    private normalizeSettings(settings: WorkspaceSettings): WorkspaceSettings {
+        const normalizedSettings = { ...settings };
+        
+        // Normalize exclude patterns
+        if (normalizedSettings['codeCounter.excludePatterns']) {
+            normalizedSettings['codeCounter.excludePatterns'] = normalizedSettings['codeCounter.excludePatterns'].map(pattern => {
+                const normalized = pattern.replace(/^\/+/, '');
+                this.debug.verbose('Pattern normalization:', pattern, '->', normalized);
+                return normalized;
+            });
+        }
+        
+        // Normalize include patterns
+        if (normalizedSettings['codeCounter.includePatterns']) {
+            normalizedSettings['codeCounter.includePatterns'] = normalizedSettings['codeCounter.includePatterns'].map(pattern => {
+                const normalized = pattern.replace(/^\/+/, '');
+                this.debug.verbose('Pattern normalization:', pattern, '->', normalized);
+                return normalized;
+            });
+        }
+        
+        return normalizedSettings;
+    }
+
+    /**
      * Save multiple settings for a directory
      */
     async saveWorkspaceSettings(directoryPath: string, settings: WorkspaceSettings): Promise<void> {
@@ -373,8 +403,11 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         
         this.debug.verbose('saveWorkspaceSettings called for', directoryPath, 'relativePath:', relativePath, 'settings:', settings, 'instanceId:', this.instanceId, 'dbPath:', this.dbPath);
         
+        // Normalize settings before saving to ensure consistency
+        const normalizedSettings = this.normalizeSettings(settings);
+        
         // Process all settings
-        for (const [key, value] of Object.entries(settings)) {
+        for (const [key, value] of Object.entries(normalizedSettings)) {
             if (value !== undefined) {
                 this.debug.verbose('Saving setting', key, '=', value, 'for path', relativePath);
                 try {
@@ -425,6 +458,11 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         }
         verifyStmt.free();
         this.debug.verbose(`Verification query results for path '${relativePath}':`, verifyRows.length > 0 ? verifyRows.map(r => `${r.setting_key}=${r.setting_value}`) : 'NO RESULTS FOUND');
+        
+        // CRITICAL: Notify about cache invalidation after any database changes
+        // This ensures that cached WorkspaceDatabaseService instances are invalidated
+        // when settings are saved, preventing stale cache issues
+        WorkspaceDatabaseService.notifyCacheInvalidation(this.workspacePath);
     }
 
     /**
@@ -621,6 +659,11 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         } catch (error) {
             this.debug.error('❌ Failed to verify saved database:', error);
         }
+
+        // CRITICAL: Notify about cache invalidation after any database changes
+        // This ensures that cached WorkspaceDatabaseService instances are invalidated
+        // when settings are reset, preventing stale cache issues
+        WorkspaceDatabaseService.notifyCacheInvalidation(this.workspacePath);
     }
 
     /**
@@ -886,8 +929,132 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      * Dispose of resources
      */
     dispose(): void {
+        this.unregisterInstance();
         if (this.db) {
             this.db.close();
         }
+    }
+
+    // Static callback mechanism for cache invalidation to avoid circular imports
+    private static cacheInvalidationCallback: ((workspacePath: string) => void) | null = null;
+    private static webviewRefreshCallback: ((workspacePath: string) => Promise<void>) | null = null;
+    
+    // Static registry to track all active instances for database reloading
+    private static activeInstances: Map<string, WorkspaceDatabaseService[]> = new Map();
+
+    /**
+     * Register this instance for future database reloading
+     */
+    private registerInstance(): void {
+        const normalizedPath = path.normalize(this.workspacePath);
+        if (!WorkspaceDatabaseService.activeInstances.has(normalizedPath)) {
+            WorkspaceDatabaseService.activeInstances.set(normalizedPath, []);
+        }
+        WorkspaceDatabaseService.activeInstances.get(normalizedPath)!.push(this);
+        this.debug.verbose('Registered database instance:', this.instanceId, 'for workspace:', normalizedPath);
+    }
+
+    /**
+     * Unregister this instance when disposed
+     */
+    private unregisterInstance(): void {
+        const normalizedPath = path.normalize(this.workspacePath);
+        const instances = WorkspaceDatabaseService.activeInstances.get(normalizedPath);
+        if (instances) {
+            const index = instances.indexOf(this);
+            if (index !== -1) {
+                instances.splice(index, 1);
+                this.debug.verbose('Unregistered database instance:', this.instanceId);
+                if (instances.length === 0) {
+                    WorkspaceDatabaseService.activeInstances.delete(normalizedPath);
+                }
+            }
+        }
+    }
+
+    /**
+     * Reload the database from disk - used when external changes are detected
+     */
+    async reloadFromDisk(): Promise<void> {
+        this.debug.info('Reloading database from disk for instance:', this.instanceId);
+        
+        if (this.db) {
+            this.db.close();
+            this.db = undefined;
+        }
+        
+        // Re-initialize from disk
+        await this.initializeDatabase();
+        this.debug.info('Database reloaded successfully for instance:', this.instanceId);
+    }
+
+    /**
+     * Reload all active instances for a workspace from disk
+     */
+    static async reloadAllInstancesFromDisk(workspacePath: string): Promise<void> {
+        const normalizedPath = path.normalize(workspacePath);
+        const instances = WorkspaceDatabaseService.activeInstances.get(normalizedPath);
+        
+        if (instances && instances.length > 0) {
+            const debug = DebugService.getInstance();
+            debug.info('Reloading', instances.length, 'database instances from disk for workspace:', normalizedPath);
+            
+            const reloadPromises = instances.map(instance => instance.reloadFromDisk());
+            await Promise.all(reloadPromises);
+            
+            debug.info('All database instances reloaded from disk');
+        }
+    }
+
+    /**
+     * Set the cache invalidation callback
+     * This is used by extensionUtils to register a callback that invalidates the workspace service cache
+     */
+    static setCacheInvalidationCallback(callback: (workspacePath: string) => void): void {
+        WorkspaceDatabaseService.cacheInvalidationCallback = callback;
+    }
+
+    /**
+     * Set the webview refresh callback
+     * This is used by extensionUtils to register a callback that refreshes open webviews
+     */
+    static setWebviewRefreshCallback(callback: (workspacePath: string) => Promise<void>): void {
+        WorkspaceDatabaseService.webviewRefreshCallback = callback;
+    }
+
+    /**
+     * Notify that cache should be invalidated for the given workspace
+     */
+    static notifyCacheInvalidation(workspacePath: string): void {
+        // First reload all existing database instances from disk
+        WorkspaceDatabaseService.reloadAllInstancesFromDisk(workspacePath).then(async () => {
+            // Then invalidate the cache so new instances get fresh data too
+            if (WorkspaceDatabaseService.cacheInvalidationCallback) {
+                WorkspaceDatabaseService.cacheInvalidationCallback(workspacePath);
+            }
+            
+            // Finally, refresh any open webviews to show the updated data
+            if (WorkspaceDatabaseService.webviewRefreshCallback) {
+                try {
+                    await WorkspaceDatabaseService.webviewRefreshCallback(workspacePath);
+                } catch (error) {
+                    const debug = DebugService.getInstance();
+                    debug.error('Failed to refresh webview after database change:', error);
+                }
+            }
+        }).catch(error => {
+            const debug = DebugService.getInstance();
+            debug.error('Failed to reload database instances:', error);
+            // Still try to invalidate cache even if reload fails
+            if (WorkspaceDatabaseService.cacheInvalidationCallback) {
+                WorkspaceDatabaseService.cacheInvalidationCallback(workspacePath);
+            }
+            // Still try to refresh webview even if database reload fails
+            if (WorkspaceDatabaseService.webviewRefreshCallback) {
+                WorkspaceDatabaseService.webviewRefreshCallback(workspacePath).catch(webviewError => {
+                    debug.error('Failed to refresh webview after database reload error:', webviewError);
+                });
+            }
+        });
     }
 }

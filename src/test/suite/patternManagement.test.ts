@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as vscode from 'vscode';
+const { minimatch } = require('minimatch');
 import { WorkspaceDatabaseService, WorkspaceSettings } from '../../services/workspaceDatabaseService';
 
 // Mock VS Code API for testing
@@ -386,6 +387,93 @@ suite('Pattern Management Integration Tests', () => {
                     expect(shouldShowDelete).to.be.false;
                 }
             }
+        });
+    });
+
+    suite('Pattern Matching Tests', () => {
+        
+        const minimatchOptions = {
+            dot: true,
+            nocase: false,
+            flipNegate: false,
+            nobrace: false,
+            noglobstar: false,
+            noext: false,
+            nonull: false,
+            windowsPathsNoEscape: true
+        };
+
+        test('should correctly match exclusion patterns with and without leading slash', () => {
+            const relativePath = 'src/models/docs/large.txt';  // This is what line counter generates
+            
+            // Test patterns that users might enter
+            const testCases = [
+                { pattern: '/src/models/docs/large.txt', expected: false, description: 'Leading slash pattern (current issue)' },
+                { pattern: 'src/models/docs/large.txt', expected: true, description: 'Direct path match' },
+                { pattern: '**/large.txt', expected: true, description: 'Glob pattern for filename' },
+                { pattern: '/src/models/**/*.txt', expected: false, description: 'Directory glob with leading slash' },
+                { pattern: 'src/models/**/*.txt', expected: true, description: 'Directory glob without leading slash' },
+                { pattern: 'src/models/docs/*', expected: true, description: 'Directory wildcard' },
+                { pattern: '/src/models/docs/*', expected: false, description: 'Directory wildcard with leading slash' }
+            ];
+
+            testCases.forEach(testCase => {
+                const matches = minimatch(relativePath, testCase.pattern, minimatchOptions);
+                expect(matches).to.equal(testCase.expected, 
+                    `Pattern "${testCase.pattern}" - ${testCase.description}. Expected: ${testCase.expected}, Got: ${matches}`);
+            });
+        });
+
+        test('should match patterns correctly after normalizing leading slash', () => {
+            const relativePath = 'src/models/docs/large.txt';
+            
+            // Test that removing leading slash makes patterns work
+            const patternsWithLeadingSlash = [
+                '/src/models/docs/large.txt',
+                '/src/models/**/*.txt',
+                '/src/models/docs/*'
+            ];
+
+            patternsWithLeadingSlash.forEach(pattern => {
+                // Original pattern with leading slash should not match
+                const originalMatch = minimatch(relativePath, pattern, minimatchOptions);
+                expect(originalMatch).to.be.false;
+
+                // Normalized pattern (leading slash removed) should match
+                const normalizedPattern = pattern.substring(1);
+                const normalizedMatch = minimatch(relativePath, normalizedPattern, minimatchOptions);
+                expect(normalizedMatch).to.be.true;
+            });
+        });
+
+        test('should handle complex workspace scenarios', () => {
+            const testFiles = [
+                'src/models/docs/large.txt',
+                'src/models/User.ts', 
+                'src/views/MainView.tsx',
+                'tests/unit/model.test.js',
+                'node_modules/package/index.js',
+                '.git/config',
+                'dist/bundle.js'
+            ];
+
+            const patterns = [
+                { pattern: 'src/models/docs/*', shouldMatch: ['src/models/docs/large.txt'] },
+                { pattern: 'src/**/*.ts', shouldMatch: ['src/models/User.ts'] },
+                { pattern: 'src/**/*.tsx', shouldMatch: ['src/views/MainView.tsx'] },
+                { pattern: '**/node_modules/**', shouldMatch: ['node_modules/package/index.js'] },
+                { pattern: '**/.git/**', shouldMatch: ['.git/config'] },
+                { pattern: '**/dist/**', shouldMatch: ['dist/bundle.js'] }
+            ];
+
+            patterns.forEach(({ pattern, shouldMatch }) => {
+                testFiles.forEach(file => {
+                    const matches = minimatch(file, pattern, minimatchOptions);
+                    const shouldMatchFile = shouldMatch.includes(file);
+                    expect(matches).to.equal(shouldMatchFile, 
+                        `Pattern "${pattern}" matching file "${file}". Expected: ${shouldMatchFile}, Got: ${matches}`);
+                });
+            });
         });
     });
 });

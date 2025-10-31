@@ -12,7 +12,10 @@ import {
     getWorkspaceService,
     setGlobalCurrentDirectory,
     getCurrentConfiguration,
-    addSourceToSettings
+    addSourceToSettings,
+    invalidateWorkspaceServiceCache,
+    notifySettingsChanged,
+    refreshFileExplorerDecorator
 } from '../shared/extensionUtils';
 import { getDirectoryTreeFromDatabase } from '../shared/directoryUtils';
 import { getEmojiPickerWebviewContent } from '../shared/webviewUtils';
@@ -162,6 +165,13 @@ export class SettingsHandler {
                 
                 // Reset all emoji fields using the 'emojis' group reset
                 await workspaceService.resetField(targetDirectory, 'emojis');
+                
+                // CRITICAL: Invalidate the workspace service cache after database changes
+                invalidateWorkspaceServiceCache(workspaceRoot);
+                
+                // Notify about settings changes and refresh decorators
+                notifySettingsChanged();
+                refreshFileExplorerDecorator();
                 
                 debug.info('✅ All emoji fields reset for workspace');
                 vscode.window.showInformationMessage('All emoji indicators reset to parent/default values successfully!');
@@ -461,13 +471,15 @@ export class SettingsHandler {
             
             debug.info('✅ Field reset completed in database');
             
+            // CRITICAL: Invalidate the workspace service cache after database changes
+            invalidateWorkspaceServiceCache(workspaceRoot);
+            
+            // Notify about settings changes and refresh decorators
+            notifySettingsChanged();
+            refreshFileExplorerDecorator();
+            
             // Debug: Check what's currently in the database after reset
             await workspaceService.getAllSettingsForDebugging();
-
-            // Refresh decorations to reflect the change
-            if (fileExplorerDecorator && typeof fileExplorerDecorator.refresh === 'function') {
-                fileExplorerDecorator.refresh();
-            }
 
             // Send a fieldReset message back to the webview to update the UI
             if (panel && panel.webview) {

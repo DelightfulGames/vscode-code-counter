@@ -16,7 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2025-10-31
+
 ### Fixed
+- **🔍 Leading Slash Pattern Matching**: Fixed exclusion patterns with leading slashes (e.g., `/src/models/docs/large.txt`) not working correctly
+  - Added pattern normalization at database save time to remove leading slashes before storage
+  - Added pattern normalization in line counter service for consistent minimatch compatibility
+  - Enhanced pattern matching test coverage to validate leading slash scenarios
+  - Resolved issue where workspace-relative exclusion patterns with leading slashes failed to exclude files
+- **🔄 Context Menu Decorator Refresh**: Fixed immediate file decoration refresh when excluding files from context menu
+  - Implemented robust pattern verification loop with up to 10 retry attempts to ensure database changes are committed
+  - Added staggered refresh delays (100ms + 200ms) to properly sequence notification and decorator updates  
+  - Enhanced file explorer decorator `refresh()` method to clear line count cache for immediate visual updates
+  - Created test command `codeCounter.testExclusion` for manual verification of exclusion functionality
+  - Files now immediately lose their emoji indicators when excluded via right-click context menu
 - **🧪 Test Suite Improvements**: Enhanced test reliability and workspace setup
   - Fixed debug service test workspace folder creation for consistent Windows path handling
   - Corrected webview service test expectations to match actual data embedding behavior

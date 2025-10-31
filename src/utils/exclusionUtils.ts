@@ -9,6 +9,7 @@ import { DebugService } from '../services/debugService';
 import { WorkspaceSettings } from '../services/workspaceDatabaseService';
 import { getWorkspaceService } from './workspaceUtils';
 import { safeRelativePath } from './pathUtils';
+import { refreshFileExplorerDecorator, invalidateWorkspaceServiceCache } from '../shared/extensionUtils';
 
 const debug = DebugService.getInstance();
 
@@ -106,14 +107,31 @@ export async function addExclusionPattern(filePath: string, pattern: string): Pr
     const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(targetDirectory);
     const inheritedPatterns = settingsWithInheritance.resolvedSettings['codeCounter.excludePatterns'] || [];
     
-    // Check if pattern already exists in inherited patterns
-    if (inheritedPatterns.includes(pattern)) {
-        vscode.window.showInformationMessage(`Pattern "${pattern}" is already excluded (inherited or local)`);
+    // Get current local settings for this directory (not inherited)
+    const localSettings = settingsWithInheritance.currentSettings || {};
+    const localPatterns = localSettings['codeCounter.excludePatterns'] || [];
+    
+    // ALSO check global VS Code configuration patterns (added by webview)
+    const globalConfig = vscode.workspace.getConfiguration('codeCounter');
+    const globalPatterns = globalConfig.get<string[]>('excludePatterns', []);
+    
+    // Check if pattern already exists in LOCAL patterns for this specific directory
+    if (localPatterns.includes(pattern)) {
+        vscode.window.showInformationMessage(`Pattern "${pattern}" is already excluded in this directory's local settings`);
         return;
     }
     
-    // Get current local settings for this directory (not inherited)
-    const localSettings = settingsWithInheritance.currentSettings || {};
+    // Check if pattern already exists in global VS Code configuration
+    if (globalPatterns.includes(pattern)) {
+        vscode.window.showInformationMessage(`Pattern "${pattern}" is already excluded in global VS Code settings`);
+        return;
+    }
+    
+    // Check if pattern already exists in inherited patterns from parent directories
+    // Calculate parent patterns by subtracting local patterns from resolved patterns
+    const resolvedPatterns = inheritedPatterns;
+    const parentPatterns = resolvedPatterns.filter(p => !localPatterns.includes(p));
+    const isInherited = parentPatterns.includes(pattern);
     
     // Copy all inherited patterns plus add the new one
     // This ensures we maintain all existing exclusions when creating local settings
@@ -135,9 +153,48 @@ export async function addExclusionPattern(filePath: string, pattern: string): Pr
     // Save the updated settings
     await workspaceService.saveWorkspaceSettings(targetDirectory, updatedLocalSettings);
     
+    // CRITICAL: Invalidate the workspace service cache after database changes
+    // This ensures fresh data is loaded on next access, preventing stale cache issues
+    invalidateWorkspaceServiceCache(workspacePath);
+    
+    // Verify the pattern was actually saved before proceeding with refreshes
+    let verificationAttempts = 0;
+    const maxAttempts = 10;
+    let patternSaved = false;
+    
+    while (verificationAttempts < maxAttempts && !patternSaved) {
+        try {
+            // Wait a bit for database operations to complete
+            await new Promise(resolve => setTimeout(resolve, 50 + (verificationAttempts * 25)));
+            
+            // Verify pattern was saved
+            const verificationSettings = await workspaceService.getSettingsWithInheritance(targetDirectory);
+            const savedPatterns = verificationSettings.resolvedSettings['codeCounter.excludePatterns'] || [];
+            
+            patternSaved = savedPatterns.includes(pattern);
+            
+            if (patternSaved) {
+                debug.verbose('Pattern verification successful after', verificationAttempts + 1, 'attempts');
+                break;
+            }
+        } catch (error) {
+            debug.warning('Pattern verification failed, attempt', verificationAttempts + 1, ':', error);
+        }
+        
+        verificationAttempts++;
+    }
+    
+    if (!patternSaved) {
+        debug.warning('Pattern verification failed after', maxAttempts, 'attempts - proceeding anyway');
+    }
+    
+    // Refresh file explorer decorators to ensure the change is visible
+    refreshFileExplorerDecorator();
+    
     // Show confirmation
     const displayPath = directoryPath || '<workspace>';
-    vscode.window.showInformationMessage(`Added exclusion pattern "${pattern}" to ${displayPath} settings`);
+    const inheritanceNote = isInherited ? ' (pattern was inherited, now explicitly set locally)' : '';
+    vscode.window.showInformationMessage(`Added exclusion pattern "${pattern}" to ${displayPath} settings${inheritanceNote}`);
 }
 
 /**
@@ -152,7 +209,12 @@ export function createRelativePathPattern(workspacePath: string, filePath: strin
     }
     
     relativePath = stats.isDirectory() ? relativePath + '/**' : relativePath;
-    return relativePath.replace(/\\/g, '/'); // Use forward slashes for consistency
+    // Use forward slashes for consistency and add leading slash for proper glob matching
+    let pattern = relativePath.replace(/\\/g, '/');
+    if (!pattern.startsWith('/')) {
+        pattern = '/' + pattern;
+    }
+    return pattern;
 }
 
 /**
@@ -217,7 +279,11 @@ export async function handleExcludeRelativePath(resource: vscode.Uri): Promise<v
             return;
         }
         relativePath = stats.isDirectory() ? relativePath + '/**' : relativePath;
-        const pattern = relativePath.replace(/\\/g, '/'); // Use forward slashes for consistency        
+        // Use forward slashes for consistency and add leading slash for proper glob matching
+        let pattern = relativePath.replace(/\\/g, '/');
+        if (!pattern.startsWith('/')) {
+            pattern = '/' + pattern;
+        }
         
         if (!pattern) {
             vscode.window.showErrorMessage('Could not create exclusion pattern');

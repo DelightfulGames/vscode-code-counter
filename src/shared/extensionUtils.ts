@@ -55,6 +55,25 @@ export function clearServiceCache(): void {
 }
 
 /**
+ * Initialize the cache invalidation callback system
+ * This allows WorkspaceDatabaseService to automatically invalidate caches when settings are saved
+ */
+export function initializeCacheInvalidation(): void {
+    WorkspaceDatabaseService.setCacheInvalidationCallback((workspacePath: string) => {
+        debug.verbose('Auto-invalidating workspace service cache after database change for:', workspacePath);
+        invalidateWorkspaceServiceCache(workspacePath);
+    });
+
+    WorkspaceDatabaseService.setWebviewRefreshCallback(async (workspacePath: string) => {
+        debug.info('Auto-refreshing webview after database change for:', workspacePath);
+        
+        // Create a fresh service instance for the refresh
+        const freshService = getWorkspaceService(workspacePath);
+        await refreshEmojiPickerWebviewWithService(freshService, workspacePath);
+    });
+}
+
+/**
  * Global state management functions
  */
 export function setGlobalPathBasedSettings(pathBasedSettings: PathBasedSettingsService): void {
@@ -412,14 +431,31 @@ export async function addExclusionPattern(filePath: string, pattern: string): Pr
     const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(normalizedTargetDirectory);
     const inheritedPatterns = settingsWithInheritance.resolvedSettings['codeCounter.excludePatterns'] || [];
     
-    // Check if pattern already exists in inherited patterns
-    if (inheritedPatterns.includes(pattern)) {
-        vscode.window.showInformationMessage(`Pattern "${pattern}" is already excluded (inherited or local)`);
+    // Get current local settings for this directory (not inherited)
+    const localSettings = settingsWithInheritance.currentSettings || {};
+    const localPatterns = localSettings['codeCounter.excludePatterns'] || [];
+    
+    // ALSO check global VS Code configuration patterns (added by webview)
+    const globalConfig = vscode.workspace.getConfiguration('codeCounter');
+    const globalPatterns = globalConfig.get<string[]>('excludePatterns', []);
+    
+    // Check if pattern already exists in LOCAL patterns for this specific directory
+    if (localPatterns.includes(pattern)) {
+        vscode.window.showInformationMessage(`Pattern "${pattern}" is already excluded in this directory's local settings`);
         return;
     }
     
-    // Get current local settings for this directory (not inherited)
-    const localSettings = settingsWithInheritance.currentSettings || {};
+    // Check if pattern already exists in global VS Code configuration
+    if (globalPatterns.includes(pattern)) {
+        vscode.window.showInformationMessage(`Pattern "${pattern}" is already excluded in global VS Code settings`);
+        return;
+    }
+    
+    // Check if pattern already exists in inherited patterns from parent directories
+    // Calculate parent patterns by subtracting local patterns from resolved patterns
+    const resolvedPatterns = inheritedPatterns;
+    const parentPatterns = resolvedPatterns.filter(p => !localPatterns.includes(p));
+    const isInherited = parentPatterns.includes(pattern);
     
     // Copy all inherited patterns plus add the new one
     // This ensures we maintain all existing exclusions when creating local settings
@@ -434,14 +470,54 @@ export async function addExclusionPattern(filePath: string, pattern: string): Pr
     // Save the updated settings - pass absolute target directory path, not relative
     await workspaceService.saveWorkspaceSettings(normalizedTargetDirectory, updatedLocalSettings);
     
+    // CRITICAL: Invalidate the workspace service cache after database changes
+    // This ensures fresh data is loaded on next access, preventing stale cache issues
+    invalidateWorkspaceServiceCache(workspacePath);
+    
+    // Verify the pattern was actually saved before proceeding with refreshes
+    let verificationAttempts = 0;
+    const maxAttempts = 10;
+    let patternSaved = false;
+    
+    while (verificationAttempts < maxAttempts && !patternSaved) {
+        try {
+            // Wait a bit for database operations to complete
+            await new Promise(resolve => setTimeout(resolve, 50 + (verificationAttempts * 25)));
+            
+            // Create fresh service instance to avoid caching issues
+            const verificationService = new WorkspaceDatabaseService(workspacePath);
+            const verificationSettings = await verificationService.getSettingsWithInheritance(normalizedTargetDirectory);
+            const savedPatterns = verificationSettings.resolvedSettings['codeCounter.excludePatterns'] || [];
+            
+            patternSaved = savedPatterns.includes(pattern);
+            verificationService.dispose();
+            
+            if (patternSaved) {
+                debug.verbose('Pattern verification successful after', verificationAttempts + 1, 'attempts');
+                break;
+            }
+        } catch (error) {
+            debug.warning('Pattern verification failed, attempt', verificationAttempts + 1, ':', error);
+        }
+        
+        verificationAttempts++;
+    }
+    
+    if (!patternSaved) {
+        debug.warning('Pattern verification failed after', maxAttempts, 'attempts - proceeding anyway');
+    }
+    
     // Notify settings changed first to trigger decorator refresh
     notifySettingsChanged();
+    
+    // Add a delay to ensure the settings change notification is processed
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     // Refresh file explorer decorators to ensure inheritance chain is updated
     refreshFileExplorerDecorator();
     
-    // Add small delay to ensure database operations and decorator updates are fully committed
-    await new Promise(resolve => setTimeout(resolve, 660));
+    // Add delay to ensure decorator refresh is processed
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     // Force refresh by creating a new service instance to ensure we get the latest state
     // This avoids any potential caching issues with the current service instance
@@ -450,5 +526,6 @@ export async function addExclusionPattern(filePath: string, pattern: string): Pr
     
     // Show confirmation
     const displayPath = directoryPath || '<workspace>';
-    vscode.window.showInformationMessage(`Added exclusion pattern "${pattern}" to ${displayPath} settings`);
+    const inheritanceNote = isInherited ? ' (pattern was inherited, now explicitly set locally)' : '';
+    vscode.window.showInformationMessage(`Added exclusion pattern "${pattern}" to ${displayPath} settings${inheritanceNote}`);
 }

@@ -14,7 +14,8 @@ import {
     getCurrentConfiguration,
     addSourceToSettings,
     refreshFileExplorerDecorator,
-    addExclusionPattern
+    addExclusionPattern,
+    invalidateWorkspaceServiceCache
 } from '../shared/extensionUtils';
 import { WorkspaceData } from '../services/workspaceSettingsService';
 import { getDirectoryTreeFromDatabase } from '../shared/directoryUtils';
@@ -157,20 +158,40 @@ export class PatternHandler {
         const patternConfig = vscode.workspace.getConfiguration('codeCounter');
         const currentPatterns = patternConfig.get<string[]>('excludePatterns', []);
         if (message.pattern && !currentPatterns.includes(message.pattern)) {
-            const updatedPatterns = [...currentPatterns, message.pattern];
-            await patternConfig.update('excludePatterns', updatedPatterns, vscode.ConfigurationTarget.Global);
-            vscode.window.showInformationMessage(`Added exclude pattern to global settings: ${message.pattern}`);
+            // Process the pattern to ensure proper formatting for glob matching
+            let processedPattern = message.pattern.trim();
             
-            refreshFileExplorerDecorator();
-            const updatedConfiguration = getCurrentConfiguration();
-            panel.webview.html = getEmojiPickerWebviewContent(
-                updatedConfiguration.badges, 
-                updatedConfiguration.folderBadges, 
-                updatedConfiguration.thresholds, 
-                updatedConfiguration.excludePatterns, 
-                undefined, 
-                panel.webview
-            );
+            // Add leading slash for relative paths that don't start with ** or special glob patterns
+            // This fixes manual entry of relative paths like "src/models/docs/large.txt"
+            if (!processedPattern.startsWith('/') && 
+                !processedPattern.startsWith('**') && 
+                !processedPattern.startsWith('**/') &&
+                !processedPattern.startsWith('./') &&
+                !processedPattern.startsWith('../') &&
+                !processedPattern.startsWith('~') &&
+                !processedPattern.includes('*') &&
+                !processedPattern.includes('?') &&
+                !processedPattern.includes(':')) { // Exclude Windows absolute paths like C:\
+                processedPattern = '/' + processedPattern;
+            }
+            
+            // Check both original and processed pattern to avoid duplicates
+            if (!currentPatterns.includes(processedPattern)) {
+                const updatedPatterns = [...currentPatterns, processedPattern];
+                await patternConfig.update('excludePatterns', updatedPatterns, vscode.ConfigurationTarget.Global);
+                vscode.window.showInformationMessage(`Added exclude pattern to global settings: ${processedPattern}`);
+                
+                refreshFileExplorerDecorator();
+                const updatedConfiguration = getCurrentConfiguration();
+                panel.webview.html = getEmojiPickerWebviewContent(
+                    updatedConfiguration.badges, 
+                    updatedConfiguration.folderBadges, 
+                    updatedConfiguration.thresholds, 
+                    updatedConfiguration.excludePatterns, 
+                    undefined, 
+                    panel.webview
+                );
+            }
         }
     }
 
@@ -202,25 +223,49 @@ export class PatternHandler {
         }
         
         if (message.pattern && !currentPatterns.includes(message.pattern)) {
-            const updatedPatterns = [...currentPatterns, message.pattern];
+            // Process the pattern to ensure proper formatting for glob matching
+            let processedPattern = message.pattern.trim();
             
-            // Merge with existing settings in the current directory
-            const updatedSettings: WorkspaceSettings = {
-                ...settingsWithInheritance.currentSettings,
-                'codeCounter.excludePatterns': updatedPatterns
-            };
+            // Add leading slash for relative paths that don't start with ** or special glob patterns
+            // This fixes manual entry of relative paths like "src/models/docs/large.txt"
+            if (!processedPattern.startsWith('/') && 
+                !processedPattern.startsWith('**') && 
+                !processedPattern.startsWith('**/') &&
+                !processedPattern.startsWith('./') &&
+                !processedPattern.startsWith('../') &&
+                !processedPattern.startsWith('~') &&
+                !processedPattern.includes('*') &&
+                !processedPattern.includes('?') &&
+                !processedPattern.includes(':')) { // Exclude Windows absolute paths like C:\
+                processedPattern = '/' + processedPattern;
+            }
             
-            await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
-            notifySettingsChanged();
-            
-            vscode.window.showInformationMessage(`Added exclude pattern: ${message.pattern}`);
-            
-            // Refresh decorations and webview
-            refreshFileExplorerDecorator();
-            await this.refreshWebviewWithUpdatedPatterns(
-                workspaceService, workspacePath, targetPath, currentDirectory,
-                workspaceData, badges, folderBadges, thresholds, panel
-            );
+            // Check both original and processed pattern to avoid duplicates
+            if (!currentPatterns.includes(processedPattern)) {
+                const updatedPatterns = [...currentPatterns, processedPattern];
+                
+                // Merge with existing settings in the current directory
+                const updatedSettings: WorkspaceSettings = {
+                    ...settingsWithInheritance.currentSettings,
+                    'codeCounter.excludePatterns': updatedPatterns
+                };
+                
+                await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+                
+                // CRITICAL: Invalidate the workspace service cache after database changes
+                invalidateWorkspaceServiceCache(workspacePath);
+                
+                notifySettingsChanged();
+                
+                vscode.window.showInformationMessage(`Added exclude pattern: ${processedPattern}`);
+                
+                // Refresh decorations and webview
+                refreshFileExplorerDecorator();
+                await this.refreshWebviewWithUpdatedPatterns(
+                    workspaceService, workspacePath, targetPath, currentDirectory,
+                    workspaceData, badges, folderBadges, thresholds, panel
+                );
+            }
         }
     }
 
@@ -306,6 +351,10 @@ export class PatternHandler {
         };
         
         await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+        
+        // CRITICAL: Invalidate the workspace service cache after database changes
+        invalidateWorkspaceServiceCache(workspacePath);
+        
         notifySettingsChanged();
         
         vscode.window.showInformationMessage(`Removed exclude pattern: ${removedPattern}`);
@@ -361,6 +410,11 @@ export class PatternHandler {
         
         // Reset the excludePatterns field to inherit from parent
         await workspaceService.resetField(targetPath, 'excludePatterns');
+        
+        // CRITICAL: Invalidate the workspace service cache after database changes
+        // This ensures fresh data is loaded on next access, preventing stale cache issues
+        invalidateWorkspaceServiceCache(workspacePath);
+        
         notifySettingsChanged();
         
         vscode.window.showInformationMessage('Reset exclude patterns to inherit from parent');
@@ -402,20 +456,40 @@ export class PatternHandler {
         const patternConfig = vscode.workspace.getConfiguration('codeCounter');
         const currentPatterns = patternConfig.get<string[]>('includePatterns', []);
         if (message.pattern && !currentPatterns.includes(message.pattern)) {
-            const updatedPatterns = [...currentPatterns, message.pattern];
-            await patternConfig.update('includePatterns', updatedPatterns, vscode.ConfigurationTarget.Global);
-            vscode.window.showInformationMessage(`Added include pattern to global settings: ${message.pattern}`);
+            // Process the pattern to ensure proper formatting for glob matching
+            let processedPattern = message.pattern.trim();
             
-            refreshFileExplorerDecorator();
-            const updatedConfiguration = getCurrentConfiguration();
-            panel.webview.html = getEmojiPickerWebviewContent(
-                updatedConfiguration.badges,
-                updatedConfiguration.folderBadges,
-                updatedConfiguration.thresholds,
-                updatedConfiguration.excludePatterns,
-                undefined,
-                panel.webview
-            );
+            // Add leading slash for relative paths that don't start with ** or special glob patterns
+            // This fixes manual entry of relative paths like "src/models/docs/large.txt"
+            if (!processedPattern.startsWith('/') && 
+                !processedPattern.startsWith('**') && 
+                !processedPattern.startsWith('**/') &&
+                !processedPattern.startsWith('./') &&
+                !processedPattern.startsWith('../') &&
+                !processedPattern.startsWith('~') &&
+                !processedPattern.includes('*') &&
+                !processedPattern.includes('?') &&
+                !processedPattern.includes(':')) { // Exclude Windows absolute paths like C:\
+                processedPattern = '/' + processedPattern;
+            }
+            
+            // Check both original and processed pattern to avoid duplicates
+            if (!currentPatterns.includes(processedPattern)) {
+                const updatedPatterns = [...currentPatterns, processedPattern];
+                await patternConfig.update('includePatterns', updatedPatterns, vscode.ConfigurationTarget.Global);
+                vscode.window.showInformationMessage(`Added include pattern to global settings: ${processedPattern}`);
+                
+                refreshFileExplorerDecorator();
+                const updatedConfiguration = getCurrentConfiguration();
+                panel.webview.html = getEmojiPickerWebviewContent(
+                    updatedConfiguration.badges,
+                    updatedConfiguration.folderBadges,
+                    updatedConfiguration.thresholds,
+                    updatedConfiguration.excludePatterns,
+                    undefined,
+                    panel.webview
+                );
+            }
         }
     }
 
@@ -444,23 +518,47 @@ export class PatternHandler {
         }
         
         if (message.pattern && !currentPatterns.includes(message.pattern)) {
-            const updatedPatterns = [...currentPatterns, message.pattern];
+            // Process the pattern to ensure proper formatting for glob matching
+            let processedPattern = message.pattern.trim();
             
-            const updatedSettings: WorkspaceSettings = {
-                ...settingsWithInheritance.currentSettings,
-                'codeCounter.includePatterns': updatedPatterns
-            };
+            // Add leading slash for relative paths that don't start with ** or special glob patterns
+            // This fixes manual entry of relative paths like "src/models/docs/large.txt"
+            if (!processedPattern.startsWith('/') && 
+                !processedPattern.startsWith('**') && 
+                !processedPattern.startsWith('**/') &&
+                !processedPattern.startsWith('./') &&
+                !processedPattern.startsWith('../') &&
+                !processedPattern.startsWith('~') &&
+                !processedPattern.includes('*') &&
+                !processedPattern.includes('?') &&
+                !processedPattern.includes(':')) { // Exclude Windows absolute paths like C:\
+                processedPattern = '/' + processedPattern;
+            }
             
-            await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
-            notifySettingsChanged();
-            
-            vscode.window.showInformationMessage(`Added include pattern: ${message.pattern}`);
-            
-            refreshFileExplorerDecorator();
-            await this.refreshWebviewWithUpdatedPatterns(
-                workspaceService, workspacePath, targetPath, currentDirectory,
-                workspaceData, badges, folderBadges, thresholds, panel
-            );
+            // Check both original and processed pattern to avoid duplicates
+            if (!currentPatterns.includes(processedPattern)) {
+                const updatedPatterns = [...currentPatterns, processedPattern];
+                
+                const updatedSettings: WorkspaceSettings = {
+                    ...settingsWithInheritance.currentSettings,
+                    'codeCounter.includePatterns': updatedPatterns
+                };
+                
+                await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+                
+                // CRITICAL: Invalidate the workspace service cache after database changes
+                invalidateWorkspaceServiceCache(workspacePath);
+                
+                notifySettingsChanged();
+                
+                vscode.window.showInformationMessage(`Added include pattern: ${processedPattern}`);
+                
+                refreshFileExplorerDecorator();
+                await this.refreshWebviewWithUpdatedPatterns(
+                    workspaceService, workspacePath, targetPath, currentDirectory,
+                    workspaceData, badges, folderBadges, thresholds, panel
+                );
+            }
         }
     }
 
@@ -546,6 +644,10 @@ export class PatternHandler {
         };
         
         await workspaceService.saveWorkspaceSettings(targetPath, updatedSettings);
+        
+        // CRITICAL: Invalidate the workspace service cache after database changes
+        invalidateWorkspaceServiceCache(workspacePath);
+        
         notifySettingsChanged();
         
         vscode.window.showInformationMessage(`Removed include pattern: ${removedPattern}`);
@@ -590,6 +692,11 @@ export class PatternHandler {
         
         // Reset the includePatterns field to inherit from parent
         await workspaceService.resetField(targetPath, 'includePatterns');
+        
+        // CRITICAL: Invalidate the workspace service cache after database changes
+        // This ensures fresh data is loaded on next access, preventing stale cache issues
+        invalidateWorkspaceServiceCache(workspacePath);
+        
         notifySettingsChanged();
         
         vscode.window.showInformationMessage('Reset include patterns to inherit from parent');
@@ -689,7 +796,11 @@ export class PatternHandler {
                 return;
             }
             relativePath = stats.isDirectory() ? relativePath + '/**' : relativePath;
-            const pattern = relativePath.replace(/\\/g, '/'); // Use forward slashes for consistency        
+            // Use forward slashes for consistency and add leading slash for proper glob matching
+            let pattern = relativePath.replace(/\\/g, '/');
+            if (!pattern.startsWith('/')) {
+                pattern = '/' + pattern;
+            }
             
             if (!pattern) {
                 vscode.window.showErrorMessage('Could not create exclusion pattern');

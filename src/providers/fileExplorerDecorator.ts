@@ -617,6 +617,9 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     }
 
     refresh(): void {
+        // Clear cache to ensure fresh data is loaded
+        this.lineCountCache.clearCache();
+        // Fire event to refresh all decorations
         this._onDidChangeFileDecorations.fire(undefined);
     }
 
