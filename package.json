@@ -82,17 +82,20 @@
         "codeCounter.outputDirectory": {
           "type": "string",
           "default": ".vscode/code-counter/reports",
-          "description": "Directory where HTML and XML reports are generated (relative to workspace root)"
+          "description": "Directory where HTML and XML reports are generated (relative to workspace root)",
+          "scope": "application"
         },
         "codeCounter.autoGenerate": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically generate reports when files are saved"
+          "description": "Automatically generate reports when files are saved",
+          "scope": "application"
         },
         "codeCounter.showNotificationOnAutoGenerate": {
           "type": "boolean",
           "default": false,
-          "description": "Show notification with report summary when auto-generating reports"
+          "description": "Show notification with report summary when auto-generating reports",
+          "scope": "application"
         },
         "codeCounter.showLineCountsInExplorer": {
           "type": "string",
@@ -101,7 +104,8 @@
             "hover"
           ],
           "default": "hover",
-          "description": "Show line counts in file explorer - always visible or on hover"
+          "description": "Show line counts in file explorer - always visible or on hover",
+          "scope": "application"
         },
         "codeCounter.showLineCountsInTabs": {
           "type": "string",
@@ -110,24 +114,28 @@
             "hover"
           ],
           "default": "hover",
-          "description": "Show line counts in status bar - always visible or on hover"
+          "description": "Show line counts in status bar - always visible or on hover",
+          "scope": "application"
         },
         "codeCounter.cacheLineCounts": {
           "type": "boolean",
           "default": true,
-          "description": "Cache line counts for better performance"
+          "description": "Cache line counts for better performance",
+          "scope": "application"
         },
         "codeCounter.lineThresholds.midThreshold": {
           "type": "number",
           "default": 300,
           "minimum": 1,
-          "description": "Line count threshold for warning indicator (medium file size)"
+          "description": "Line count threshold for warning indicator (medium file size)",
+          "scope": "application"
         },
         "codeCounter.lineThresholds.highThreshold": {
           "type": "number",
           "default": 1000,
           "minimum": 1,
-          "description": "Line count threshold for danger indicator (large file size)"
+          "description": "Line count threshold for danger indicator (large file size)",
+          "scope": "application"
         },
         "codeCounter.debug": {
           "type": "string",
@@ -137,37 +145,44 @@
             "file"
           ],
           "default": "none",
-          "description": "Debug output location: 'none' for silent operation, 'console' for VS Code Developer Tools, 'file' for .vscode/code-counter/debug.log"
+          "description": "Debug output location: 'none' for silent operation, 'console' for VS Code Developer Tools, 'file' for .vscode/code-counter/debug.log",
+          "scope": "application"
         },
         "codeCounter.emojis.normal": {
           "type": "string",
           "default": "🟢",
-          "description": "Emoji for line counts below warning threshold (low line count). You can use any emoji!"
+          "description": "Emoji for line counts below warning threshold (low line count). You can use any emoji!",
+          "scope": "application"
         },
         "codeCounter.emojis.warning": {
           "type": "string",
           "default": "🟡",
-          "description": "Emoji for line counts above warning threshold (medium line count). You can use any emoji!"
+          "description": "Emoji for line counts above warning threshold (medium line count). You can use any emoji!",
+          "scope": "application"
         },
         "codeCounter.emojis.danger": {
           "type": "string",
           "default": "🔴",
-          "description": "Emoji for line counts above danger threshold (high line count). You can use any emoji!"
+          "description": "Emoji for line counts above danger threshold (high line count). You can use any emoji!",
+          "scope": "application"
         },
         "codeCounter.emojis.folders.normal": {
           "type": "string",
           "default": "🟩",
-          "description": "Emoji for folders with low average line count (appears on left side of folder name)"
+          "description": "Emoji for folders with low average line count (appears on left side of folder name)",
+          "scope": "application"
         },
         "codeCounter.emojis.folders.warning": {
           "type": "string",
           "default": "🟨",
-          "description": "Emoji for folders with medium average line count (appears on left side of folder name)"
+          "description": "Emoji for folders with medium average line count (appears on left side of folder name)",
+          "scope": "application"
         },
         "codeCounter.emojis.folders.danger": {
           "type": "string",
           "default": "🟥",
-          "description": "Emoji for folders with high average line count (appears on left side of folder name)"
+          "description": "Emoji for folders with high average line count (appears on left side of folder name)",
+          "scope": "application"
         }
       }
     },
