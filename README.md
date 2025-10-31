@@ -12,7 +12,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 
 > **Transform your code visibility with intelligent line counting, visual indicators, and comprehensive reporting**
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
@@ -20,7 +20,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2+-blue.svg)](https://www.typescriptlang.org/)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
-[![Tests](https://img.shields.io/badge/tests-249%2F249%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-261%2F261%20passing-brightgreen.svg)](#)
 [![Coverage](https://img.shields.io/badge/coverage-41%25-green.svg)](#)
 [![GitHub Issues](https://img.shields.io/github/issues/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/stargazers)
@@ -171,7 +171,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 - **Team Alignment**: Visual indicators everyone understands
 - **Technical Debt Tracking**: Identify refactoring candidates
 - **Documentation Integration**: Embed reports in architecture docs
-- ✅ **249/249 Tests Passing** - Comprehensive test coverage with all features tested 
+- ✅ **261/261 Tests Passing** - Comprehensive test coverage with all features tested 
 - ✅ **41% Code Coverage** - Real metrics, not estimates```
 - ✅ **TypeScript 5.2+** - Modern, type-safe codebase
 - ✅ **Zero Dependencies** - Lightweight and secure
@@ -273,7 +273,7 @@ The extension generates two files in the configured output directory:
 
 ## 📊 **Technical Excellence**
 ### **Testing & Quality**
-- **Unit Tests**: 249 comprehensive tests across multiple test suites covering all features
+- **Unit Tests**: 261 comprehensive tests across multiple test suites covering all features
 - **Integration Tests**: VS Code API compatibility validation  
 - **Performance Tests**: File system operation optimization
 - **Coverage Analysis**: 41% real coverage with C8 tooling
