@@ -1,0 +1,596 @@
+<!-- 
+VS Code Code Counter Extension - WebView Template
+
+Copyright (c) 2025 DelightfulGames
+Licensed under the MIT License
+
+Repository: https://github.com/DelightfulGames/vscode-code-counter
+Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Counter Report</title>
+    <style>
+        :root {
+            /* Use VS Code theme variables */
+            --bg-primary: var(--vscode-editor-background);
+            --bg-secondary: var(--vscode-sideBar-background);
+            --bg-tertiary: var(--vscode-panel-background);
+            --text-primary: var(--vscode-editor-foreground);
+            --text-secondary: var(--vscode-descriptionForeground);
+            --text-muted: var(--vscode-disabledForeground);
+            --border-color: var(--vscode-panel-border);
+            --accent-color: var(--vscode-textLink-foreground);
+            --button-bg: var(--vscode-button-background);
+            --button-fg: var(--vscode-button-foreground);
+            --button-hover-bg: var(--vscode-button-hoverBackground);
+        }
+
+        body {
+            font-family: var(--vscode-font-family);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .header h1 {
+            margin: 0;
+            color: var(--accent-color);
+            font-size: 1.8em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-info {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background: var(--button-bg);
+            color: var(--button-fg);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--button-hover-bg);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .summary-section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            color: var(--accent-color);
+            font-size: 1.4em;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: var(--accent-color);
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        .language-stats {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .language-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .language-item:last-child {
+            border-bottom: none;
+        }
+
+        .language-name {
+            font-weight: 500;
+        }
+
+        .language-files {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        .search-controls {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.9em;
+        }
+
+        .table-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .files-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+        }
+
+        .files-table th {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .files-table th:hover {
+            background: var(--button-hover-bg);
+        }
+
+        .files-table td {
+            padding: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .files-table tr:hover {
+            background: var(--button-hover-bg);
+        }
+
+        .file-path {
+            font-family: var(--vscode-editor-font-family, 'Consolas', 'Courier New', monospace);
+            font-size: 0.9em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .error {
+            background: var(--vscode-errorBackground);
+            color: var(--vscode-errorForeground);
+            border: 1px solid var(--vscode-errorBorder);
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            border-top-color: var(--accent-color);
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>📊 Code Counter Report</h1>
+                <div class="header-info">
+                    <p>Generated on {{GENERATED_DATE}}</p>
+                    <p>Workspace: {{WORKSPACE_PATH}}</p>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn" id="refresh-btn" title="Refresh Data">🔄 Refresh</button>
+                <button class="btn" id="export-btn" title="Export to HTML">📄 Export</button>
+            </div>
+        </div>
+
+        <div id="loading-indicator" class="loading hidden">
+            <div class="spinner"></div>
+            Loading report data...
+        </div>
+
+        <div id="error-message" class="error hidden">
+            <strong>Error:</strong> <span id="error-text"></span>
+        </div>
+
+        <div id="report-content">
+            <div class="summary-section">
+                <h2 class="section-title">📈 Summary Statistics</h2>
+                <div id="summary-stats" class="stats-grid">
+                    <!-- Summary stats will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">💻 Languages</h2>
+                <div id="language-stats" class="language-stats">
+                    <!-- Language stats will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">📁 Files</h2>
+                <div class="search-controls">
+                    <input type="text" class="search-input" id="file-search" placeholder="🔍 Search files..." />
+                    <select class="search-input" id="language-filter" style="flex: 0 0 150px;">
+                        <option value="">All Languages</option>
+                    </select>
+                </div>
+                <div class="table-container">
+                    <table class="files-table">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-sort="path">📄 File <span class="sort-indicator"></span></th>
+                                <th class="sortable" data-sort="language">💻 Language <span class="sort-indicator"></span></th>
+                                <th class="sortable" data-sort="lines">📊 Lines <span class="sort-indicator"></span></th>
+                                <th class="sortable" data-sort="code">💼 Code <span class="sort-indicator"></span></th>
+                                <th class="sortable" data-sort="comments">💬 Comments <span class="sort-indicator"></span></th>
+                                <th class="sortable" data-sort="blanks">📝 Blanks <span class="sort-indicator"></span></th>
+                                <th class="sortable" data-sort="size">📦 Size <span class="sort-indicator"></span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="files-tbody">
+                            <!-- File data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Acquire VS Code API for webview communication
+        const vscode = acquireVsCodeApi();
+        
+        // Debug wrapper that sends messages to VS Code extension debugService
+        const debug = {
+            verbose: (...args) => {
+                vscode.postMessage({
+                    command: 'debugLog',
+                    level: 'verbose',
+                    message: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+                });
+            },
+            info: (...args) => {
+                vscode.postMessage({
+                    command: 'debugLog',
+                    level: 'info',
+                    message: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+                });
+            },
+            warning: (...args) => {
+                vscode.postMessage({
+                    command: 'debugLog',
+                    level: 'warning',
+                    message: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+                });
+            },
+            error: (...args) => {
+                vscode.postMessage({
+                    command: 'debugLog',
+                    level: 'error',
+                    message: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+                });
+            }
+        };
+
+        // Embedded JSON data (direct format)
+        const embeddedJsonData = '{{JSON_DATA}}';
+        
+        debug.info('🌐 WebView script loaded');
+        debug.info('📊 Embedded JSON data available:', !!embeddedJsonData && embeddedJsonData !== '{{JSON_DATA}}');
+
+        // Parse JSON data directly
+        let reportData = null;
+        
+        try {
+            if (embeddedJsonData && embeddedJsonData !== '{{JSON_DATA}}') {
+                debug.info('📥 Parsing JSON data...');
+                reportData = JSON.parse(embeddedJsonData);
+                debug.info('✅ JSON parsed successfully');
+            } else {
+                debug.warning('⚠️ No embedded JSON data found');
+            }
+        } catch (error) {
+            debug.error('❌ Error parsing JSON data:', error);
+        }
+
+        // Initialize report when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            debug.info('🚀 DOM ready, initializing report...');
+            
+            if (reportData) {
+                debug.info('📊 Report data available, initializing...');
+                initializeReport(reportData);
+            } else {
+                debug.error('❌ No report data available');
+                showError('No report data available');
+            }
+        });
+
+        // Setup button handlers
+        document.addEventListener('DOMContentLoaded', () => {
+            const refreshBtn = document.getElementById('refresh-btn');
+            const exportBtn = document.getElementById('export-btn');
+            
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', () => {
+                    debug.info('🔄 Refresh button clicked');
+                    vscode.postMessage({ command: 'refresh' });
+                });
+            }
+            
+            if (exportBtn) {
+                exportBtn.addEventListener('click', () => {
+                    debug.info('📄 Export button clicked');
+                    vscode.postMessage({ command: 'export' });
+                });
+            }
+        });
+
+        // Handle messages from VS Code extension
+        window.addEventListener('message', event => {
+            const message = event.data;
+            debug.info('📨 Received message from extension:', message);
+            
+            switch (message.command) {
+                case 'updateData':
+                    debug.info('🔄 Updating report data...');
+                    if (message.data) {
+                        reportData = message.data;
+                        initializeReport(reportData);
+                        debug.info('✅ Report data updated successfully');
+                    } else {
+                        debug.error('❌ No data in updateData message');
+                    }
+                    break;
+                default:
+                    debug.info('ℹ️ Unknown message command:', message.command);
+            }
+        });
+
+
+
+        function initializeReport(data) {
+            debug.info('🎯 Initializing report with data');
+            
+            try {
+                populateReport(data);
+                debug.info('✅ Report initialization completed');
+            } catch (error) {
+                debug.error('❌ Error initializing report:', error);
+                showError('Failed to initialize report: ' + error.message);
+            }
+        }
+
+        function populateReport(data) {
+            debug.info('📊 Populating report sections...');
+            
+            // Populate summary statistics
+            const summaryDiv = document.getElementById('summary-stats');
+            if (summaryDiv) {
+                summaryDiv.innerHTML = createSummaryHTML(data.summary);
+                debug.info('✅ Summary populated');
+            }
+            
+            // Populate language statistics
+            const langDiv = document.getElementById('language-stats');
+            if (langDiv) {
+                langDiv.innerHTML = createLanguageStatsHTML(data.languages);
+                debug.info('✅ Languages populated');
+            }
+            
+            // Populate files table
+            const tbody = document.getElementById('files-tbody');
+            if (tbody) {
+                tbody.innerHTML = createFilesTableHTML(data.files);
+                debug.info('✅ Files table populated');
+            }
+            
+            // Setup search functionality
+            setupFileSearch(data.files);
+            debug.info('✅ Search functionality setup');
+            
+            debug.info('🎉 Report population completed');
+        }
+
+        function createSummaryHTML(summary) {
+            return `
+                <div class="stat-card">
+                    <div class="stat-value">${summary.totalFiles.toLocaleString()}</div>
+                    <div class="stat-label">📄 Total Files</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${summary.totalLines.toLocaleString()}</div>
+                    <div class="stat-label">📊 Total Lines</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${summary.totalCodeLines.toLocaleString()}</div>
+                    <div class="stat-label">💼 Code Lines</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${summary.totalCommentLines.toLocaleString()}</div>
+                    <div class="stat-label">💬 Comment Lines</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${summary.totalBlankLines.toLocaleString()}</div>
+                    <div class="stat-label">📝 Blank Lines</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${summary.languageCount}</div>
+                    <div class="stat-label">💻 Languages</div>
+                </div>
+            `;
+        }
+
+        function createLanguageStatsHTML(languages) {
+            return languages
+                .sort((a, b) => b.lines - a.lines)
+                .map(lang => `
+                    <div class="language-item">
+                        <span class="language-name">${lang.name}</span>
+                        <div>
+                            <span class="language-files">${lang.files} files</span>
+                            <span style="margin-left: 10px; font-weight: 500;">${lang.lines.toLocaleString()} lines</span>
+                        </div>
+                    </div>
+                `).join('');
+        }
+
+        function createFilesTableHTML(files) {
+            return files.map(file => `
+                <tr>
+                    <td class="file-path" title="${file.path}">${file.relativePath}</td>
+                    <td>${file.language}</td>
+                    <td style="text-align: right;">${file.lines.toLocaleString()}</td>
+                    <td style="text-align: right;">${file.codeLines.toLocaleString()}</td>
+                    <td style="text-align: right;">${file.commentLines.toLocaleString()}</td>
+                    <td style="text-align: right;">${file.blankLines.toLocaleString()}</td>
+                    <td style="text-align: right;">${formatFileSize(file.size)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function setupFileSearch(files) {
+            const searchInput = document.getElementById('file-search');
+            const languageFilter = document.getElementById('language-filter');
+            const tbody = document.getElementById('files-tbody');
+            
+            if (!searchInput || !languageFilter || !tbody) return;
+            
+            // Populate language filter
+            const languages = [...new Set(files.map(f => f.language))].sort();
+            languageFilter.innerHTML = '<option value="">All Languages</option>' + 
+                languages.map(lang => `<option value="${lang}">${lang}</option>`).join('');
+            
+            function filterFiles() {
+                const searchTerm = searchInput.value.toLowerCase();
+                const selectedLang = languageFilter.value;
+                
+                const filteredFiles = files.filter(file => {
+                    const matchesSearch = file.relativePath.toLowerCase().includes(searchTerm);
+                    const matchesLanguage = !selectedLang || file.language === selectedLang;
+                    return matchesSearch && matchesLanguage;
+                });
+                
+                tbody.innerHTML = createFilesTableHTML(filteredFiles);
+            }
+            
+            searchInput.addEventListener('input', filterFiles);
+            languageFilter.addEventListener('change', filterFiles);
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+            if (errorDiv && errorText) {
+                errorText.textContent = message;
+                errorDiv.classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
