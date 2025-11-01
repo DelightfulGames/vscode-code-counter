@@ -37,7 +37,7 @@ export function getEmojiPickerWebviewContent(badges: any,
         workspaceData?: WorkspaceData,
         webview?: vscode.Webview): string {
     try {
-        const templatePath = path.join(__dirname, '..', '..', 'templates', 'emoji-picker.html');
+        const templatePath = path.join(__dirname, '..', '..', 'templates', 'settings.html');
         let htmlContent = fs.readFileSync(templatePath, 'utf8');
         
         // Get current notification setting
@@ -197,7 +197,7 @@ export function getEmojiPickerWebviewContent(badges: any,
             'main.js'
         ];
         
-        const cssPath = path.join(templatesDir, 'emoji-picker.css');
+        const cssPath = path.join(templatesDir, 'settings.css');
         const emojiDataPath = path.join(templatesDir, 'emoji-data.json');
         const emojiSearchDataPath = path.join(templatesDir, 'emoji-search-data.json');
         

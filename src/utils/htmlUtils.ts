@@ -191,8 +191,8 @@ export function loadWebviewAssets(webview?: vscode.Webview): {
     useInlineScript: boolean;
 } {
     const templatesDir = path.join(__dirname, '..', '..', 'templates');
-    const templatePath = path.join(templatesDir, 'emoji-picker.html');
-    const cssPath = path.join(templatesDir, 'emoji-picker.css');
+    const templatePath = path.join(templatesDir, 'settings.html');
+    const cssPath = path.join(templatesDir, 'settings.css');
     const emojiDataPath = path.join(templatesDir, 'emoji-data.json');
     const emojiSearchDataPath = path.join(templatesDir, 'emoji-search-data.json');
     

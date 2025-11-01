@@ -310,7 +310,7 @@ export function getEmojiPickerWebviewContent(badges: any,
         } else {
             const templatesDir = path.join(__dirname, '..', '..', 'templates');
             const scriptUri = webview?.asWebviewUri(vscode.Uri.file(path.join(templatesDir, 'core.js')));
-            const cssUri = webview?.asWebviewUri(vscode.Uri.file(path.join(templatesDir, 'emoji-picker.css')));
+            const cssUri = webview?.asWebviewUri(vscode.Uri.file(path.join(templatesDir, 'settings.css')));
             processedHtml = processedHtml.replace(/{{SCRIPT_URI}}/g, scriptUri?.toString() || '');
             processedHtml = processedHtml.replace(/{{CSS_URI}}/g, cssUri?.toString() || '');
         }
