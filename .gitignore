@@ -73,8 +73,6 @@ temp/
 *.swo
 *~
 
-# Extension specific
-# Generated reports (if you want to exclude them)
-reports/
-*.xml
-*.html
+# Project specific files
+.vscode/code-counter/**
+!.vscode/code-counter/*.db
