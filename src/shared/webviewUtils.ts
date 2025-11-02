@@ -281,11 +281,12 @@ export function getEmojiPickerWebviewContent(badges: any,
         // Replace debug configuration
         const currentConfig = getCurrentConfiguration();
         const debugBackendValue = currentConfig.debug || 'none';
+        htmlContent = htmlContent.replace(/{{debugActive}}/g, debugBackendValue !== 'none' ? 'open' : '');
         htmlContent = htmlContent.replace(/{{debugBackend}}/g, debugBackendValue);
         htmlContent = htmlContent.replace(/{{debugBackendNoneSelected}}/g, debugBackendValue === 'none' ? 'selected' : '');
         htmlContent = htmlContent.replace(/{{debugBackendConsoleSelected}}/g, debugBackendValue === 'console' ? 'selected' : '');
         htmlContent = htmlContent.replace(/{{debugBackendFileSelected}}/g, debugBackendValue === 'file' ? 'selected' : '');
-        
+          
         // Output Directory and Auto-Generate settings
         const settingsConfig = vscode.workspace.getConfiguration('codeCounter');
         const outputDirectory = settingsConfig.get<string>('outputDirectory', './.cc/reports');

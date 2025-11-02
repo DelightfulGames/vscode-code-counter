@@ -160,6 +160,22 @@ export class WebViewReportService {
                             this.debug.error('❌ Error during refresh:', error);
                         }
                         break;
+                    case 'openFile':
+                        // Handle opening files in VS Code
+                        if (message.filePath) {
+                            try {
+                                this.debug.info('🔗 Opening file from webview:', message.filePath);
+                                const uri = vscode.Uri.file(message.filePath);
+                                await vscode.window.showTextDocument(uri, { preview: false });
+                                this.debug.info('✅ File opened successfully');
+                            } catch (error) {
+                                this.debug.error('❌ Failed to open file:', error);
+                                vscode.window.showErrorMessage(`Failed to open file: ${message.filePath}`);
+                            }
+                        } else {
+                            this.debug.error('❌ No file path provided in openFile message');
+                        }
+                        break;
                     case 'export':
                         // Handle export requests with current data
                         if (this.currentData) {
@@ -211,9 +227,33 @@ export class WebViewReportService {
     }
 
     private async generateWebViewHTML(data: ReportData): Promise<string> {
+        this.debug.info('🎨 Generating webview HTML with external assets');
+        
         // Read the webview-specific template file
         const templatePath = path.join(__dirname, '../../templates/webview-report.html');
         let htmlTemplate = await fs.promises.readFile(templatePath, 'utf8');
+        
+        // Read external CSS file
+        const cssPath = path.join(__dirname, '../../templates/webview-report.css');
+        let cssContent = '';
+        try {
+            cssContent = await fs.promises.readFile(cssPath, 'utf8');
+            this.debug.info('✅ CSS file loaded successfully');
+        } catch (error) {
+            this.debug.error('❌ Failed to load CSS file:', error);
+            cssContent = '/* CSS file not found */';
+        }
+        
+        // Read external JavaScript file
+        const jsPath = path.join(__dirname, '../../templates/webview-report.js');
+        let jsContent = '';
+        try {
+            jsContent = await fs.promises.readFile(jsPath, 'utf8');
+            this.debug.info('✅ JavaScript file loaded successfully');
+        } catch (error) {
+            this.debug.error('❌ Failed to load JavaScript file:', error);
+            jsContent = '// JavaScript file not found\nconsole.error("webview-report.js not found");';
+        }
         
         // Replace template placeholders with actual data
         htmlTemplate = htmlTemplate.replace('{{GENERATED_DATE}}', data.generatedDate);
@@ -224,9 +264,17 @@ export class WebViewReportService {
                                            .replace(/\r?\n/g, '\\n')
                                            .replace(/'/g, "\\'");
         
-        // Embed the JSON data for the template to use
-        htmlTemplate = htmlTemplate.replace('{{JSON_DATA}}', jsonData);
-        
+
+        // Inject CSS content
+        const cssInjection = `<style>\n${cssContent}\n</style>`;
+        htmlTemplate = htmlTemplate.replace('{{INJECTED_CSS}}', cssInjection);
+
+        // Inject JavaScript content
+        jsContent = jsContent.replace("{{JSON_DATA}}", jsonData);
+        const jsInjection = `<script>\n${jsContent}\n</script>`;
+        htmlTemplate = htmlTemplate.replace('{{INJECTED_JS}}', jsInjection);
+       
+        this.debug.info('🎉 Webview HTML generation completed with injected assets');
         return htmlTemplate;
     }
 

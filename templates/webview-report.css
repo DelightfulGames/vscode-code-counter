@@ -1,0 +1,511 @@
+/* VS Code Code Counter Extension - WebView Report Styles */
+
+:root {
+    /* Use VS Code theme variables */
+    --bg-primary: var(--vscode-editor-background);
+    --bg-secondary: var(--vscode-sideBar-background);
+    --bg-tertiary: var(--vscode-panel-background);
+    --text-primary: var(--vscode-editor-foreground);
+    --text-secondary: var(--vscode-descriptionForeground);
+    --text-muted: var(--vscode-disabledForeground);
+    --border-color: var(--vscode-panel-border);
+    --accent-color: var(--vscode-textLink-foreground);
+    --button-bg: var(--vscode-button-background);
+    --button-fg: var(--vscode-button-foreground);
+    --button-hover-bg: var(--vscode-button-hoverBackground);
+}
+
+body {
+    font-family: var(--vscode-font-family);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.header h1 {
+    margin: 0;
+    color: var(--accent-color);
+    font-size: 1.8em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.header-info {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn {
+    background: var(--button-bg);
+    color: var(--button-fg);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background-color 0.2s;
+}
+
+.btn:hover {
+    background: var(--button-hover-bg);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.summary-section {
+    margin-bottom: 30px;
+}
+
+.section-title {
+    color: var(--accent-color);
+    font-size: 1.4em;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 15px;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 2em;
+    font-weight: bold;
+    color: var(--accent-color);
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+.language-stats {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.language-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.language-item:last-child {
+    border-bottom: none;
+}
+
+.language-name {
+    font-weight: 500;
+}
+
+.language-files {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+.search-controls {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.search-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.9em;
+}
+
+/* Dark Tabulator theme customization */
+.tabulator {
+    background: #1e1e1e !important;
+    border: 1px solid #3c3c3c !important;
+    color: #d4d4d4 !important;
+    font-family: var(--vscode-font-family) !important;
+}
+
+.tabulator .tabulator-header {
+    background: #2d2d30 !important;
+    border-bottom: 1px solid #3c3c3c !important;
+}
+
+.tabulator .tabulator-header .tabulator-col {
+    background: #2d2d30 !important;
+    color: #d4d4d4 !important;
+    border-right: 1px solid #3c3c3c !important;
+}
+
+.tabulator .tabulator-header .tabulator-col:hover {
+    background: #383838 !important;
+}
+
+.tabulator .tabulator-tableHolder {
+    background: #1e1e1e !important;
+}
+
+.tabulator .tabulator-tableHolder .tabulator-table .tabulator-row {
+    background: #1e1e1e !important;
+    color: #d4d4d4 !important;
+    border-bottom: 1px solid #3c3c3c !important;
+}
+
+.tabulator .tabulator-tableHolder .tabulator-table .tabulator-row:nth-child(even) {
+    background: #252526 !important;
+}
+
+.tabulator .tabulator-tableHolder .tabulator-table .tabulator-row:hover {
+    background: #2a2d2e !important;
+}
+
+.tabulator .tabulator-tableHolder .tabulator-table .tabulator-row .tabulator-cell {
+    border-right: 1px solid #3c3c3c !important;
+}
+
+.tabulator .tabulator-footer {
+    background: #2d2d30 !important;
+    color: #cccccc !important;
+    border-top: 1px solid #3c3c3c !important;
+}
+
+/* Group header styling */
+.tabulator .tabulator-row.tabulator-group {
+    background: #0e639c !important;
+    color: #ffffff !important;
+    font-weight: bold !important;
+}
+
+.tabulator .tabulator-row.tabulator-group .tabulator-cell {
+    background: transparent !important;
+    border-right: none !important;
+}
+
+.tabulator .tabulator-row.tabulator-group:hover {
+    background: #1177bb !important;
+}
+
+.tabulator .tabulator-group-stats {
+    font-size: 0.85em;
+    opacity: 0.9;
+    margin-left: 10px;
+}
+
+.tabulator .tabulator-group-stats .stat-item {
+    margin-right: 15px;
+}
+
+/* Dark theme for table cells and inputs */
+.tabulator .tabulator-cell {
+    background: #1e1e1e !important;
+    color: #d4d4d4 !important;
+}
+
+.tabulator .tabulator-row:nth-child(even) .tabulator-cell {
+    background: #252526 !important;
+}
+
+.tabulator .tabulator-row:hover .tabulator-cell {
+    background: #2a2d2e !important;
+}
+
+/* Dark theme for header filter inputs */
+.tabulator .tabulator-header-filter input,
+.tabulator .tabulator-header-filter select {
+    background: #3c3c3c !important;
+    color: #d4d4d4 !important;
+    border: 1px solid #5a5a5a !important;
+    border-radius: 3px;
+    padding: 4px 6px;
+    font-size: 12px;
+}
+
+.tabulator .tabulator-header-filter input:focus,
+.tabulator .tabulator-header-filter select:focus {
+    background: #404040 !important;
+    border-color: #007acc !important;
+    outline: none;
+}
+
+.tabulator .tabulator-header-filter input::placeholder {
+    color: #888888 !important;
+}
+
+/* Dark theme for dropdown options */
+.tabulator .tabulator-header-filter select option {
+    background: #3c3c3c !important;
+    color: #d4d4d4 !important;
+}
+
+/* Dark theme for pagination */
+.tabulator .tabulator-paginator {
+    background: #2d2d30 !important;
+    color: #d4d4d4 !important;
+    border-top: 1px solid #3c3c3c !important;
+}
+
+.tabulator .tabulator-page {
+    background: #3c3c3c !important;
+    color: #d4d4d4 !important;
+    border: 1px solid #5a5a5a !important;
+}
+
+.tabulator .tabulator-page:hover {
+    background: #404040 !important;
+}
+
+.tabulator .tabulator-page.active {
+    background: #007acc !important;
+    color: #ffffff !important;
+    border-color: #007acc !important;
+}
+
+/* Dark theme for sort arrows and column headers */
+.tabulator .tabulator-col .tabulator-col-sorter {
+    color: #d4d4d4 !important;
+}
+
+.tabulator .tabulator-col .tabulator-col-sorter .tabulator-arrow {
+    border-bottom-color: #d4d4d4 !important;
+    border-top-color: #d4d4d4 !important;
+}
+
+.tabulator .tabulator-col.tabulator-sortable:hover {
+    background: #383838 !important;
+}
+
+.tabulator-row.tabulator-group span {
+    color: #222;
+}
+
+.tabulator-row.tabulator-group.tabulator-group-visible .tabulator-arrow {
+    border-top: 6px solid #222;
+}
+
+.tabulator-row.tabulator-group .tabulator-arrow {
+    border-left: 6px solid #222;
+}
+
+/* File link styles */
+.file-link {
+    color: var(--vscode-textLink-foreground) !important;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.file-link:hover {
+    color: var(--vscode-textLink-activeForeground) !important;
+    text-decoration: underline;
+}
+
+.file-link:active {
+    color: var(--vscode-textLink-activeForeground) !important;
+}
+
+/* Dark custom filter controls */
+.filter-controls {
+    background: #252526 !important;
+    border: 1px solid #3c3c3c !important;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 15px;
+    grid-template-columns:min-content;
+    gap: 15px;
+}
+
+.filter-control-row {
+    display: inline-flex;
+    gap: 20px;
+    margin-bottom: 10px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.filter-label {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: #cccccc !important;
+}
+
+.filter-group input,
+.filter-group select {
+    background: #3c3c3c !important;
+    color: #d4d4d4 !important;
+    border: 1px solid #5a5a5a !important;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 13px;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+    background: #404040 !important;
+    border-color: #007acc !important;
+    outline: none;
+}
+
+.filter-group input::placeholder {
+    color: #888888 !important;
+}
+
+.filter-group select option {
+    background: #3c3c3c !important;
+    color: #d4d4d4 !important;
+}
+
+.range-filter {
+    gap: 10px;
+}
+
+.range-input {
+    flex: 1;
+    height: 4px;
+    background: #3c3c3c !important;
+    outline: none;
+    border-radius: 2px;
+}
+
+.range-input::-webkit-slider-thumb {
+    background: #007acc !important;
+}
+
+.range-input::-moz-range-thumb {
+    background: #007acc !important;
+    border: none;
+}
+
+.quick-filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.quick-filter-btn {
+    padding: 4px 12px;
+    background: #2d2d30 !important;
+    border: 1px solid #3c3c3c !important;
+    border-radius: 4px;
+    color: #cccccc !important;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s;
+}
+
+.quick-filter-btn:hover {
+    background: #383838 !important;
+    color: #ffffff !important;
+}
+
+.quick-filter-btn.active {
+    background: #007acc !important;
+    color: #ffffff !important;
+    border-color: #007acc !important;
+}
+
+.table-container {
+    background: #252526 !important;
+    border: 1px solid #3c3c3c !important;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.file-path {
+    font-family: var(--vscode-editor-font-family, 'Consolas', 'Courier New', monospace);
+    font-size: 0.9em;
+}
+
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-secondary);
+}
+
+.hidden {
+    display: none;
+}
+
+.error {
+    background: var(--vscode-errorBackground);
+    color: var(--vscode-errorForeground);
+    border: 1px solid var(--vscode-errorBorder);
+    border-radius: 4px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-color);
+    border-radius: 50%;
+    border-top-color: var(--accent-color);
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 10px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/*# sourceURL=webview-report.css */

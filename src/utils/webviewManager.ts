@@ -256,6 +256,7 @@ export function getEmojiPickerWebviewContent(badges: any,
         // Replace debug configuration
         const currentConfig = getCurrentConfiguration();
         const debugBackendValue = currentConfig.debug || 'none';
+        processedHtml = processedHtml.replace(/{{debugActive}}/g, debugBackendValue !== 'none' ? 'open' : '');
         processedHtml = processedHtml.replace(/{{debugBackend}}/g, debugBackendValue);
         processedHtml = processedHtml.replace(/{{debugBackendNoneSelected}}/g, debugBackendValue === 'none' ? 'selected' : '');
         processedHtml = processedHtml.replace(/{{debugBackendConsoleSelected}}/g, debugBackendValue === 'console' ? 'selected' : '');
