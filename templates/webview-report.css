@@ -223,20 +223,63 @@ body {
     border-top: 1px solid #3c3c3c !important;
 }
 
-/* Group header styling */
+/* Enhanced group header styling with frozen column support */
 .tabulator .tabulator-row.tabulator-group {
-    background: #0e639c !important;
+    background: linear-gradient(135deg, #0a4d78 0%, #0e639c 50%, #1177bb 100%) !important;
     color: #ffffff !important;
-    font-weight: bold !important;
+    font-weight: 600 !important;
+    border-bottom: 2px solid #007acc !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
+    padding: 0px;
+    position: relative !important;
+    overflow: hidden !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Dynamic group header container */
+.dynamic-group-header {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+}
+
+/* Group header table structure for frozen column alignment */
+.tabulator .tabulator-row.tabulator-group table,
+.dynamic-group-header table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+}
+
+.tabulator .tabulator-row.tabulator-group td,
+.dynamic-group-header td {
+    border: none !important;
+    background: transparent !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    transition: width 0.2s ease !important;
+    box-sizing: border-box !important;
+    min-width: 0 !important;
 }
 
 .tabulator .tabulator-row.tabulator-group .tabulator-cell {
     background: transparent !important;
     border-right: none !important;
+    color: #ffffff !important;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7) !important;
 }
 
 .tabulator .tabulator-row.tabulator-group:hover {
-    background: #1177bb !important;
+    background: linear-gradient(135deg, #0c5a8a 0%, #1177bb 50%, #1488cc 100%) !important;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4) !important;
 }
 
 .tabulator .tabulator-group-stats {
@@ -338,6 +381,201 @@ body {
 
 .tabulator-row.tabulator-group .tabulator-arrow {
     border-left: 6px solid #222;
+}
+
+/* Frozen columns and sticky headers enhancements */
+.tabulator .tabulator-frozen {
+    position: sticky !important;
+    z-index: 10 !important;
+    background: inherit !important;
+    box-shadow: 3px 0 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Remove specific left positioning - let Tabulator calculate positions */
+
+.tabulator .tabulator-col.tabulator-frozen {
+    position: sticky !important;
+    z-index: 11 !important;
+    background: linear-gradient(135deg, #1e1e1e 0%, #252526 50%, #2d2d30 100%) !important;
+    border-right: 3px solid #007acc !important;
+    box-shadow: inset -2px 0 4px rgba(0, 122, 204, 0.2) !important;
+}
+
+/* Let Tabulator handle frozen column header positioning */
+
+.tabulator .tabulator-col.tabulator-frozen:after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, #007acc 0%, #0098ff 100%) !important;
+    opacity: 0.8;
+    box-shadow: 1px 0 2px rgba(0, 122, 204, 0.3);
+}
+
+.tabulator .tabulator-header.tabulator-sticky {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 12 !important;
+    background: linear-gradient(180deg, #1e1e1e 0%, #2d2d30 100%) !important;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4) !important;
+    border-bottom: 2px solid rgba(0, 122, 204, 0.6) !important;
+}
+
+.tabulator .tabulator-row.tabulator-group.tabulator-sticky {
+    position: sticky !important;
+    z-index: 13 !important; /* Higher than regular headers but lower than frozen+sticky */
+    background: linear-gradient(135deg, #0a4d78 0%, #0e639c 50%, #1177bb 100%) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    border-top: 2px solid #007acc !important;
+    border-bottom: 3px solid #007acc !important;
+}
+
+/* Enhanced dark theme frozen cell styling */
+.tabulator .tabulator-cell.tabulator-frozen {
+    background: linear-gradient(135deg, #181818 0%, #1e1e1e 100%) !important;
+    position: sticky !important;
+    z-index: 8 !important;
+    border-right: 3px solid #007acc !important;
+    box-shadow: inset -2px 0 4px rgba(0, 122, 204, 0.15), 2px 0 6px rgba(0, 0, 0, 0.3) !important;
+    color: #e1e1e1 !important;
+    font-weight: 500 !important;
+}
+
+/* Let Tabulator handle frozen column positioning automatically */
+
+.tabulator .tabulator-row:nth-child(even) .tabulator-cell.tabulator-frozen {
+    background: linear-gradient(135deg, #1a1a1a 0%, #202020 100%) !important;
+    color: #e1e1e1 !important;
+}
+
+.tabulator .tabulator-row:hover .tabulator-cell.tabulator-frozen {
+    background: linear-gradient(135deg, #242424 0%, #2a2a2a 100%) !important;
+    color: #ffffff !important;
+    border-right: 3px solid #0098ff !important;
+    box-shadow: inset -2px 0 6px rgba(0, 152, 255, 0.25), 3px 0 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Improve scroll behavior for large tables */
+/* 
+.tabulator {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+} 
+*/
+
+.tabulator .tabulator-tableHolder {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    position: relative !important;
+}
+
+/* Enhanced sticky group header styling */
+.tabulator .tabulator-row.tabulator-group.tabulator-sticky {
+    border-bottom: 3px solid #007acc !important;
+}
+
+/* Dynamic group header frozen columns - first 2 td elements */
+.tabulator .tabulator-row.tabulator-group table td[data-field]:nth-child(-n+2),
+.dynamic-group-header table td[data-field]:nth-child(-n+2) {
+    position: sticky !important;
+    z-index: 13 !important;
+    background: linear-gradient(135deg, #0a4d78 0%, #0e639c 100%) !important;
+    box-shadow: inset -2px 0 6px rgba(0, 152, 255, 0.3), 2px 0 8px rgba(0, 0, 0, 0.4) !important;
+    font-weight: 700 !important;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Position frozen columns correctly */
+.tabulator .tabulator-row.tabulator-group table td[data-field]:nth-child(1),
+.dynamic-group-header table td[data-field]:nth-child(1) {
+    left: 0 !important;
+}
+
+/* Directory cell with colspan="2" styling */
+.tabulator .tabulator-row.tabulator-group table td[data-field="directory"][colspan="2"],
+.dynamic-group-header table td[data-field="directory"][colspan="2"] {
+    position: sticky !important;
+    z-index: 13 !important;
+    left: 0 !important;
+    background: linear-gradient(135deg, #0a4d78 0%, #0e639c 100%) !important;
+    box-shadow: inset -2px 0 6px rgba(0, 152, 255, 0.3), 2px 0 8px rgba(0, 0, 0, 0.4) !important;
+    font-weight: 700 !important;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8) !important;
+    border-right: 3px solid rgba(0, 152, 255, 0.5) !important;
+}
+
+/* Group header cells in frozen columns (legacy support) */
+.tabulator .tabulator-row.tabulator-group .tabulator-cell.tabulator-frozen {
+    background: linear-gradient(135deg, #0a4d78 0%, #0e639c 100%) !important;
+    border-right: 3px solid #0098ff !important;
+    box-shadow: inset -2px 0 6px rgba(0, 152, 255, 0.3), 2px 0 8px rgba(0, 0, 0, 0.4) !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Sticky group headers with table-based frozen cells */
+.tabulator .tabulator-row.tabulator-group.tabulator-sticky table td:nth-child(1),
+.tabulator .tabulator-row.tabulator-group.tabulator-sticky table td:nth-child(2) {
+    background: linear-gradient(135deg, #0c5a8a 0%, #1177bb 100%) !important;
+    border-right: 3px solid #00bfff !important;
+    box-shadow: inset -2px 0 8px rgba(0, 191, 255, 0.4), 3px 0 10px rgba(0, 0, 0, 0.5) !important;
+    z-index: 14 !important; /* Highest for sticky group + frozen */
+}
+
+/* Sticky group headers with frozen cells (legacy support) */
+.tabulator .tabulator-row.tabulator-group.tabulator-sticky .tabulator-cell.tabulator-frozen {
+    background: linear-gradient(135deg, #0c5a8a 0%, #1177bb 100%) !important;
+    border-right: 3px solid #00bfff !important;
+    box-shadow: inset -2px 0 8px rgba(0, 191, 255, 0.4), 3px 0 10px rgba(0, 0, 0, 0.5) !important;
+    z-index: 14 !important; /* Highest for sticky group + frozen */
+}
+
+/* Add pin indicator for sticky group headers */
+.tabulator .tabulator-row.tabulator-group.tabulator-sticky:before {
+    content: '📌 ';
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.9em;
+    opacity: 0.8;
+    z-index: 1;
+}
+
+/* Enhance group header typography for better visibility */
+.tabulator .tabulator-row.tabulator-group .tabulator-cell {
+    font-size: 0.95em !important;
+    letter-spacing: 0.5px !important;
+    padding-left: 30px !important; /* Make room for pin icon */
+}
+
+/* Ensure proper z-index hierarchy for overlapping elements */
+.tabulator .tabulator-col.tabulator-frozen.tabulator-sticky {
+    z-index: 15 !important; /* Highest priority for frozen + sticky headers */
+    background: linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 50%, #1e1e1e 100%) !important;
+    border-right: 3px solid #0098ff !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
+    box-shadow: inset -2px 0 6px rgba(0, 152, 255, 0.3), 3px 3px 12px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Frozen column header text styling */
+.tabulator .tabulator-col.tabulator-frozen .tabulator-col-content {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Special styling for Directory and File column icons */
+.tabulator .tabulator-col.tabulator-frozen .tabulator-col-title:before {
+    content: '📌 ';
+    margin-right: 4px;
+    opacity: 0.8;
 }
 
 /* File link styles */
@@ -506,6 +744,114 @@ body {
 
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+/* CSS Classes for Dynamic HTML Elements - Replacing Inline Styles */
+
+/* Group header table structure */
+.group-header-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    margin: 0;
+}
+
+/* Stat value (bold/main number) */
+.stat-value-primary {
+    font-weight: 600;
+}
+
+/* Stat label (description/secondary text) */
+.stat-label-secondary {
+    opacity: 0.8;
+    font-size: 0.8em;
+}
+
+/* Group header cell - frozen columns (directory and filename) */
+.group-cell-frozen {
+    padding: 8px;
+    font-weight: 600;
+    color: #ffffff;
+    border-right: 3px solid rgba(0, 152, 255, 0.5);
+}
+
+/* Group header cell - directory specific */
+.group-cell-directory {
+    min-width: 400px;
+}
+
+/* Group header cell - filename specific */
+.group-cell-filename {
+    min-width: 220px;
+    font-weight: 500;
+}
+
+/* Group header cell - normal columns */
+.group-cell-normal {
+    padding: 8px;
+    text-align: center;
+    font-size: 0.85em;
+    color: #ffffff;
+}
+
+/* Group header cell - language column */
+.group-cell-language {
+    min-width: 120px;
+}
+
+/* Group header cell - lines column */
+.group-cell-lines {
+    min-width: 120px;
+}
+
+/* Group header cell - comment ratio column */
+.group-cell-comment-ratio {
+    min-width: 80px;
+}
+
+/* Group header cell - size column */
+.group-cell-size {
+    min-width: 120px;
+}
+
+/* Combined directory+filename column width for colspan="2" */
+.group-cell-directory-combined {
+    /* Width will be set dynamically based on actual column widths */
+    min-width: 420px; /* Fallback minimum width */
+}
+
+/* Directory formatter link styling */
+.directory-link {
+    font-family: var(--vscode-editor-font-family, 'Consolas', 'Courier New', monospace);
+    font-size: 0.9em;
+    color: var(--vscode-textLink-foreground);
+}
+
+/* File link styling */
+.file-link {
+    font-family: var(--vscode-editor-font-family, 'Consolas', 'Courier New', monospace);
+    font-size: 0.9em;
+    color: var(--vscode-textLink-foreground);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.file-link:hover {
+    text-decoration: underline;
+}
+
+/* Comment ratio colored text */
+.comment-ratio-colored {
+    display: inline; /* Color will be applied dynamically via JavaScript */
+}
+
+/* Common cell utilities */
+.group-cell {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    min-width: 0;
 }
 
 /*# sourceURL=webview-report.css */

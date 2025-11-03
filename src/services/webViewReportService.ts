@@ -244,249 +244,87 @@ export class WebViewReportService {
             cssContent = '/* CSS file not found */';
         }
         
-        // Read external JavaScript file
-        const jsPath = path.join(__dirname, '../../templates/webview-report.js');
+        // Read all modular JavaScript files in correct loading order
+        const jsModules = [
+            'core.js',
+            'data-manager.js', 
+            'ui-handlers.js',
+            'tabulator-manager.js',
+            'filter-manager.js',
+            'webview-report.js'
+        ];
+        
         let jsContent = '';
-        try {
-            jsContent = await fs.promises.readFile(jsPath, 'utf8');
-            this.debug.info('✅ JavaScript file loaded successfully');
-        } catch (error) {
-            this.debug.error('❌ Failed to load JavaScript file:', error);
-            jsContent = '// JavaScript file not found\nconsole.error("webview-report.js not found");';
+        for (const module of jsModules) {
+            const modulePath = path.join(__dirname, `../../templates/${module}`);
+            try {
+                const moduleContent = await fs.promises.readFile(modulePath, 'utf8');
+                jsContent += `\n// === ${module.toUpperCase()} ===\n`;
+                jsContent += moduleContent;
+                jsContent += `\n// === END ${module.toUpperCase()} ===\n`;
+                this.debug.info(`✅ ${module} loaded successfully (${moduleContent.length} chars)`);
+                
+                // Special debug for webview-report.js to check for template placeholder
+                if (module === 'webview-report.js') {
+                    const hasPlaceholder = moduleContent.includes('{{JSON_DATA}}');
+                    this.debug.info(`🔍 webview-report.js contains {{JSON_DATA}} placeholder: ${hasPlaceholder}`);
+                }
+            } catch (error) {
+                this.debug.error(`❌ Failed to load ${module}:`, error);
+                jsContent += `\n// ERROR: Failed to load ${module}\nconsole.error("${module} not found");\n`;
+            }
         }
+        
+        this.debug.info('✅ All JavaScript modules loaded successfully');
         
         // Replace template placeholders with actual data
         htmlTemplate = htmlTemplate.replace('{{GENERATED_DATE}}', data.generatedDate);
         htmlTemplate = htmlTemplate.replace('{{WORKSPACE_PATH}}', data.workspacePath);
         
-        // Embed JSON data directly (much simpler than XML conversion)
-        const jsonData = JSON.stringify(data).replace(/\\/g, '\\\\')
-                                           .replace(/\r?\n/g, '\\n')
-                                           .replace(/'/g, "\\'");
-        
+        // Embed JSON data with proper escaping for JavaScript strings
+        const jsonData = JSON.stringify(data)
+            .replace(/\\/g, '\\\\')   // Escape backslashes
+            .replace(/'/g, "\\'");    // Escape single quotes
 
         // Inject CSS content
         const cssInjection = `<style>\n${cssContent}\n</style>`;
         htmlTemplate = htmlTemplate.replace('{{INJECTED_CSS}}', cssInjection);
 
-        // Inject JavaScript content
-        jsContent = jsContent.replace("{{JSON_DATA}}", jsonData);
+        // Debug: Check for placeholder before replacement
+        const assignmentPattern = /const embeddedJsonData = '{{JSON_DATA}}';/g;
+        const allPlaceholderPattern = /\{\{JSON_DATA\}\}/g;
+        const originalCount = (jsContent.match(allPlaceholderPattern) || []).length;
+        const assignmentCount = (jsContent.match(assignmentPattern) || []).length;
+        
+        this.debug.info(`🔍 Before replacement: Found ${originalCount} total {{JSON_DATA}} placeholders`);
+        this.debug.info(`🎯 Assignment patterns to replace: ${assignmentCount}`);
+        this.debug.info(`📊 JSON data preview: ${jsonData.substring(0, 100)}...`);
+        
+        // Replace only the assignment, not the comparison checks
+        jsContent = jsContent.replace(assignmentPattern, `const embeddedJsonData = '${jsonData}';`);
+        const newCount = (jsContent.match(allPlaceholderPattern) || []).length;
+        
+        this.debug.info(`🔄 JSON template replacement: ${originalCount} placeholders found, ${originalCount - newCount} replaced`);
+        this.debug.info(`📊 JSON data length: ${jsonData.length} characters`);
+        
+        // Debug: Check if replacement was successful
+        const newAssignmentCount = (jsContent.match(assignmentPattern) || []).length;
+        if (assignmentCount > 0 && newAssignmentCount === 0) {
+            this.debug.info('✅ Template replacement successful - assignment pattern replaced');
+            this.debug.info(`🔍 Remaining comparison placeholders: ${newCount} (expected: 2)`);
+        } else if (assignmentCount === 0) {
+            this.debug.error('❌ No assignment {{JSON_DATA}} placeholders found in JavaScript content');
+        } else {
+            this.debug.error(`❌ Template replacement failed: ${newAssignmentCount} assignment patterns still remain`);
+        }
+        
         const jsInjection = `<script>\n${jsContent}\n</script>`;
+        
         htmlTemplate = htmlTemplate.replace('{{INJECTED_JS}}', jsInjection);
+        
        
         this.debug.info('🎉 Webview HTML generation completed with injected assets');
         return htmlTemplate;
-    }
-
-    // UNUSED: Now using template file instead of inline HTML
-    private getWebViewStyles(): string {
-        return `
-            body {
-                font-family: var(--vscode-font-family);
-                background: var(--vscode-editor-background);
-                color: var(--vscode-editor-foreground);
-                margin: 0;
-                padding: 0;
-                line-height: 1.6;
-            }
-            .container {
-                max-width: 1200px;
-                margin: 0 auto;
-                padding: 20px;
-            }
-            .header {
-                background: var(--vscode-editor-background);
-                border: 1px solid var(--vscode-panel-border);
-                border-radius: 8px;
-                padding: 20px;
-                margin-bottom: 20px;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                flex-wrap: wrap;
-                gap: 10px;
-            }
-            .header h1 {
-                margin: 0;
-                color: var(--vscode-textLink-foreground);
-                font-size: 1.8em;
-                font-weight: 600;
-            }
-            .header p {
-                margin: 5px 0;
-                color: var(--vscode-descriptionForeground);
-            }
-            .actions {
-                display: flex;
-                gap: 10px;
-            }
-            .actions button {
-                background: var(--vscode-button-background);
-                color: var(--vscode-button-foreground);
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 0.9em;
-                transition: background-color 0.2s;
-            }
-            .actions button:hover {
-                background: var(--vscode-button-hoverBackground);
-            }
-            .stats-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 15px;
-                margin-bottom: 30px;
-            }
-            .stat-card {
-                background: var(--vscode-editor-background);
-                border: 1px solid var(--vscode-panel-border);
-                padding: 20px;
-                border-radius: 8px;
-                text-align: center;
-            }
-            .stat-card h3 {
-                margin: 0 0 10px;
-                color: var(--vscode-textLink-foreground);
-                font-size: 1em;
-                font-weight: 500;
-            }
-            .stat-card .value {
-                font-size: 2em;
-                font-weight: bold;
-                color: var(--vscode-editor-foreground);
-                margin: 0;
-            }
-            .section {
-                background: var(--vscode-editor-background);
-                border: 1px solid var(--vscode-panel-border);
-                border-radius: 8px;
-                padding: 20px;
-                margin-bottom: 20px;
-            }
-            .section h2 {
-                color: var(--vscode-textLink-foreground);
-                margin: 0 0 20px;
-                font-size: 1.3em;
-                font-weight: 600;
-            }
-            .language-stats {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                gap: 15px;
-                margin-bottom: 20px;
-            }
-            .language-item {
-                background: var(--vscode-input-background);
-                border: 1px solid var(--vscode-input-border);
-                padding: 15px;
-                border-radius: 6px;
-            }
-            .language-name {
-                font-weight: 600;
-                color: var(--vscode-editor-foreground);
-                margin-bottom: 8px;
-                font-size: 1.1em;
-            }
-            .language-details {
-                font-size: 0.9em;
-                color: var(--vscode-descriptionForeground);
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 5px;
-            }
-            .search-box {
-                width: 100%;
-                max-width: 400px;
-                padding: 8px 12px;
-                border: 1px solid var(--vscode-input-border);
-                background: var(--vscode-input-background);
-                color: var(--vscode-input-foreground);
-                border-radius: 4px;
-                margin-bottom: 15px;
-                font-size: 0.9em;
-            }
-            .search-box:focus {
-                outline: 1px solid var(--vscode-focusBorder);
-                border-color: var(--vscode-focusBorder);
-            }
-            .table-container {
-                overflow-x: auto;
-                border: 1px solid var(--vscode-panel-border);
-                border-radius: 6px;
-            }
-            .files-table {
-                width: 100%;
-                border-collapse: collapse;
-                font-size: 0.9em;
-            }
-            .files-table th,
-            .files-table td {
-                padding: 10px 12px;
-                text-align: left;
-                border-bottom: 1px solid var(--vscode-panel-border);
-            }
-            .files-table th {
-                background: var(--vscode-editorGroupHeader-tabsBackground);
-                color: var(--vscode-tab-activeForeground);
-                font-weight: 600;
-                position: sticky;
-                top: 0;
-                z-index: 10;
-            }
-            .files-table tr:hover {
-                background: var(--vscode-list-hoverBackground);
-            }
-            .file-path {
-                font-family: var(--vscode-editor-font-family);
-                font-size: 0.85em;
-                color: var(--vscode-textLink-foreground);
-                max-width: 300px;
-                word-break: break-all;
-            }
-            .language-badge {
-                background: var(--vscode-badge-background);
-                color: var(--vscode-badge-foreground);
-                padding: 2px 8px;
-                border-radius: 12px;
-                font-size: 0.8em;
-                font-weight: 500;
-            }
-            .loading, .error {
-                text-align: center;
-                padding: 40px 20px;
-                border-radius: 8px;
-                margin: 20px 0;
-            }
-            .loading {
-                background: var(--vscode-editor-background);
-                border: 1px solid var(--vscode-panel-border);
-                color: var(--vscode-descriptionForeground);
-            }
-            .error {
-                background: var(--vscode-inputValidation-errorBackground);
-                border: 1px solid var(--vscode-inputValidation-errorBorder);
-                color: var(--vscode-errorForeground);
-            }
-            .spinner {
-                display: inline-block;
-                width: 20px;
-                height: 20px;
-                border: 2px solid var(--vscode-panel-border);
-                border-top: 2px solid var(--vscode-progressBar-background);
-                border-radius: 50%;
-                animation: spin 1s linear infinite;
-                margin-right: 10px;
-            }
-            .hidden {
-                display: none;
-            }
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-        `;
     }
 
     private async exportReport(data: ReportData): Promise<void> {

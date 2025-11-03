@@ -102,16 +102,13 @@ suite('WebViewReportService Basic Tests', () => {
         sandbox.stub(vscode.window, 'showErrorMessage').resolves();
         // Skip stubbing vscode.workspace.fs.writeFile as it's non-configurable
         
-        // Mock file system operations
+        // Mock file system operations - handle multiple files for modular architecture
         const mockHtmlTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Code Counter Report</title>
-    <style>
-        .container { padding: 20px; }
-        .summary-stats { display: grid; }
-    </style>
+    {{INJECTED_CSS}}
 </head>
 <body>
     <div class="container">
@@ -120,31 +117,107 @@ suite('WebViewReportService Basic Tests', () => {
             <!-- Summary will be populated by JS -->
         </div>
     </div>
-    <script>
-        function initializeReport(data) {
-            console.log('Report initialized with:', data);
-        }
-        
-        // Handle VS Code message passing
-        const vscode = acquireVsCodeApi();
-        
-        window.addEventListener('message', event => {
-            const message = event.data;
-            if (message.command === 'updateData') {
-                initializeReport(message.data);
-            }
-        });
-        
-        // Initialize with embedded data if available - this gets replaced by generateWebViewHTML
-        const embeddedJsonData = '{{JSON_DATA}}';
-        if (embeddedJsonData && embeddedJsonData !== '{{JSON_DATA}}') {
-            const reportData = JSON.parse(embeddedJsonData);
-            initializeReport(reportData);
-        }
-    </script>
+    {{INJECTED_JS}}
 </body>
 </html>`;
-        sandbox.stub(fs.promises, 'readFile').resolves(mockHtmlTemplate);
+
+        const mockCssContent = `
+        .container { padding: 20px; }
+        .summary-stats { display: grid; }
+        `;
+
+        const mockJsModules = {
+            'core.js': `
+            // VS Code API reference
+            const vscode = acquireVsCodeApi();
+            const debug = {
+                info: (...args) => console.log('DEBUG:', ...args),
+                error: (...args) => console.error('ERROR:', ...args),
+                warning: (...args) => console.warn('WARNING:', ...args),
+                verbose: (...args) => console.log('VERBOSE:', ...args)
+            };
+            `,
+            'data-manager.js': `
+            let reportData = null;
+            function parseEmbeddedData() {
+                if (embeddedJsonData && embeddedJsonData !== '{{JSON_DATA}}') {
+                    reportData = JSON.parse(embeddedJsonData);
+                    return reportData;
+                }
+                return null;
+            }
+            function initializeReport(data) {
+                console.log('Report initialized with:', data);
+                populateReport(data);
+            }
+            function populateReport(data) {
+                console.log('Populating report sections');
+            }
+            `,
+            'ui-handlers.js': `
+            function setupUIHandlers() {
+                console.log('Setting up UI handlers');
+            }
+            function handleExtensionMessages() {
+                window.addEventListener('message', event => {
+                    const message = event.data;
+                    if (message.command === 'updateData') {
+                        updateReportData(message.data);
+                    }
+                });
+            }
+            function updateReportData(newData) {
+                reportData = newData;
+                initializeReport(reportData);
+            }
+            `,
+            'tabulator-manager.js': `
+            function initializeAdvancedTable(files) {
+                console.log('Initializing table with', files?.length || 0, 'files');
+            }
+            `,
+            'filter-manager.js': `
+            function setupAdvancedFiltering(files) {
+                console.log('Setting up filtering for', files?.length || 0, 'files');
+            }
+            `,
+            'webview-report.js': `
+            const embeddedJsonData = '{{JSON_DATA}}';
+            document.addEventListener('DOMContentLoaded', () => {
+                const reportData = parseEmbeddedData();
+                if (reportData) {
+                    initializeReport(reportData);
+                    setupUIHandlers();
+                    handleExtensionMessages();
+                }
+            });
+            `
+        };
+
+        // Mock fs.promises.readFile to handle different file types
+        const readFileStub = sandbox.stub(fs.promises, 'readFile');
+        readFileStub.callsFake(async (filePath: any) => {
+            const pathStr = filePath.toString();
+            if (pathStr.includes('webview-report.html')) {
+                return mockHtmlTemplate;
+            } else if (pathStr.includes('webview-report.css')) {
+                return mockCssContent;
+            } else if (pathStr.includes('core.js')) {
+                return mockJsModules['core.js'];
+            } else if (pathStr.includes('data-manager.js')) {
+                return mockJsModules['data-manager.js'];
+            } else if (pathStr.includes('ui-handlers.js')) {
+                return mockJsModules['ui-handlers.js'];
+            } else if (pathStr.includes('tabulator-manager.js')) {
+                return mockJsModules['tabulator-manager.js'];
+            } else if (pathStr.includes('filter-manager.js')) {
+                return mockJsModules['filter-manager.js'];
+            } else if (pathStr.includes('webview-report.js')) {
+                return mockJsModules['webview-report.js'];
+            } else {
+                throw new Error(`Unexpected file read: ${pathStr}`);
+            }
+        });
         sandbox.stub(fs.promises, 'writeFile').resolves();
     });
 
