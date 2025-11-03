@@ -178,6 +178,7 @@ body {
     border: 1px solid #3c3c3c !important;
     color: #d4d4d4 !important;
     font-family: var(--vscode-font-family) !important;
+    position: relative !important; /* Positioning context for absolutely positioned group headers */
 }
 
 .tabulator .tabulator-header {
@@ -232,7 +233,7 @@ body {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
     padding: 0px;
     position: relative !important;
-    overflow: hidden !important;
+    overflow: visible !important; /* Changed from hidden to visible to allow sticky positioning */
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
@@ -550,7 +551,6 @@ body {
 .tabulator .tabulator-row.tabulator-group .tabulator-cell {
     font-size: 0.95em !important;
     letter-spacing: 0.5px !important;
-    padding-left: 30px !important; /* Make room for pin icon */
 }
 
 /* Ensure proper z-index hierarchy for overlapping elements */
@@ -748,12 +748,20 @@ body {
 
 /* CSS Classes for Dynamic HTML Elements - Replacing Inline Styles */
 
+/* Group header container - no scroll, let child elements handle it */
+.dynamic-group-header {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+}
+
 /* Group header table structure */
 .group-header-table {
     width: 100%;
     table-layout: fixed;
     border-collapse: collapse;
     margin: 0;
+    position: relative;
 }
 
 /* Stat value (bold/main number) */
@@ -767,91 +775,193 @@ body {
     font-size: 0.8em;
 }
 
-/* Group header cell - frozen columns (directory and filename) */
-.group-cell-frozen {
-    padding: 8px;
-    font-weight: 600;
-    color: #ffffff;
-    border-right: 3px solid rgba(0, 152, 255, 0.5);
+/* Native Tabulator group headers */
+.native-group-header {
+    display: flex !important;
+    width: 100% !important;
+    position: relative !important;
+    background: linear-gradient(135deg, #0a4d78 0%, #0e639c 50%, #1177bb 100%) !important;
+    border: 2px solid #007acc !important;
+    border-radius: 4px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    overflow: hidden !important;
 }
 
-/* Group header cell - directory specific */
-.group-cell-directory {
-    min-width: 400px;
+.native-group-header .tabulator-cell {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 8px 12px !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #ffffff !important;
+    font-weight: 500 !important;
+    text-align: center !important;
+    min-height: 60px !important;
+    box-sizing: border-box !important;
 }
 
-/* Group header cell - filename specific */
-.group-cell-filename {
-    min-width: 220px;
-    font-weight: 500;
+.native-group-header .tabulator-cell:last-child {
+    border-right: none !important;
 }
 
-/* Group header cell - normal columns */
-.group-cell-normal {
-    padding: 8px;
-    text-align: center;
-    font-size: 0.85em;
-    color: #ffffff;
+/* Frozen column styling for group headers */
+.native-group-header .group-cell-frozen {
+    position: sticky !important;
+    left: 0 !important;
+    background: linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%) !important;
+    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.3) !important;
+    border-right: 3px solid rgba(0, 152, 255, 0.7) !important;
+    z-index: 12 !important;
 }
 
-/* Group header cell - language column */
-.group-cell-language {
-    min-width: 120px;
+/* Normal (non-frozen) column styling for group headers */
+.native-group-header .group-cell-normal {
+    background: linear-gradient(135deg, #0a4d78 0%, #0e639c 50%, #1177bb 100%) !important;
+    z-index: 1 !important;
 }
 
-/* Group header cell - lines column */
-.group-cell-lines {
-    min-width: 120px;
+.native-group-header .group-directory {
+    text-align: left !important;
+    font-weight: 600 !important;
+    font-size: 1.1em !important;
 }
 
-/* Group header cell - comment ratio column */
-.group-cell-comment-ratio {
-    min-width: 80px;
+.native-group-header .group-stats {
+    font-size: 0.9em !important;
 }
 
-/* Group header cell - size column */
-.group-cell-size {
-    min-width: 120px;
+/* Combined directory-fileName cell (colspan=2) */
+.native-group-header .group-directory-combined {
+    position: sticky !important;
+    left: 0 !important;
+    text-align: left !important;
+    font-weight: 600 !important;
+    font-size: 1.1em !important;
+    background: linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%) !important;
+    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.3) !important;
+    border-right: 3px solid rgba(0, 152, 255, 0.7) !important;
+    z-index: 12 !important;
 }
 
-/* Combined directory+filename column width for colspan="2" */
-.group-cell-directory-combined {
-    /* Width will be set dynamically based on actual column widths */
-    min-width: 420px; /* Fallback minimum width */
+/* Frozen group header overlay system */
+.frozen-group-overlay {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    pointer-events: none !important;
+    z-index: 5 !important;
 }
 
-/* Directory formatter link styling */
-.directory-link {
-    font-family: var(--vscode-editor-font-family, 'Consolas', 'Courier New', monospace);
-    font-size: 0.9em;
-    color: var(--vscode-textLink-foreground);
+.frozen-group-cell {
+    position: absolute !important;
+    background: linear-gradient(135deg, #0a4d78 0%, #0e639c 50%, #1177bb 100%) !important;
+    border: 1px solid #007acc !important;
+    border-right: 2px solid #007acc !important;
+    border-bottom: 2px solid #007acc !important;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.4) !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 8px 12px !important;
+    box-sizing: border-box !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    pointer-events: auto !important;
+    z-index: 6 !important;
+    color: #ffffff !important;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7) !important;
 }
 
-/* File link styling */
-.file-link {
-    font-family: var(--vscode-editor-font-family, 'Consolas', 'Courier New', monospace);
-    font-size: 0.9em;
-    color: var(--vscode-textLink-foreground);
-    text-decoration: none;
-    cursor: pointer;
+/* Chevron styling in frozen group headers */
+.frozen-group-cell .tabulator-arrow {
+    margin-right: 8px !important;
+    cursor: pointer !important;
+    transition: transform 0.2s ease, border-color 0.2s ease !important;
+    border-left: 6px solid #ffffff !important;
+    border-top: 6px solid transparent !important;
+    border-bottom: 6px solid transparent !important;
+    width: 0 !important;
+    height: 0 !important;
+    display: inline-block !important;
 }
 
-.file-link:hover {
-    text-decoration: underline;
+/* Expanded state chevron (pointing down) */
+.frozen-group-cell .tabulator-arrow.tabulator-arrow-down {
+    border-top: 6px solid #ffffff !important;
+    border-left: 6px solid transparent !important;
+    border-right: 6px solid transparent !important;
+    border-bottom: none !important;
 }
 
-/* Comment ratio colored text */
-.comment-ratio-colored {
-    display: inline; /* Color will be applied dynamically via JavaScript */
+.frozen-group-cell .tabulator-arrow:hover {
+    transform: scale(1.1) !important;
+    border-left-color: #e6f3ff !important;
 }
 
-/* Common cell utilities */
-.group-cell {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    box-sizing: border-box;
-    min-width: 0;
+.frozen-group-cell .tabulator-arrow.tabulator-arrow-down:hover {
+    border-top-color: #e6f3ff !important;
+}
+
+/* Hover effect for frozen group cells */
+.frozen-group-cell:hover {
+    background: linear-gradient(135deg, #0c5a8a 0%, #1177bb 50%, #1488cc 100%) !important;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Hide original cells when overlay is active to prevent duplication */
+.tabulator .tabulator-row.tabulator-group .native-group-header [data-field="directory-fileName"][style*="visibility: hidden"] {
+    visibility: hidden !important;
+}
+
+/* Hide original chevrons when overlay is active */
+.tabulator .tabulator-row.tabulator-group .tabulator-arrow[style*="visibility: hidden"] {
+    visibility: hidden !important;
+}
+
+/* Backup sticky positioning rules for browsers that don't support fixed properly */
+.tabulator .tabulator-row.tabulator-group .native-group-header .group-cell-frozen,
+.tabulator .tabulator-row.tabulator-group .native-group-header .group-directory-combined {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 15 !important; /* Lower than fixed cells but higher than normal */
+    transform: none !important; /* Prevent any transform interference */
+}
+
+.native-group-header .combined-cell-content {
+    display: flex !important;
+    width: 100% !important;
+    height: 100% !important;
+    align-items: center !important;
+}
+
+.native-group-header .directory-section {
+    flex: 1 !important;
+    text-align: left !important;
+    padding-right: 12px !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.2) !important;
+    font-weight: 600 !important;
+}
+
+.native-group-header .files-section {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding-left: 12px !important;
+    font-size: 0.9em !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .native-group-header .tabulator-cell {
+        padding: 6px 8px !important;
+        min-height: 50px !important;
+        font-size: 0.85em !important;
+    }
 }
 
 /*# sourceURL=webview-report.css */
