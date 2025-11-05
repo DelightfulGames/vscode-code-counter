@@ -1,5 +1,5 @@
 /**
- * VS Code Code Counter Extension - UI Handlers Module
+ * VS Code Code Counter Extension - UI Handlers Module (STANDALONE VERSION)
  * 
  * Copyright (c) 2025 DelightfulGames
  * Licensed under the MIT License
@@ -11,8 +11,8 @@
 /**
  * Generate CSV data from table without using Tabulator's download method
  */
-function generateCSVFromTable() {
-    debug.info('📊 Starting manual CSV generation from table data...');
+function generateCSVFromTable_Standalone() {
+    debug.info('STANDALONE: 📊 Starting manual CSV generation from table data...');
     
     if (!window.filesTable) {
         throw new Error('No table data available');
@@ -20,7 +20,7 @@ function generateCSVFromTable() {
     
     // Get all table data
     const data = window.filesTable.getData();
-    debug.info(`📊 Found ${data.length} rows of data`);
+    debug.info(`STANDALONE: 📊 Found ${data.length} rows of data`);
     
     if (data.length === 0) {
         throw new Error('No data available in table');
@@ -40,7 +40,7 @@ function generateCSVFromTable() {
     ];
     
     // Start building CSV
-    let csv = headers.map(escapeCSVField).join(',') + '\n';
+    let csv = headers.map(escapeCSVField_Standalone).join(',') + '\n';
     
     // Add data rows
     data.forEach((row, index) => {
@@ -57,20 +57,20 @@ function generateCSVFromTable() {
                 row.sizeKB || 0
             ];
             
-            csv += csvRow.map(escapeCSVField).join(',') + '\n';
+            csv += csvRow.map(escapeCSVField_Standalone).join(',') + '\n';
         } catch (rowError) {
-            debug.error(`❌ Error processing row ${index}:`, rowError);
+            debug.error(`STANDALONE: ❌ Error processing row ${index}:`, rowError);
         }
     });
     
-    debug.info(`✅ Generated CSV with ${data.length} rows`);
+    debug.info(`STANDALONE: ✅ Generated CSV with ${data.length} rows`);
     return csv;
 }
 
 /**
- * Escape a field for CSV format
+ * Escape a field for CSV format (standalone version)
  */
-function escapeCSVField(field) {
+function escapeCSVField_Standalone(field) {
     if (field === null || field === undefined) {
         return '';
     }
@@ -86,10 +86,38 @@ function escapeCSVField(field) {
 }
 
 /**
- * Setup all button event handlers
+ * Download CSV data as file (standalone version)
  */
-function setupUIHandlers() {
-    debug.info('🎮 Setting up UI handlers...');
+function downloadCSV_Standalone() {
+    try {
+        debug.info('STANDALONE: 📊 Starting CSV download...');
+        const csvData = generateCSVFromTable_Standalone();
+        
+        // Create blob and download
+        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'code-counter-report.csv');
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        debug.info('STANDALONE: ✅ CSV download completed');
+    } catch (error) {
+        debug.error('STANDALONE: ❌ CSV download failed:', error);
+        alert('Failed to download CSV: ' + error.message);
+    }
+}
+
+/**
+ * Setup all button event handlers (standalone version)
+ */
+function setupUIHandlers_Standalone() {
+    debug.info('STANDALONE: 🎮 Setting up UI handlers...');
     
     const refreshBtn = document.getElementById('refresh-btn');
     const refreshBtn2 = document.getElementById('refresh-btn2');
@@ -104,87 +132,51 @@ function setupUIHandlers() {
     // Clear All Filters button
     if (clearAllFiltersBtn) {
         clearAllFiltersBtn.addEventListener('click', () => {
-            debug.info('🔄 Clear All Filters clicked');
-            clearAllFilters();
+            debug.info('STANDALONE: 🔄 Clear All Filters clicked');
+            clearAllFilters_Standalone();
         });
     }
     
-    // Refresh buttons
+    // Refresh buttons - disabled in standalone
     if (refreshBtn) {
         refreshBtn.addEventListener('click', () => {
-            debug.info('🔄 Refresh button clicked');
-            vscode.postMessage({ command: 'refresh' });
+            debug.info('STANDALONE: 🔄 Refresh button clicked (disabled in standalone)');
+            alert('Refresh is not available in standalone reports. Please regenerate the report from VS Code.');
         });
     }
     
     if (refreshBtn2) {
         refreshBtn2.addEventListener('click', () => {
-            debug.info('🔄 Refresh button clicked');
-            vscode.postMessage({ command: 'refresh' });
+            debug.info('STANDALONE: 🔄 Refresh button clicked (disabled in standalone)');
+            alert('Refresh is not available in standalone reports. Please regenerate the report from VS Code.');
         });
     }
 
-    // Export buttons
+    // Export buttons - disabled in standalone
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
-            debug.info('📄 Export HTML button clicked');
-            vscode.postMessage({ command: 'export' });
+            debug.info('STANDALONE: 📄 Export HTML button clicked (disabled in standalone)');
+            alert('HTML export is not available in standalone reports. This is already an exported HTML report.');
         });
     }
 
+    // CSV Export - works in standalone via browser download
     if (exportCsvBtn) {
         exportCsvBtn.addEventListener('click', () => {
-            debug.info('📊 Export CSV button clicked');
-            if (window.filesTable) {
-                debug.info('📋 Table found, attempting CSV download...');
-                try {
-                    // Generate CSV data manually from table data
-                    const csvData = generateCSVFromTable();
-                    debug.info('📊 Generated CSV data, sending to extension...');
-                    vscode.postMessage({ 
-                        command: 'saveCSV', 
-                        data: csvData,
-                        filename: 'code-counter-report.csv'
-                    });
-                    debug.info('✅ CSV data sent to extension successfully');
-                } catch (error) {
-                    debug.error('❌ CSV generation failed:', error);
-                    debug.error('❌ Error details:', error.message);
-                    debug.error('❌ Error stack:', error.stack);
-                }
-            } else {
-                debug.error('❌ No filesTable found for CSV export');
-            }
+            debug.info('STANDALONE: 📊 Export CSV button clicked');
+            downloadCSV_Standalone();
         });
     } else {
-        debug.warn('⚠️ Export CSV button not found in DOM');
+        debug.warn('STANDALONE: ⚠️ Export CSV button not found in DOM');
     }
 
     // Handle all CSV export buttons (in case there are multiple)
-    debug.info(`🔍 Found ${allExportCsvBtns.length} CSV export buttons`);
+    debug.info(`STANDALONE: 🔍 Found ${allExportCsvBtns.length} CSV export buttons`);
     allExportCsvBtns.forEach((btn, index) => {
         if (btn && btn !== exportCsvBtn) { // Avoid double-binding the main button
             btn.addEventListener('click', () => {
-                debug.info(`📊 Export CSV button ${index + 1} clicked`);
-                if (window.filesTable) {
-                    debug.info('📋 Table found, attempting CSV download...');
-                    try {
-                        // Generate CSV data manually from table data
-                        const csvData = generateCSVFromTable();
-                        debug.info('📊 Generated CSV data, sending to extension...');
-                        vscode.postMessage({ 
-                            command: 'saveCSV', 
-                            data: csvData,
-                            filename: 'code-counter-report.csv'
-                        });
-                        debug.info('✅ CSV data sent to extension successfully');
-                    } catch (error) {
-                        debug.error('❌ CSV generation failed:', error);
-                        debug.error('❌ Error details:', error.message);
-                    }
-                } else {
-                    debug.error('❌ No filesTable found for CSV export');
-                }
+                debug.info(`STANDALONE: 📊 Export CSV button ${index + 1} clicked`);
+                downloadCSV_Standalone();
             });
         }
     });
@@ -192,45 +184,45 @@ function setupUIHandlers() {
     // Grouping buttons
     if (groupLanguageBtn) {
         groupLanguageBtn.addEventListener('click', () => {
-            debug.info('📂 Group by Language clicked');
+            debug.info('STANDALONE: 📂 Group by Language clicked');
             if (window.filesTable) {
                 window.filesTable.setGroupBy("language");
-                debug.info('✅ Grouped by language');
+                debug.info('STANDALONE: ✅ Grouped by language');
             }
         });
     }
 
     if (groupDirectoryBtn) {
         groupDirectoryBtn.addEventListener('click', () => {
-            debug.info('📁 Group by Directory clicked');
+            debug.info('STANDALONE: 📁 Group by Directory clicked');
             if (window.filesTable) {
                 window.filesTable.setGroupBy("directory");
-                debug.info('✅ Grouped by directory');
+                debug.info('STANDALONE: ✅ Grouped by directory');
             }
         });
     }
 
     if (clearGroupBtn) {
         clearGroupBtn.addEventListener('click', () => {
-            debug.info('📋 Clear Groups clicked');
+            debug.info('STANDALONE: 📋 Clear Groups clicked');
             if (window.filesTable) {
                 window.filesTable.setGroupBy(false);
-                debug.info('✅ Groups cleared');
+                debug.info('STANDALONE: ✅ Groups cleared');
             }
         });
     }
     
-    debug.info('✅ UI handlers setup completed');
+    debug.info('STANDALONE: ✅ UI handlers setup completed');
 }
 
 /**
- * Clear all table filters and reset UI controls
+ * Clear all table filters and reset UI controls (standalone version)
  */
-function clearAllFilters() {
+function clearAllFilters_Standalone() {
     // Clear all table filters
     if (window.filesTable) {
         window.filesTable.clearFilter();
-        debug.info('✅ All table filters cleared');
+        debug.info('STANDALONE: ✅ All table filters cleared');
     }
     
     // Reset UI filter controls
@@ -248,47 +240,29 @@ function clearAllFilters() {
     if (sizeMin) sizeMin.value = '';
     if (sizeMax) sizeMax.value = '';
     
-    debug.info('✅ All UI filter controls reset');
+    debug.info('STANDALONE: ✅ All UI filter controls reset');
 }
 
 /**
- * Handle file opening in VS Code
+ * Handle file opening - disabled in standalone
  */
-function openFileInVSCode(filePath) {
-    debug.info('🔗 Opening file in VS Code:', filePath);
-    try {
-        vscode.postMessage({
-            command: 'openFile',
-            filePath: filePath
-        });
-        debug.info('✅ Open file command sent to VS Code');
-    } catch (error) {
-        debug.error('❌ Failed to send open file command:', error);
-    }
+function openFileInVSCode_Standalone(filePath) {
+    debug.info('STANDALONE: 🔗 File open requested (disabled in standalone):', filePath);
+    alert('File opening is not available in standalone reports. Please use this report from within VS Code to open files.');
 }
 
 /**
- * Handle messages from VS Code extension
+ * Handle messages from VS Code extension - disabled in standalone
  */
-function handleExtensionMessages() {
-    window.addEventListener('message', event => {
-        const message = event.data;
-        debug.info('📨 Received message from extension:', message);
-        
-        switch (message.command) {
-            case 'updateData':
-                updateReportData(message.data);
-                break;
-            default:
-                debug.info('ℹ️ Unknown message command:', message.command);
-        }
-    });
+function handleExtensionMessages_Standalone() {
+    debug.info('STANDALONE: 📨 Extension message handling disabled in standalone mode');
+    // No message handling needed for standalone reports
 }
 
 /**
- * Utility function to format file sizes
+ * Utility function to format file sizes (standalone version)
  */
-function formatFileSize(bytes) {
+function formatFileSize_Standalone(bytes) {
     if (bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
@@ -296,4 +270,13 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-//# sourceURL=ui-handlers.js
+// Alias standalone functions to match expected names for compatibility
+const generateCSVFromTable = generateCSVFromTable_Standalone;
+const escapeCSVField = escapeCSVField_Standalone;
+const setupUIHandlers = setupUIHandlers_Standalone;
+const clearAllFilters = clearAllFilters_Standalone;
+const openFileInVSCode = openFileInVSCode_Standalone;
+const handleExtensionMessages = handleExtensionMessages_Standalone;
+const formatFileSize = formatFileSize_Standalone;
+
+//# sourceURL=ui-handlers-standalone.js

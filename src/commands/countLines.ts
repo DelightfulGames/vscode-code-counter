@@ -160,8 +160,7 @@ export class CountLinesCommand {
                 for (const folder of workspaceFolders) {
                     // Use path-based settings for HTML export as well
                     const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
-                    const xmlData = this.xmlGenerator.generateXml(results);
-                    await this.htmlGenerator.generateHtmlReport(xmlData, folder.uri.fsPath, outputDirectory);
+                    await this.htmlGenerator.generateHtmlReport(results, folder.uri.fsPath, outputDirectory);
                 }
 
                 vscode.window.showInformationMessage('Line counting completed! HTML reports generated.');
@@ -226,8 +225,7 @@ export class CountLinesCommand {
             // Generate HTML/XML files for all workspace folders using path-based settings
             for (const folder of workspaceFolders) {
                 const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
-                const xmlData = this.xmlGenerator.generateXml(results);
-                await this.htmlGenerator.generateHtmlReport(xmlData, folder.uri.fsPath, outputDirectory);
+                await this.htmlGenerator.generateHtmlReport(results, folder.uri.fsPath, outputDirectory);
             }
             
             // Log for debugging auto-generation

@@ -8,11 +8,19 @@
  * Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter
  */
 
+// Common utility functions are now loaded from tabulator-manager-common.js
+
 /**
  * Initialize the advanced Tabulator table with file data
  */
 function initializeAdvancedTable(files) {
     debug.info('🚀 Initializing Tabulator table...');
+    debug.info('📊 Files data received:', { 
+        fileCount: files ? files.length : 0,
+        firstFile: files && files.length > 0 ? files[0] : null,
+        dataType: typeof files,
+        isArray: Array.isArray(files)
+    });
     
     // Add computed fields for better analysis
     const processedFiles = files.map(file => ({
@@ -144,37 +152,37 @@ function initializeAdvancedTable(files) {
                         break;
                     case 'lines':
                         content = `<div class="stat-label-secondary">📈 total</div>
-                                  <div class="stat-value-primary">${stats.totalLines.toLocaleString()}</div>
-                                  <div class="stat-label-secondary">Avg: ${(stats.totalLines / count).toFixed(1)}</div>`;
+                                  <div class="stat-value-primary">${(stats.totalLines || 0).toLocaleString()}</div>
+                                  <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.totalLines || 0) / count).toFixed(1) : '0'}</div>`;
                         classes.push('group-stats');
                         break;
                     case 'codeLines':
                         content = `<div class="stat-label-secondary">📸 code</div>
-                                  <div class="stat-value-primary">${stats.codeLines.toLocaleString()}</div>
-                                  <div class="stat-label-secondary">Avg: ${(stats.codeLines / count).toFixed(1)}</div>`;
+                                  <div class="stat-value-primary">${(stats.codeLines || 0).toLocaleString()}</div>
+                                  <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.codeLines || 0) / count).toFixed(1) : '0'}</div>`;
                         classes.push('group-stats');
                         break;
                     case 'commentLines':
                         content = `<div class="stat-label-secondary">💬 comments</div>
-                                  <div class="stat-value-primary">${stats.commentLines.toLocaleString()}</div>
-                                  <div class="stat-label-secondary">Avg: ${(stats.commentLines / count).toFixed(1)}</div>`;
+                                  <div class="stat-value-primary">${(stats.commentLines || 0).toLocaleString()}</div>
+                                  <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.commentLines || 0) / count).toFixed(1) : '0'}</div>`;
                         classes.push('group-stats');
                         break;
                     case 'blankLines':
                         content = `<div class="stat-label-secondary">😶 blanks</div>
-                                  <div class="stat-value-primary">${stats.blankLines.toLocaleString()}</div>
-                                  <div class="stat-label-secondary">Avg: ${(stats.blankLines / count).toFixed(1)}</div>`;
+                                  <div class="stat-value-primary">${(stats.blankLines || 0).toLocaleString()}</div>
+                                  <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.blankLines || 0) / count).toFixed(1) : '0'}</div>`;
                         classes.push('group-stats');
                         break;
                     case 'commentRatio':
                         content = `<div class="stat-label-secondary">💬%</div>
-                                  <div class="stat-value-primary">${stats.avgCommentRatio}%</div>`;
+                                  <div class="stat-value-primary">${stats.avgCommentRatio || 0}%</div>`;
                         classes.push('group-stats');
                         break;
                     case 'sizeKB':
                         content = `<div class="stat-label-secondary">📦 size</div>
-                                  <div class="stat-value-primary">${formatSizeKB(stats.size / 1024)}</div>
-                                  <div class="stat-label-secondary">Avg: ${formatSizeKB(stats.size / 1024 / count)}</div>`;
+                                  <div class="stat-value-primary">${formatSizeKB((stats.size || 0) / 1024)}</div>
+                                  <div class="stat-label-secondary">Avg: ${count > 0 ? formatSizeKB((stats.size || 0) / 1024 / count) : '0 KB'}</div>`;
                         classes.push('group-stats');
                         break;
                     case 'directory':
@@ -313,6 +321,9 @@ function initializeAdvancedTable(files) {
     }
 
     debug.info('✅ Tabulator table initialized successfully');
+    debug.info('📊 Final table data count:', window.filesTable.getData().length);
+    debug.info('📊 Processed files count:', processedFiles.length);
+    
     return window.filesTable;
 }
 
@@ -338,47 +349,7 @@ function createGroupHeader(value, count, data, group) {
     `;
 }
 
-/**
- * Calculate group statistics from rows
- */
-function calculateGroupStats(group, count) {
-    const rows = group.getRows();
-    const totals = {
-        totalLines: 0,
-        codeLines: 0,
-        commentLines: 0,
-        blankLines: 0,
-        size: 0
-    };
-    
-    // Track unique languages in this group
-    const uniqueLanguages = new Set();
-    
-    rows.forEach(row => {
-        const data = row.getData();
-        totals.totalLines += data.lines || 0;
-        totals.codeLines += data.codeLines || 0;
-        totals.commentLines += data.commentLines || 0;
-        totals.blankLines += data.blankLines || 0;
-        totals.size += data.size || 0;
-        
-        // Add language to set (automatically handles duplicates)
-        if (data.language && data.language.trim() !== '') {
-            uniqueLanguages.add(data.language);
-        }
-    });
-    
-    const avgCommentRatio = (totals.totalLines > 0) ? 
-        Math.round((totals.commentLines / totals.totalLines) * 100) : 0;
-    
-    return {
-        ...totals,
-        avgCommentRatio,
-        languageCount: uniqueLanguages.size,
-        languages: Array.from(uniqueLanguages).sort(),
-        count
-    };
-}
+// calculateGroupStats function is now loaded from tabulator-manager-common.js
 
 /**
  * Generate group header cells based on current column order and widths
@@ -420,32 +391,32 @@ function generateGroupHeaderCells(value, count, stats) {
                 break;
             case 'lines':
                 content = `<div class="stat-label-secondary">📈 total</div>
-                            <div class="stat-value-primary">${stats.totalLines.toLocaleString()} lines</div>
-                            <div class="stat-label-secondary">Avg: ${(stats.totalLines / count).toFixed(2)}</div>`;
+                            <div class="stat-value-primary">${(stats.totalLines || 0).toLocaleString()} lines</div>
+                            <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.totalLines || 0) / count).toFixed(2) : '0'}</div>`;
                 break;
             case 'codeLines':
                 content = `<div class="stat-label-secondary">📸 code</div>
-                            <div class="stat-value-primary">${stats.codeLines.toLocaleString()} lines</div>
-                            <div class="stat-label-secondary">Avg: ${(stats.codeLines / count).toFixed(2)}</div>`;
+                            <div class="stat-value-primary">${(stats.codeLines || 0).toLocaleString()} lines</div>
+                            <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.codeLines || 0) / count).toFixed(2) : '0'}</div>`;
                 break;
             case 'commentLines':
                 content = `<div class="stat-label-secondary">💬 comments</div>
-                            <div class="stat-value-primary">${stats.commentLines.toLocaleString()} lines</div>
-                            <div class="stat-label-secondary">Avg: ${(stats.commentLines / count).toFixed(2)}</div>`;
+                            <div class="stat-value-primary">${(stats.commentLines || 0).toLocaleString()} lines</div>
+                            <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.commentLines || 0) / count).toFixed(2) : '0'}</div>`;
                 break;
             case 'blankLines':
             content = `<div class="stat-label-secondary">😶 blanks</div>
-                        <div class="stat-value-primary">${stats.blankLines.toLocaleString()} lines</div>
-                        <div class="stat-label-secondary">Avg: ${(stats.blankLines / count).toFixed(2)}</div>`;
+                        <div class="stat-value-primary">${(stats.blankLines || 0).toLocaleString()} lines</div>
+                        <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.blankLines || 0) / count).toFixed(2) : '0'}</div>`;
                 break;
             case 'commentRatio':
                 content = `<div class="stat-label-secondary">💬%</div>
-                            <div class="stat-value-primary">${stats.avgCommentRatio}%</div>`;
+                            <div class="stat-value-primary">${stats.avgCommentRatio || 0}%</div>`;
                 break;
             case 'sizeKB':
                 content = `<div class="stat-label-secondary">📦 size</div>
-                            <div class="stat-value-primary">${formatSizeKB(stats.size / 1024)}</div>
-                            <div class="stat-label-secondary">Avg: ${formatSizeKB(stats.size / 1024 / count)}</div>`;
+                            <div class="stat-value-primary">${formatSizeKB((stats.size || 0) / 1024)}</div>
+                            <div class="stat-label-secondary">Avg: ${count > 0 ? formatSizeKB((stats.size || 0) / 1024 / count) : '0 KB'}</div>`;
                 break;
             default:
                 content = '';
@@ -501,32 +472,32 @@ function generateDefaultGroupHeaderCells(value, count, stats) {
         </td>
         <td data-field="lines" class="group-cell group-cell-normal group-cell-lines">
             <div class="stat-label-secondary">📈 total</div>
-            <div class="stat-value-primary">${stats.totalLines.toLocaleString()} lines</div>
-            <div class="stat-label-secondary">Avg: ${stats.totalLines / count}</div>
+            <div class="stat-value-primary">${(stats.totalLines || 0).toLocaleString()} lines</div>
+            <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.totalLines || 0) / count).toFixed(1) : '0'}</div>
         </td>
         <td data-field="codeLines" class="group-cell group-cell-normal group-cell-lines">
             <div class="stat-label-secondary">📸 code</div>    
-            <div class="stat-value-primary">${stats.codeLines.toLocaleString()} lines</div>
-            <div class="stat-label-secondary">Avg: ${stats.codeLines / count}</div>
+            <div class="stat-value-primary">${(stats.codeLines || 0).toLocaleString()} lines</div>
+            <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.codeLines || 0) / count).toFixed(1) : '0'}</div>
         </td>
         <td data-field="commentLines" class="group-cell group-cell-normal group-cell-lines">
             <div class="stat-label-secondary">💬 comments</div>    
-            <div class="stat-value-primary">${stats.commentLines.toLocaleString()} lines</div>
-            <div class="stat-label-secondary">Avg: ${stats.commentLines / count}</div>
+            <div class="stat-value-primary">${(stats.commentLines || 0).toLocaleString()} lines</div>
+            <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.commentLines || 0) / count).toFixed(1) : '0'}</div>
         </td>
         <td data-field="blankLines" class="group-cell group-cell-normal group-cell-lines">
             <div class="stat-label-secondary">😶 blanks</div>
-            <div class="stat-value-primary">${stats.blankLines.toLocaleString()} lines</div>
-            <div class="stat-label-secondary">Avg: ${stats.blankLines / count}</div>
+            <div class="stat-value-primary">${(stats.blankLines || 0).toLocaleString()} lines</div>
+            <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.blankLines || 0) / count).toFixed(1) : '0'}</div>
         </td>
         <td data-field="commentRatio" class="group-cell group-cell-normal group-cell-comment-ratio">
             <div class="stat-label-secondary">💬%</div>
-            <div class="stat-value-primary">${stats.avgCommentRatio}%</div>
+            <div class="stat-value-primary">${stats.avgCommentRatio || 0}%</div>
         </td>
         <td data-field="sizeKB" class="group-cell group-cell-normal group-cell-size">
             <div class="stat-label-secondary">📦 size</div>
-            <div class="stat-value-primary">${formatSizeKB(stats.size / 1024)}</div>
-            <div class="stat-label-secondary">Avg: ${formatSizeKB(stats.size / 1024 / count)}</div>
+            <div class="stat-value-primary">${formatSizeKB((stats.size || 0) / 1024)}</div>
+            <div class="stat-label-secondary">Avg: ${count > 0 ? formatSizeKB((stats.size || 0) / 1024 / count) : '0 KB'}</div>
         </td>
     `;
 }
@@ -566,15 +537,18 @@ function createTableColumns() {
                 const fileName = cell.getValue();
                 const fullPath = cell.getRow().getData().relativePath;
                 const absolutePath = cell.getRow().getData().path;
+                const filePath = absolutePath || fullPath;
+                const escapedPath = escapeForJavaScript(filePath);
+                const escapedPathForAttr = escapeForHTMLAttribute(filePath);
                 return `<a href="#" 
                            class="file-link" 
-                           data-file-path="${absolutePath || fullPath}"
-                           title="Click to open ${fullPath} in VS Code" 
-                           onclick="openFileInVSCode('${(absolutePath || fullPath).replace(/'/g, "\\'")}'); return false;">${fileName}</a>`;
+                           data-file-path="${escapedPathForAttr}"
+                           title="Click to open ${escapeForHTMLAttribute(fullPath)} in VS Code" 
+                           onclick="openFileInVSCode('${escapedPath}'); return false;">${fileName}</a>`;
             }
         },
         {
-            title: "💻 Language", 
+            title: "🖥️ Language", 
             field: "language", 
             minWidth: 75,
             width: 150,
@@ -586,7 +560,7 @@ function createTableColumns() {
             }
         },
         {
-            title: "📊 Lines", 
+            title: "📈 Lines", 
             field: "lines", 
             minWidth: 75,
             width: 100,
@@ -598,11 +572,19 @@ function createTableColumns() {
                 symbol: "",
                 symbolAfter: false
             },
-            headerFilter: "number",
+            headerFilter: function(headerValue, rowValue, rowData, filterParams){
+                // Custom filter: if headerValue is provided, filter for values >= headerValue
+                if (headerValue === null || headerValue === undefined || headerValue === '') {
+                    return true; // No filter applied
+                }
+                const minValue = parseInt(headerValue);
+                const actualValue = parseInt(rowValue);
+                return !isNaN(minValue) && !isNaN(actualValue) && actualValue >= minValue;
+            },
             headerFilterPlaceholder: "Min lines..."
         },
         {
-            title: "💼 Code", 
+            title: "📸 Code", 
             field: "codeLines", 
             minWidth: 75,
             width: 100,
@@ -630,7 +612,7 @@ function createTableColumns() {
             }
         },
         {
-            title: "📝 Blanks", 
+            title: "😶 Blanks", 
             field: "blankLines", 
             minWidth: 75,
             width: 100,
@@ -1024,14 +1006,7 @@ function updateGroupHeaderStructure() {
     debug.info('✅ Group header structure updated via native Tabulator redraw');
 }
 
-/**
- * Format file size in KB with appropriate units
- */
-function formatSizeKB(kb) {
-    if (kb < 1) return `${(kb * 1024).toLocaleString()} B`;
-    if ((kb < 1024)) return `${kb.toFixed(2)} KB`;
-    return `${(kb / 1024).toFixed(2)} MB`;
-}
+// formatSizeKB function is now loaded from tabulator-manager-common.js
 
 /**
  * Update frozen group header positions using overlay approach
@@ -1053,17 +1028,23 @@ function updateFixedGroupHeaderPositions(scrollLeft, scrollTop) {
         // Position the overlay relative to the table container (non-scrolling parent)
         const tableContainer = document.querySelector('#files-table-tabulator');
         const tableholder = document.querySelector('#files-table-tabulator .tabulator-tableholder');
+        const tableHeaders = document.querySelector('#files-table-tabulator .tabulator-header');
+        
         if (tableContainer && tableholder) {
             tableContainer.appendChild(frozenOverlay);
             
-            // Position overlay to cover the tableholder area within the container
+            // Calculate positioning relative to data area (after headers)
             const tableholderRect = tableholder.getBoundingClientRect();
             const containerRect = tableContainer.getBoundingClientRect();
             
-            frozenOverlay.style.top = `${tableholderRect.top - containerRect.top}px`;
+            const topOffset = tableholderRect.top - containerRect.top;
+            
+            frozenOverlay.style.top = `${topOffset}px`;
             frozenOverlay.style.left = `${tableholderRect.left - containerRect.left}px`;
             frozenOverlay.style.width = `${tableholder.offsetWidth}px`;
             frozenOverlay.style.height = `${tableholder.offsetHeight}px`;
+            
+            debug.verbose(`📍 Overlay positioned at top: ${topOffset}px`);
         } else {
             debug.error('❌ Could not find tableholder');
             return;
@@ -1073,6 +1054,8 @@ function updateFixedGroupHeaderPositions(scrollLeft, scrollTop) {
     // Update overlay container position to account for vertical scrolling
     const tableContainer = document.querySelector('#files-table-tabulator');
     const tableholder = document.querySelector('#files-table-tabulator .tabulator-tableholder');
+    const tableHeaders = document.querySelector('#files-table-tabulator .tabulator-header');
+    
     if (tableContainer && tableholder) {
         const tableholderRect = tableholder.getBoundingClientRect();
         const containerRect = tableContainer.getBoundingClientRect();
@@ -1303,6 +1286,594 @@ function updateFixedGroupHeaderPositions(scrollLeft, scrollTop) {
     });
     
     debug.verbose(`✅ Updated frozen group header overlay with ${groupRows.length} cells`);
+}
+
+/**
+ * STANDALONE REPORT.HTML FUNCTIONS  
+ * These are FULL CLONES of the webview functions with modifications for standalone HTML reports
+ */
+
+/**
+ * FULL CLONE: Initialize advanced table for standalone report.html
+ * This is a complete clone of initializeAdvancedTable with standalone-specific modifications
+ */
+function initializeAdvancedTable_Standalone(files) {
+    debug.info('🚀 Initializing Tabulator table for STANDALONE...');
+    debug.info('📊 Files data received:', { 
+        fileCount: files ? files.length : 0,
+        firstFile: files && files.length > 0 ? files[0] : null,
+        dataType: typeof files,
+        isArray: Array.isArray(files)
+    });
+    
+    // Add computed fields for better analysis
+    const processedFiles = files.map(file => ({
+        ...file,
+        // Fix path separators - convert backslashes to forward slashes
+        relativePath: file.relativePath.replace(/\\/g, '/'),
+        // Extract just the filename for the File column
+        fileName: (() => {
+            const normalizedPath = file.relativePath.replace(/\\/g, '/');
+            const lastSlashIndex = normalizedPath.lastIndexOf('/');
+            return lastSlashIndex >= 0 ? normalizedPath.substring(lastSlashIndex + 1) : normalizedPath;
+        })(),
+        // Extract directory path for the Directory column (show full path to parent directory)
+        directory: (() => {
+            const normalizedPath = file.relativePath.replace(/\\/g, '/');
+            const lastSlashIndex = normalizedPath.lastIndexOf('/');
+            return lastSlashIndex >= 0 ? normalizedPath.substring(0, lastSlashIndex) : '';
+        })(),
+        commentRatio: file.lines > 0 ? (file.commentLines / file.lines * 100).toFixed(1) : 0,
+        codeRatio: file.lines > 0 ? (file.codeLines / file.lines * 100).toFixed(1) : 0,
+        sizeKB: file.size / 1024  // Don't round here, let formatSizeKB handle the formatting
+    }))
+    // Sort to show directories first, then files within each directory
+    .sort((a, b) => {
+        // First sort by directory path (directories appear first)
+        const dirCompare = a.directory.localeCompare(b.directory);
+        if (dirCompare !== 0) {
+            return dirCompare;
+        }
+        // Within the same directory, sort files alphabetically by filename
+        return a.fileName.localeCompare(b.fileName);
+    });
+
+    window.filesTable = new Tabulator("#files-table-tabulator", {
+        data: processedFiles,
+        layout: "fitColumns",
+        height: "600px",
+        pagination: false,
+        paginationCounter: "rows",
+        movableColumns: true,
+        resizableRows: false,
+        groupBy: "directory", // Use native Tabulator grouping
+        groupStartOpen: true,
+        stickyHeaders: true, // Make headers sticky when scrolling
+        groupHeader: function(value, count, data, group) {
+            debug.verbose(`📊 Creating native group header for STANDALONE: ${value} (${count} files)`);
+            
+            // Calculate group statistics using the existing function
+            const stats = calculateGroupStats(group, count);
+            
+            // Get current column widths and order
+            const columns = window.filesTable ? window.filesTable.getColumns() : [];
+            let headerCells = '';
+            
+            // If table is not ready, use default structure
+            if (columns.length === 0) {
+                return `
+                    <div class="native-group-header" data-directory="${value || ''}" data-count="${count}" data-stats='${JSON.stringify(stats)}'>
+                        <div class="group-directory-combined tabulator-cell group-cell-frozen" data-field="directory-fileName" data-colspan="2">
+                            <div class="combined-cell-content">
+                                <div class="directory-section">📁 ${value || "(root)"}</div>
+                                <div class="files-section">
+                                    <div>📄 ${count} files</div>
+                                    <div class="stat-label-secondary">${stats.languageCount} languages</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="group-stats tabulator-cell group-cell-normal" data-field="language">📊 Stats</div>
+                        <div class="group-stats tabulator-cell" data-field="lines">Lines</div>
+                        <div class="group-stats tabulator-cell" data-field="codeLines">Code</div>
+                        <div class="group-stats tabulator-cell" data-field="commentLines">Comments</div>
+                        <div class="group-stats tabulator-cell" data-field="blankLines">Blanks</div>
+                        <div class="group-stats tabulator-cell" data-field="commentRatio">%</div>
+                        <div class="group-stats tabulator-cell" data-field="sizeKB">Size</div>
+                    </div>
+                `;
+            }
+            
+            // Generate cells based on actual column order
+            // First cell always spans the first two columns (frozen combined cell) 
+            let combinedCellProcessed = false;
+            
+            columns.forEach((column, index) => {
+                const field = column.getField();
+                const width = column.getWidth();
+                
+                let content = '';
+                let classes = ['tabulator-cell'];
+                
+                // Always create the combined first cell for the first two columns (regardless of their fields)
+                if (index === 0) {
+                    // Get the first two columns to create the combined cell
+                    const firstColumn = columns[0];
+                    const secondColumn = columns[1];
+                    
+                    if (firstColumn && secondColumn) {
+                        const combinedWidth = firstColumn.getWidth() + secondColumn.getWidth();
+                        
+                        classes.push('group-cell-frozen', 'group-directory-combined');
+                        content = `<div class="combined-cell-content">
+                                    <div class="directory-section">📁 ${value || "(root)"}</div>
+                                  </div>`;
+                        
+                        headerCells += `<div class="${classes.join(' ')}" 
+                                             data-field="directory-fileName" 
+                                             data-colspan="2"
+                                             style="width: ${combinedWidth}px; min-width: ${combinedWidth}px; flex: 0 0 ${combinedWidth}px;">
+                                            ${content}
+                                        </div>`;
+                    }
+                    combinedCellProcessed = true;
+                    return; // Skip to next iteration
+                }
+                
+                // Skip the second column since it's already included in the combined cell
+                if (index === 1) {
+                    return; // Skip to next iteration
+                }
+                
+                // Handle all remaining columns (index >= 2) normally - they move with their data columns
+                classes.push('group-cell-normal');
+                
+                // Generate content based on the field type (since columns can be reordered)
+                switch (field) {
+                    case 'language':
+                        content = `<div class="stat-value-primary">📄 ${count} files</div>
+                                   <div class="stat-label-secondary">🖥️ ${stats.languageCount} languages</div>`;
+                        classes.push('group-stats');
+                        break;
+                    case 'lines':
+                        content = `<div class="stat-label-secondary">📈 total</div>
+                                  <div class="stat-value-primary">${(stats.totalLines || 0).toLocaleString()}</div>
+                                  <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.totalLines || 0) / count).toFixed(1) : '0'}</div>`;
+                        classes.push('group-stats');
+                        break;
+                    case 'codeLines':
+                        content = `<div class="stat-label-secondary">📸 code</div>
+                                  <div class="stat-value-primary">${(stats.codeLines || 0).toLocaleString()}</div>
+                                  <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.codeLines || 0) / count).toFixed(1) : '0'}</div>`;
+                        classes.push('group-stats');
+                        break;
+                    case 'commentLines':
+                        content = `<div class="stat-label-secondary">💬 comments</div>
+                                  <div class="stat-value-primary">${(stats.commentLines || 0).toLocaleString()}</div>
+                                  <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.commentLines || 0) / count).toFixed(1) : '0'}</div>`;
+                        classes.push('group-stats');
+                        break;
+                    case 'blankLines':
+                        content = `<div class="stat-label-secondary">😶 blanks</div>
+                                  <div class="stat-value-primary">${(stats.blankLines || 0).toLocaleString()}</div>
+                                  <div class="stat-label-secondary">Avg: ${count > 0 ? ((stats.blankLines || 0) / count).toFixed(1) : '0'}</div>`;
+                        classes.push('group-stats');
+                        break;
+                    case 'commentRatio':
+                        content = `<div class="stat-label-secondary">💬%</div>
+                                  <div class="stat-value-primary">${stats.avgCommentRatio || 0}%</div>`;
+                        classes.push('group-stats');
+                        break;
+                    case 'sizeKB':
+                        content = `<div class="stat-label-secondary">📦 size</div>
+                                  <div class="stat-value-primary">${formatSizeKB((stats.size || 0) / 1024)}</div>
+                                  <div class="stat-label-secondary">Avg: ${count > 0 ? formatSizeKB((stats.size || 0) / 1024 / count) : '0 KB'}</div>`;
+                        classes.push('group-stats');
+                        break;
+                    case 'directory':
+                        // Directory column moved to position >= 2 (shouldn't normally happen but handle it)
+                        content = `<div class="stat-label-secondary">📁 directory</div>
+                                  <div class="stat-value-primary">${value || "(root)"}</div>`;
+                        classes.push('group-stats');
+                        break;
+                    case 'fileName':
+                        // fileName column moved to position >= 2 (shouldn't normally happen but handle it)
+                        content = `<div class="stat-label-secondary">📄 files</div>
+                                  <div class="stat-value-primary">${count}</div>`;
+                        classes.push('group-stats');
+                        break;
+                    default:
+                        // Handle any unknown column types
+                        content = `<div class="stat-label-secondary">${field}</div>
+                                  <div class="stat-value-primary">-</div>`;
+                        classes.push('group-stats');
+                }
+                
+                // Generate the cell HTML for moveable columns (they follow their data column position)
+                headerCells += `<div class="${classes.join(' ')}" 
+                                     data-field="${field}" 
+                                     style="width: ${width}px; min-width: ${width}px; flex: 0 0 ${width}px;">
+                                    ${content}
+                                </div>`;
+            });
+            
+            return `
+                <div class="native-group-header" 
+                     data-directory="${value || ''}" 
+                     data-count="${count}" 
+                     data-stats='${JSON.stringify(stats)}'>
+                    ${headerCells}
+                </div>
+            `;
+        },
+        columns: createTableColumns(),
+        initialSort: [
+            {column: "lines", dir: "desc"}
+        ]
+    });
+
+    // Native Tabulator handles group headers automatically - no custom synchronization needed
+    debug.info(`✅ Using native Tabulator group headers with built-in frozen column support for STANDALONE`);
+    
+    // Also update when table is rendered - STANDALONE (NO OVERLAY)
+    window.filesTable.on("tableBuilt", function(){
+        setTimeout(() => {
+            updateGroupHeaderWidths();
+            // STANDALONE: Skip overlay positioning to prevent table blocking
+            debug.info(`� STANDALONE: Skipping overlay setup to keep table unblocked`);
+            
+            // Clean up any interfering webview overlays
+            const webviewOverlay = document.querySelector('.frozen-group-overlay');
+            if (webviewOverlay) {
+                debug.info(`�️ STANDALONE: Removing interfering webview overlay on tableBuilt`);
+                webviewOverlay.remove();
+            }
+        }, 50);
+    });
+    
+    // Add column resize listener for STANDALONE (NO OVERLAY)
+    window.filesTable.on("columnResized", function(column){
+        debug.verbose(`📏 STANDALONE Column resized: ${column.getField()} to ${column.getWidth()}px`);
+        updateGroupHeaderWidths();
+        // STANDALONE: Skip overlay updates
+        debug.info(`🚫 STANDALONE: Skipping overlay update on column resize`);
+    });
+
+    // Add column move listener for STANDALONE (NO OVERLAY)
+    window.filesTable.on("columnMoved", function(column, columns){
+        debug.verbose(`🔄 STANDALONE Column moved: ${column.getField()}`);
+        updateGroupHeaderStructure();
+        updateGroupHeaderWidths();
+        // STANDALONE: Skip overlay updates
+        debug.info(`🚫 STANDALONE: Skipping overlay update on column move`);
+    });
+
+    // Add group toggle listeners for expand/collapse events for STANDALONE (NO OVERLAY)
+    window.filesTable.on("groupToggled", function(group){
+        debug.verbose(`🔽 STANDALONE Group toggled: ${group.getKey()}`);
+        // STANDALONE: Skip overlay updates
+        debug.info(`🚫 STANDALONE: Skipping overlay update on group toggle`);
+    });
+
+    // Add data sort listener for when columns are sorted for STANDALONE (NO OVERLAY)
+    window.filesTable.on("dataSorted", function(sorters, rows){
+        debug.verbose(`🔄 STANDALONE Data sorted by: ${sorters.map(s => s.field + ' ' + s.dir).join(', ')}`);
+        // STANDALONE: Skip overlay updates
+        debug.info(`🚫 STANDALONE: Skipping overlay update on data sort`);
+    });
+
+    // Scroll listener is now set up in the tableBuilt callback
+
+    // Add resize observer for window/container resize events for STANDALONE
+    if (window.ResizeObserver) {
+        const resizeObserver = new ResizeObserver(() => {
+            updateGroupHeaderWidths();
+        });
+        
+        const tableContainer = document.querySelector('#files-table-tabulator');
+        if (tableContainer) {
+            resizeObserver.observe(tableContainer);
+        }
+    }
+
+    debug.info('✅ STANDALONE Tabulator table initialized successfully');
+    debug.info('📊 STANDALONE Final table data count:', window.filesTable.getData().length);
+    debug.info('📊 STANDALONE Processed files count:', processedFiles.length);
+    
+    return window.filesTable;
+}
+
+/**
+ * STANDALONE: Simplified positioning for standalone report.html (NO OVERLAY)
+ * This version does NOT create any overlay to avoid blocking the table
+ */
+function updateFixedGroupHeaderPositions_Standalone(scrollLeft, scrollTop) {
+    debug.info(`🚨 updateFixedGroupHeaderPositions_Standalone CALLED: scrollLeft=${scrollLeft}, scrollTop=${scrollTop}`);
+    debug.info(`� STANDALONE: Overlay creation disabled to prevent table blocking`);
+    
+    // Remove any existing webview overlays that might be interfering
+    const webviewOverlay = document.querySelector('.frozen-group-overlay');
+    if (webviewOverlay) {
+        debug.info(`🗑️ STANDALONE: Removing interfering webview overlay`);
+        webviewOverlay.remove();
+    }
+    
+    // STANDALONE: Do NOT create any overlay - just return early
+    debug.info(`✅ STANDALONE: Overlay creation skipped, table remains unblocked`);
+    return;
+    
+    // DISABLED: The rest of the overlay creation code is commented out to prevent table blocking
+    /*
+    // Get or create the frozen overlay container - use different class for standalone
+    let frozenOverlay = document.querySelector('.frozen-group-overlay-standalone');
+    if (!frozenOverlay) {
+        frozenOverlay = document.createElement('div');
+        frozenOverlay.className = 'frozen-group-overlay-standalone';
+        frozenOverlay.style.position = 'absolute';
+        frozenOverlay.style.pointerEvents = 'none';
+        frozenOverlay.style.zIndex = '25';
+        
+        // Position the overlay relative to the table container (non-scrolling parent)
+        const tableContainer = document.querySelector('#files-table-tabulator');
+        const tableholder = document.querySelector('#files-table-tabulator .tabulator-tableholder');
+        const tableHeaders = document.querySelector('#files-table-tabulator .tabulator-header');
+        
+        if (tableContainer && tableholder) {
+            tableContainer.appendChild(frozenOverlay);
+            
+            // Calculate positioning relative to data area (after headers)
+            const tableholderRect = tableholder.getBoundingClientRect();
+            const containerRect = tableContainer.getBoundingClientRect();
+            
+            const topOffset = tableholderRect.top - containerRect.top;
+            
+            frozenOverlay.style.top = `${topOffset}px`;
+            frozenOverlay.style.left = `${tableholderRect.left - containerRect.left}px`;
+            frozenOverlay.style.width = `${tableholder.offsetWidth}px`;
+            frozenOverlay.style.height = `${tableholder.offsetHeight}px`;
+            
+            debug.verbose(`📍 STANDALONE Overlay positioned at top: ${topOffset}px`);
+        } else {
+            debug.error('❌ STANDALONE Could not find tableholder');
+            return;
+        }
+    }
+    
+    // Update overlay container position to account for vertical scrolling
+    const tableContainer = document.querySelector('#files-table-tabulator');
+    const tableholder = document.querySelector('#files-table-tabulator .tabulator-tableholder');
+    const tableHeaders = document.querySelector('#files-table-tabulator .tabulator-header');
+    
+    if (tableContainer && tableholder) {
+        const tableholderRect = tableholder.getBoundingClientRect();
+        const containerRect = tableContainer.getBoundingClientRect();
+        
+        const newTop = tableholderRect.top - containerRect.top;
+        debug.verbose(`🔄 STANDALONE Updating overlay position: scrollLeft=${scrollLeft}, scrollTop=${scrollTop}`);
+        debug.verbose(`📊 STANDALONE Container top: ${containerRect.top}, Tableholder top: ${tableholderRect.top}, New overlay top: ${newTop}px`);
+        
+        // Update overlay position - this makes it move with vertical scrolling
+        frozenOverlay.style.top = `${newTop}px`;
+        debug.verbose(`📍 STANDALONE Overlay style.top set to: ${frozenOverlay.style.top}`);
+    }
+    
+    // Restore moved chevrons to their original positions before clearing overlay
+    const movedChevrons = frozenOverlay.querySelectorAll('.tabulator-arrow');
+    movedChevrons.forEach(chevron => {
+        if (chevron._originalParent) {
+            const originalParent = chevron._originalParent;
+            const originalNextSibling = chevron._originalNextSibling;
+            
+            // Restore the chevron to its original position
+            if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
+                originalParent.insertBefore(chevron, originalNextSibling);
+            } else {
+                originalParent.appendChild(chevron);
+            }
+            
+            // Clean up stored references
+            delete chevron._originalParent;
+            delete chevron._originalNextSibling;
+            
+            debug.verbose(`📍 STANDALONE Restored chevron to original position`);
+        }
+    });
+    
+    // Clear existing overlay content
+    frozenOverlay.innerHTML = '';
+    
+    // Find all group header rows and create frozen overlays for them
+    const groupRows = document.querySelectorAll('.tabulator-row.tabulator-group');
+    debug.info(`🔍 STANDALONE Found ${groupRows.length} group rows to process`);
+    
+    groupRows.forEach((groupRow, index) => {
+        debug.verbose(`📋 STANDALONE Processing group row ${index + 1}/${groupRows.length}`);
+        const nativeHeader = groupRow.querySelector('.native-group-header');
+        const originalCell = nativeHeader?.querySelector('[data-field="directory-fileName"]');
+        
+        if (!originalCell || !nativeHeader) return;
+        
+        // Get row position relative to table container and account for scroll
+        const tableContainer = document.querySelector('#files-table-tabulator');
+        const tableholder = document.querySelector('#files-table-tabulator .tabulator-tableholder');
+        
+        if (!tableContainer || !tableholder) return;
+        
+        // Get positions relative to table container (our overlay parent)
+        const containerRect = tableContainer.getBoundingClientRect();
+        const tableholderRect = tableholder.getBoundingClientRect();
+        const rowRect = groupRow.getBoundingClientRect();
+        
+        // Calculate position relative to container accounting for tableholder offset
+        // Vertical: row position relative to container (already accounts for scrolling naturally)
+        // Horizontal: stay at left edge of tableholder (don't change - it's working!)
+        const topOffset = rowRect.top - containerRect.top;
+        const leftOffset = tableholderRect.left - containerRect.left; // Stay at left edge of tableholder
+        
+        // Get column widths
+        const directoryColumn = window.filesTable?.getColumn('directory');
+        const fileNameColumn = window.filesTable?.getColumn('fileName');
+        const combinedWidth = (directoryColumn?.getWidth() || 150) + (fileNameColumn?.getWidth() || 200);
+        
+        // Create the frozen overlay element for STANDALONE
+        const frozenCell = document.createElement('div');
+        frozenCell.className = 'frozen-group-cell-standalone';
+        frozenCell.innerHTML = originalCell.innerHTML;
+        
+        // Find and move the expand/collapse chevron from the group row - STANDALONE VERSION
+        const chevron = groupRow.querySelector('.tabulator-arrow');
+        if (chevron) {
+            // Store original parent and next sibling for restoration
+            const originalParent = chevron.parentNode;
+            const originalNextSibling = chevron.nextSibling;
+            
+            // Get the group object from Tabulator to access toggle functionality
+            const groupComponent = groupRow._group;
+            
+            // If _group is not available, try to get it from the table's groups
+            let alternativeGroupComponent = null;
+            if (!groupComponent) {
+                // Get the directory value from the group row
+                const directoryValue = groupRow.querySelector('[data-directory]')?.getAttribute('data-directory');
+                debug.info(`🔍 STANDALONE Looking for group with directory: "${directoryValue}"`);
+                
+                if (window.filesTable) {
+                    const groups = window.filesTable.getGroups();
+                    debug.info(`🔍 STANDALONE Available groups: ${groups.map(g => `"${g.getKey()}"`).join(', ')}`);
+                    
+                    // Try exact match first
+                    alternativeGroupComponent = groups.find(g => g.getKey() === directoryValue);
+                    
+                    // Special handling for root group - try common root representations
+                    if (!alternativeGroupComponent && (directoryValue === '' || directoryValue === null || directoryValue === undefined)) {
+                        debug.info(`🔍 STANDALONE Trying to find root group with various key formats`);
+                        alternativeGroupComponent = groups.find(g => {
+                            const key = g.getKey();
+                            return key === '' || key === '.' || key === '/' || key === 'root' || key === null || key === undefined;
+                        });
+                        if (alternativeGroupComponent) {
+                            debug.info(`🔍 STANDALONE Found root group with key: "${alternativeGroupComponent.getKey()}"`);
+                        }
+                    }
+                    
+                    debug.info(`🔍 STANDALONE Found alternative group component: ${!!alternativeGroupComponent}`);
+                }
+            }
+            
+            // Determine if group is currently expanded
+            const isExpanded = groupRow.classList.contains('tabulator-group-visible');
+            debug.verbose(`📋 STANDALONE Group ${groupComponent ? groupComponent.key : 'unknown'} is ${isExpanded ? 'expanded' : 'collapsed'}`);
+            
+            // Update chevron appearance based on current state
+            if (isExpanded) {
+                chevron.classList.add('tabulator-arrow-down');
+                chevron.style.borderTop = '6px solid #ffffff';
+                chevron.style.borderLeft = '6px solid transparent';
+                chevron.style.borderRight = '6px solid transparent';
+                chevron.style.borderBottom = 'none';
+            } else {
+                chevron.classList.remove('tabulator-arrow-down');
+                chevron.style.borderLeft = '6px solid #ffffff';
+                chevron.style.borderTop = '6px solid transparent';
+                chevron.style.borderBottom = '6px solid transparent';
+                chevron.style.borderRight = 'none';
+            }
+            
+            // Move the chevron to our frozen cell
+            chevron.style.marginRight = '8px';
+            frozenCell.insertBefore(chevron, frozenCell.firstChild);
+            
+            // Store restoration info on the chevron element
+            chevron._originalParent = originalParent;
+            chevron._originalNextSibling = originalNextSibling;
+            
+            // Remove all existing event listeners by cloning the element
+            const newChevron = chevron.cloneNode(true);
+            chevron.parentNode.replaceChild(newChevron, chevron);
+            
+            // Add our own click handler that properly toggles the group - STANDALONE VERSION
+            debug.info(`🎯 STANDALONE Setting up chevron click handler for group: ${groupComponent ? groupComponent.key : 'no component'}`);
+            
+            newChevron.addEventListener('click', function(e) {
+                debug.info(`🚨 STANDALONE CHEVRON CLICKED! Event received`);
+                e.stopPropagation();
+                e.preventDefault();
+                
+                const activeGroupComponent = groupComponent || alternativeGroupComponent;
+                
+                debug.info(`🔽 STANDALONE Frozen chevron clicked for group: ${activeGroupComponent ? activeGroupComponent.getKey() : 'unknown'}`);
+                debug.info(`🔍 STANDALONE Group component available: ${!!groupComponent}`);
+                debug.info(`🔍 STANDALONE Alternative group component available: ${!!alternativeGroupComponent}`);
+                debug.info(`🔍 STANDALONE Group row element: ${!!groupRow}`);
+                
+                if (activeGroupComponent && typeof activeGroupComponent.toggle === 'function') {
+                    debug.info(`📞 STANDALONE Calling activeGroupComponent.toggle()`);
+                    activeGroupComponent.toggle();
+                } else if (groupRow) {
+                    debug.info(`📞 STANDALONE Fallback: clicking group row directly`);
+                    // Try clicking the original chevron instead of the row
+                    const originalChevron = groupRow.querySelector('.tabulator-arrow');
+                    if (originalChevron && originalChevron !== newChevron) {
+                        debug.info(`📞 STANDALONE Found original chevron, clicking it`);
+                        originalChevron.click();
+                    } else {
+                        debug.info(`📞 STANDALONE No original chevron found, clicking group row`);
+                        groupRow.click();
+                    }
+                } else {
+                    debug.error(`❌ STANDALONE No way to toggle group - no component or row available`);
+                }
+                
+                // Update overlay after group expand/collapse
+                setTimeout(() => {
+                    debug.info(`🔄 STANDALONE Updating overlay positions after group toggle`);
+                    updateFixedGroupHeaderPositions_Standalone(scrollLeft, scrollTop);
+                }, 100);
+            });
+            
+            // Also try adding mousedown event as backup
+            newChevron.addEventListener('mousedown', function(e) {
+                debug.info(`🖱️ STANDALONE CHEVRON MOUSEDOWN detected`);
+            });
+            
+            // Ensure chevron is clickable
+            newChevron.style.cursor = 'pointer';
+            newChevron.style.pointerEvents = 'auto';
+            debug.info(`🎨 STANDALONE Chevron styling: cursor=${newChevron.style.cursor}, pointerEvents=${newChevron.style.pointerEvents}`);
+            
+            // Store the new chevron reference for restoration
+            newChevron._originalParent = originalParent;
+            newChevron._originalNextSibling = originalNextSibling;
+        }
+        
+        // Position and style the frozen cell for STANDALONE
+        frozenCell.style.position = 'absolute';
+        frozenCell.style.left = `${leftOffset}px`;
+        frozenCell.style.top = `${topOffset}px`;
+        frozenCell.style.width = `${combinedWidth}px`;
+        frozenCell.style.height = `${rowRect.height}px`;
+        frozenCell.style.backgroundColor = 'var(--bg-secondary)'; // Use standalone CSS variables
+        frozenCell.style.border = '1px solid var(--border-color)';
+        frozenCell.style.borderRight = '2px solid var(--accent-color)';
+        frozenCell.style.boxShadow = '2px 0 8px rgba(0, 0, 0, 0.4)';
+        frozenCell.style.display = 'flex';
+        frozenCell.style.alignItems = 'center';
+        frozenCell.style.padding = '8px 12px';
+        frozenCell.style.boxSizing = 'border-box';
+        frozenCell.style.pointerEvents = 'auto'; // Allow interactions
+        frozenCell.style.zIndex = '30';
+        frozenCell.style.fontWeight = '600';
+        frozenCell.style.color = 'var(--accent-color)'; // Use standalone text color
+        
+        // Hide the original cell to avoid duplication
+        originalCell.style.visibility = 'hidden';
+        
+        frozenOverlay.appendChild(frozenCell);
+        
+        debug.verbose(`✅ STANDALONE Added frozen cell ${index + 1}/${groupRows.length} at position (${leftOffset}px, ${topOffset}px) with size ${combinedWidth}px x ${rowRect.height}px`);
+    });
+    
+    debug.info(`✅ STANDALONE Completed overlay update with ${frozenOverlay.children.length} frozen elements`);
+    */
 }
 
 //# sourceURL=tabulator-manager.js

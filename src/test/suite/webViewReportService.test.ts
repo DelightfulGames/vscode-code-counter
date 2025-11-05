@@ -51,6 +51,8 @@ suite('WebViewReportService Basic Tests', () => {
             {
                 path: '/workspace/src/main.ts',
                 relativePath: 'src/main.ts',
+                directory: 'src',
+                fileName: 'main.ts',
                 language: 'TypeScript',
                 lines: 250,
                 codeLines: 200,
@@ -446,6 +448,8 @@ suite('WebViewReportService Basic Tests', () => {
                 files: [{
                     path: '/workspace/测试/файл.ts',
                     relativePath: '测试/файл.ts',
+                    directory: '测试',
+                    fileName: 'файл.ts',
                     language: 'TypeScript',
                     lines: 50,
                     codeLines: 40,
@@ -472,6 +476,8 @@ suite('WebViewReportService Basic Tests', () => {
             const largeFilesList = Array.from({ length: 100 }, (_, i) => ({
                 path: `/workspace/file${i}.ts`,
                 relativePath: `file${i}.ts`,
+                directory: '',
+                fileName: `file${i}.ts`,
                 language: 'TypeScript',
                 lines: 100 + i,
                 codeLines: 80 + i,

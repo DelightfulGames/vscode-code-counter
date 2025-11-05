@@ -54,6 +54,8 @@ export interface ReportData {
     files: Array<{
         path: string;
         relativePath: string;
+        directory: string;
+        fileName: string;
         language: string;
         lines: number;
         codeLines: number;
@@ -182,6 +184,20 @@ export class WebViewReportService {
                             await this.exportReport(this.currentData);
                         }
                         break;
+                    case 'saveCSV':
+                        // Handle CSV save requests from webview
+                        this.debug.info('💾 CSV save requested from webview');
+                        if (message.data && message.filename) {
+                            try {
+                                await this.saveCSVFile(message.data, message.filename);
+                            } catch (error) {
+                                this.debug.error('❌ Failed to save CSV file:', error);
+                                vscode.window.showErrorMessage(`Failed to save CSV file: ${error instanceof Error ? error.message : String(error)}`);
+                            }
+                        } else {
+                            this.debug.error('❌ Invalid CSV save request - missing data or filename');
+                        }
+                        break;
                     case 'debugLog':
                         // Handle debug messages from webview
                         const webviewPrefix = '[WEBVIEW-REPORT]';
@@ -231,7 +247,14 @@ export class WebViewReportService {
         
         // Read the webview-specific template file
         const templatePath = path.join(__dirname, '../../templates/webview-report.html');
+        this.debug.info('📁 Loading webview template from:', templatePath);
         let htmlTemplate = await fs.promises.readFile(templatePath, 'utf8');
+        this.debug.info('📄 Template loaded:', { 
+            length: htmlTemplate.length, 
+            lines: htmlTemplate.split('\n').length,
+            firstLine: htmlTemplate.split('\n')[0],
+            containsDataFiles: htmlTemplate.includes('{{DATA_FILES}}')
+        });
         
         // Read external CSS file
         const cssPath = path.join(__dirname, '../../templates/webview-report.css');
@@ -247,6 +270,7 @@ export class WebViewReportService {
         // Read all modular JavaScript files in correct loading order
         const jsModules = [
             'core.js',
+            'tabulator-manager-common.js',  // Load common utilities first
             'data-manager.js', 
             'ui-handlers.js',
             'tabulator-manager.js',
@@ -466,6 +490,18 @@ export class WebViewReportService {
         return this.xmlGenerator.generateXml(xmlServiceData);
     }
 
+    /**
+     * Public method for generating standalone HTML content (used by HtmlGeneratorService)
+     */
+    async generateStandaloneHtmlContent(data: ReportData, xmlData: string): Promise<string> {
+        this.debug.info('🔧 WebViewReportService.generateStandaloneHtmlContent called', {
+            filesCount: data.files.length,
+            xmlLength: xmlData.length,
+            workspacePath: data.workspacePath
+        });
+        return this.generateStandaloneHtml(data, xmlData);
+    }
+
     private async generateStandaloneHtml(data: ReportData, xmlData: string): Promise<string> {
         // Use the report.html template (not webview template) for standalone exports
         const templatePath = path.join(__dirname, '../../templates/report.html');
@@ -481,9 +517,29 @@ export class WebViewReportService {
         const version = packageJson.version;
         htmlContent = htmlContent.replace(/v0\.12\.1/g, `v${version}`);
         
-        // Embed the XML data (this is the key fix!)
-        const escapedXmlData = this.escapeForJavaScript(xmlData);
-        htmlContent = htmlContent.replace('{{XML_DATA_FALLBACK}}', escapedXmlData);
+        // Convert ReportData to the file format expected by the template
+        const filesJson = JSON.stringify(data.files).slice(1, -1); // Remove outer brackets
+        this.debug.info('Generated files JSON for template:', { 
+            filesCount: data.files.length, 
+            jsonLength: filesJson.length,
+            preview: filesJson.substring(0, 200) + '...'
+        });
+        
+        // Replace the DATA_FILES placeholder
+        htmlContent = htmlContent.replace('{{DATA_FILES}}', filesJson);
+        
+        console.log('PLACEHOLDER REPLACEMENT DEBUG');
+        console.log('Files JSON length:', filesJson.length);
+        console.log('Files JSON preview:', filesJson.substring(0, 100));
+        console.log('HTML contains placeholder after replacement:', htmlContent.includes('{{DATA_FILES}}'));
+        console.log('HTML contains file data:', htmlContent.includes('"path":'));
+        
+        // Verify replacement worked
+        const replacementCheck = htmlContent.includes('{{DATA_FILES}}');
+        this.debug.info('Template placeholder replacement result:', { 
+            stillContainsPlaceholder: replacementCheck,
+            filesDataLength: filesJson.length
+        });
         
         // Add a note about being exported
         htmlContent = htmlContent.replace(
@@ -491,7 +547,7 @@ export class WebViewReportService {
             '<h1>Code Counter Report</h1>\n        <div style="background: #e8f4f8; padding: 8px; border-radius: 4px; margin-bottom: 16px; font-size: 0.9em; color: #0066cc;">📄 Exported HTML Report - Standalone Version</div>'
         );
         
-        this.debug.info('Standalone HTML generated successfully with embedded XML data');
+        this.debug.info('Standalone HTML generated successfully with file data embedded');
         return htmlContent;
     }
 
@@ -602,5 +658,48 @@ export class WebViewReportService {
             .replace(/\0/g, '\\0')     // Escape null characters
             .replace(/\u2028/g, '\\u2028') // Escape line separator
             .replace(/\u2029/g, '\\u2029'); // Escape paragraph separator
+    }
+
+    private async saveCSVFile(csvData: string, suggestedFilename: string): Promise<void> {
+        this.debug.info('💾 Attempting to save CSV file:', suggestedFilename);
+        
+        try {
+            // Show save dialog to let user choose location
+            const saveUri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(suggestedFilename),
+                filters: {
+                    'CSV Files': ['csv'],
+                    'All Files': ['*']
+                },
+                saveLabel: 'Save CSV Report'
+            });
+
+            if (saveUri) {
+                // Write the CSV data to the selected file
+                const encoder = new TextEncoder();
+                const csvBytes = encoder.encode(csvData);
+                
+                await vscode.workspace.fs.writeFile(saveUri, csvBytes);
+                
+                this.debug.info('✅ CSV file saved successfully:', saveUri.fsPath);
+                vscode.window.showInformationMessage(`CSV report saved to: ${saveUri.fsPath}`);
+                
+                // Optionally open the file location
+                const openAction = 'Open File Location';
+                const result = await vscode.window.showInformationMessage(
+                    'CSV export completed successfully!', 
+                    openAction
+                );
+                
+                if (result === openAction) {
+                    await vscode.commands.executeCommand('revealFileInOS', saveUri);
+                }
+            } else {
+                this.debug.info('📤 CSV save cancelled by user');
+            }
+        } catch (error) {
+            this.debug.error('❌ Error saving CSV file:', error);
+            throw error;
+        }
     }
 }

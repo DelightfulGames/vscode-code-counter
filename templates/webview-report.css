@@ -72,6 +72,7 @@ body {
     font-size: 0.9em;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 5px;
     transition: background-color 0.2s;
 }
@@ -610,12 +611,21 @@ body {
     display: inline-flex;
     gap: 20px;
     margin-bottom: 10px;
+    width: 100%;
 }
 
 .filter-group {
     display: flex;
     flex-direction: column;
     gap: 5px;
+    width: 50%;
+}
+
+.filter-control-span {
+    display: flex;
+    align-items:stretch;
+    gap: 10px;
+    width: 100%;
 }
 
 .filter-label {
@@ -624,6 +634,8 @@ body {
     color: #cccccc !important;
 }
 
+.filter-control-span input,
+.filter-control-span select,
 .filter-group input,
 .filter-group select {
     background: #3c3c3c !important;
@@ -634,6 +646,8 @@ body {
     font-size: 13px;
 }
 
+.filter-control-span input:focus,
+.filter-control-span select:focus,
 .filter-group input:focus,
 .filter-group select:focus {
     background: #404040 !important;
@@ -645,6 +659,7 @@ body {
     color: #888888 !important;
 }
 
+.filter-control-span select option,
 .filter-group select option {
     background: #3c3c3c !important;
     color: #d4d4d4 !important;
