@@ -14,14 +14,19 @@
 function setupAdvancedFiltering(files) {
     debug.info('🔧 Setting up advanced filtering...');
     
+    // Check if table is ready, retry if not
+    if (!window.filesTable) {
+        debug.warning('⚠️ Tabulator table not ready for filtering setup, retrying in 200ms...');
+        setTimeout(() => setupAdvancedFiltering(files), 200);
+        return;
+    }
+    
     // Populate language filter dropdown
     populateLanguageFilter(files);
     
     // Setup individual filter handlers
-    setupFileSearchFilter();
     setupLanguageFilter();
     setupRangeFilters();
-    setupQuickFilters();
     
     debug.info('✅ Advanced filtering setup completed');
 }
@@ -35,24 +40,6 @@ function populateLanguageFilter(files) {
         const languages = [...new Set(files.map(f => f.language))].sort();
         languageFilter.innerHTML = '<option value="">All Languages</option>' + 
             languages.map(lang => `<option value="${lang}">${lang}</option>`).join('');
-    }
-}
-
-/**
- * Setup file name search filter
- */
-function setupFileSearchFilter() {
-    const fileSearch = document.getElementById('file-search-tabulator');
-    if (fileSearch) {
-        fileSearch.addEventListener('input', function() {
-            if (this.value) {
-                window.filesTable.setFilter("fileName", "like", this.value);
-                debug.info('🔍 File search applied:', this.value);
-            } else {
-                window.filesTable.clearFilter("fileName");
-                debug.info('🔄 File search cleared');
-            }
-        });
     }
 }
 
@@ -129,61 +116,6 @@ function setupSizeRangeFilter() {
 
     if (sizeMin) sizeMin.addEventListener('input', applySizeFilter);
     if (sizeMax) sizeMax.addEventListener('input', applySizeFilter);
-}
-
-/**
- * Setup quick filter buttons
- */
-function setupQuickFilters() {
-    const quickFilterBtns = document.querySelectorAll('.quick-filter-btn');
-    quickFilterBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            // Remove active class from all buttons
-            quickFilterBtns.forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-            
-            // Clear all filters first
-            window.filesTable.clearFilter();
-            
-            const filter = this.dataset.filter;
-            applyQuickFilter(filter);
-        });
-    });
-}
-
-/**
- * Apply specific quick filter
- */
-function applyQuickFilter(filterType) {
-    switch(filterType) {
-        case 'large':
-            window.filesTable.setFilter("lines", ">", 500);
-            debug.info('🔍 Quick filter applied: Large files (>500 lines)');
-            break;
-        case 'small':
-            window.filesTable.setFilter("lines", "<", 50);
-            debug.info('🔍 Quick filter applied: Small files (<50 lines)');
-            break;
-        case 'no-comments':
-            window.filesTable.setFilter("commentLines", "=", 0);
-            debug.info('🔍 Quick filter applied: Files with no comments');
-            break;
-        case 'comment-heavy':
-            window.filesTable.setFilter([
-                {field: "commentLines", type: ">", value: 0},
-                function(data) {
-                    const ratio = data.lines > 0 ? (data.commentLines / data.lines * 100) : 0;
-                    return ratio > 20;
-                }
-            ]);
-            debug.info('🔍 Quick filter applied: Comment-heavy files (>20%)');
-            break;
-        case 'all':
-        default:
-            // No additional filters for 'all'
-            debug.info('🔍 Quick filter applied: Show all files');
-            break;
-    }
 }
 
 //# sourceURL=filter-manager.js

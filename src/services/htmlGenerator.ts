@@ -102,8 +102,8 @@ export class HtmlGeneratorService {
     private async getEmbeddedJavaScript(): Promise<string> {
         const templatesPath = path.join(__dirname, '../../templates');
         // Use standalone versions of JavaScript files for HTML export
-        // Load in correct dependency order: common utilities, tabulator functions, then data manager that calls them
-        const jsFiles = ['tabulator-manager-common.js', 'tabulator-manager-standalone.js', 'data-manager.js', 'ui-handlers-standalone.js'];
+        // Load in correct dependency order: common utilities, tabulator functions, filter manager, data manager, then UI handlers
+        const jsFiles = ['tabulator-manager-common.js', 'tabulator-manager-standalone.js', 'filter-manager.js', 'data-manager.js', 'ui-handlers-standalone.js'];
         let combinedJs = '';
         
         for (const jsFile of jsFiles) {
@@ -185,39 +185,6 @@ if (typeof vscode === 'undefined') {
             }
         }
     };
-}
-
-/**
- * Setup advanced filtering functionality (implementation)
- */
-function setupAdvancedFiltering(files) {
-    debug.info('🔧 Setting up advanced filtering...');
-    
-    // Setup filter event listeners that work with the Tabulator table
-    setTimeout(() => {
-        if (window.filesTable && window.filesTable.getElement) {
-            // Setup file search filter
-            const fileSearch = document.getElementById('file-search-tabulator');
-            if (fileSearch) {
-                fileSearch.addEventListener('input', function() {
-                    const searchTerm = this.value;
-                    if (searchTerm) {
-                        window.filesTable.setFilter([
-                            {field: "fileName", type: "like", value: searchTerm},
-                            {field: "relativePath", type: "like", value: searchTerm}
-                        ], "or");
-                    } else {
-                        window.filesTable.clearFilter("fileName");
-                        window.filesTable.clearFilter("relativePath");
-                    }
-                });
-            }
-            
-            debug.info('✅ Advanced filtering setup completed');
-        } else {
-            debug.warning('⚠️ Tabulator table not ready for filtering setup');
-        }
-    }, 100);
 }
 
 /**

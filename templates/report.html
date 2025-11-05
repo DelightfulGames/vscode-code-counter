@@ -33,7 +33,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
             --success-color: #28a745;
             --warning-color: #cb7300;
             --danger-color: #dc3545;
-            --hover-bg: rgba(0,122,204,0.05);
+            --hover-bg: #555;
         }
 
         /* Dark theme variables */
@@ -52,7 +52,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 --success-color: #4ec9b0;
                 --warning-color: #dd6f01;
                 --danger-color: #f85149;
-                --hover-bg: rgba(0,120,212,0.1);
+                --hover-bg: #555;
             }
         }
 
@@ -71,7 +71,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
             --success-color: #4ec9b0;
             --warning-color: #e17102;
             --danger-color: #f85149;
-            --hover-bg: rgba(0,120,212,0.1);
+            --hover-bg: #555;
         }
 
         /* Manual light theme override - forces light theme even on dark systems */
@@ -1932,6 +1932,29 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 
                 // Setup UI handlers from standalone module
                 setupUIHandlers_Standalone();
+                
+                // Ensure language filter is populated if the function is available
+                if (typeof populateLanguageFilter === 'function') {
+                    populateLanguageFilter(files);
+                    debug.info('✅ Language filter populated in fallback');
+                } else {
+                    debug.warning('⚠️ populateLanguageFilter function not available');
+                }
+                
+                // Ensure advanced filtering is set up if the function is available
+                if (typeof setupAdvancedFiltering === 'function') {
+                    // Add a small delay to ensure table is fully ready
+                    setTimeout(() => {
+                        if (window.filesTable) {
+                            setupAdvancedFiltering(files);
+                            debug.info('✅ Advanced filtering set up in fallback');
+                        } else {
+                            debug.error('❌ window.filesTable not available for filter setup');
+                        }
+                    }, 100);
+                } else {
+                    debug.warning('⚠️ setupAdvancedFiltering function not available');
+                }
                 
                 debug.info('✅ Report initialized with standalone modules');
             } else {
