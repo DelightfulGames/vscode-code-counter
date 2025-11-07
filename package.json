@@ -49,10 +49,6 @@
       {
         "command": "codeCounter.excludeExtension",
         "title": "CodeCounter: Exclude Files with Same Extension"
-      },
-      {
-        "command": "codeCounter.testExclusion",
-        "title": "CodeCounter: Test File Exclusion (Debug)"
       }
     ],
     "configuration": {

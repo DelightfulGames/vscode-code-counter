@@ -59,26 +59,42 @@ export class HtmlGeneratorService {
         htmlTemplate = htmlTemplate.replace('{{GENERATED_DATE}}', new Date().toLocaleString());
         htmlTemplate = htmlTemplate.replace('{{WORKSPACE_PATH}}', workspacePath.replace(/\\/g, '/'));
         htmlTemplate = htmlTemplate.replace(/v0\.12\.1/g, `v${version}`);
-        
+
+        const embeddedCSS = await this.getEmbeddedCSS();
+        htmlTemplate = htmlTemplate.replace('{{CSS_INJECT}}', embeddedCSS);
+
         // Provide XML data as fallback for file:// protocol access
         // Properly escape XML data for JavaScript string literal
         const escapedXmlData = this.escapeForJavaScript(xmlData);
         htmlTemplate = htmlTemplate.replace('{{XML_DATA_FALLBACK}}', escapedXmlData);
         
-        // Embed JavaScript modules directly into the HTML first
-        const embeddedJavaScript = await this.getEmbeddedJavaScript();
-        htmlTemplate = htmlTemplate.replace('{{JS_PLACEHOLDER}}', embeddedJavaScript);
-        
-        // Generate JSON file data directly from result (much simpler than parsing XML)
+        // Generate JSON file data directly from result (must be before JS injection)
         const filesJsonData = this.generateFileDataFromResult(result);
+        
+        // Embed JavaScript modules directly into the HTML
+        const embeddedJavaScript = await this.getEmbeddedJavaScript();
+        // Replace DATA_FILES in embedded JavaScript before injection
+        const processedEmbeddedJs = embeddedJavaScript.replace(/\{\{DATA_FILES\}\}/g, filesJsonData);
+        htmlTemplate = htmlTemplate.replace('{{JS_PLACEHOLDER}}', processedEmbeddedJs);
+        
+        // Embed report-specific JavaScript
+        const reportJavaScript = await this.getReportJavaScript();
+        // Replace DATA_FILES in report JavaScript before injection
+        const processedReportJs = reportJavaScript.replace(/\{\{DATA_FILES\}\}/g, filesJsonData);
+        htmlTemplate = htmlTemplate.replace('{{REPORT_JS_PLACEHOLDER}}', processedReportJs);
+        
+        // Final replacement of any remaining DATA_FILES placeholders in HTML
         htmlTemplate = htmlTemplate.replace(/\{\{DATA_FILES\}\}/g, filesJsonData);
         
         console.log('HTML GENERATOR DEBUG:');
         console.log('Result files count:', result.files ? result.files.length : 0);
         console.log('Files JSON data length:', filesJsonData.length);
         console.log('Files JSON preview:', filesJsonData.substring(0, 200));
-        console.log('Template contains DATA_FILES after replacement:', htmlTemplate.includes('{{DATA_FILES}}'));
         console.log('Embedded JavaScript length:', embeddedJavaScript.length);
+        console.log('Report JavaScript length:', reportJavaScript.length);
+        console.log('Template contains DATA_FILES after final replacement:', htmlTemplate.includes('{{DATA_FILES}}'));
+        console.log('Processed JS contains literal DATA_FILES:', processedEmbeddedJs.includes('{{DATA_FILES}}'));
+        console.log('Processed report JS contains literal DATA_FILES:', processedReportJs.includes('{{DATA_FILES}}'));
         
         // Write the HTML file
         const htmlFilePath = path.join(fullOutputPath, 'code-counter-report.html');
@@ -86,6 +102,20 @@ export class HtmlGeneratorService {
         
         this.debug.info(`Reports generated: ${htmlFilePath}`);
         return htmlFilePath;
+    }
+    
+    async getEmbeddedCSS(): Promise<string> {
+        const templatesPath = path.join(__dirname, '../../templates');
+        const cssFilePath = path.join(templatesPath, 'report.css');
+        const cssContent = await fs.promises.readFile(cssFilePath, 'utf8');
+        return cssContent; 
+    }
+
+    async getReportJavaScript(): Promise<string> {
+        const templatesPath = path.join(__dirname, '../../templates');
+        const reportJsFilePath = path.join(templatesPath, 'report.js');
+        const reportJsContent = await fs.promises.readFile(reportJsFilePath, 'utf8');
+        return reportJsContent;
     }
     
     private async ensureDirectoryExists(dirPath: string): Promise<void> {
@@ -99,8 +129,13 @@ export class HtmlGeneratorService {
     private async getEmbeddedJavaScript(): Promise<string> {
         const templatesPath = path.join(__dirname, '../../templates');
         // Use standalone versions of JavaScript files for HTML export
-        // Load in correct dependency order: common utilities, tabulator functions, filter manager, data manager, then UI handlers
-        const jsFiles = ['tabulator-manager-common.js', 'tabulator-manager-standalone.js', 'filter-manager.js', 'data-manager.js', 'ui-handlers-standalone.js'];
+        // Load in correct dependency order: common utilities, tabulator functions, filter manager, data manager, HTML generator helpers, then UI handlers
+        const jsFiles = ['tabulator-manager-common.js'
+            , 'tabulator-manager-standalone.js'
+            , 'filter-manager.js'
+            , 'data-manager.js'
+            , 'htmlgenerator-helpers.js'
+            , 'ui-handlers-standalone.js'];
         let combinedJs = '';
         
         for (const jsFile of jsFiles) {
@@ -130,116 +165,6 @@ export class HtmlGeneratorService {
                 this.debug.warning(`Failed to read JavaScript module ${jsFile}:`, error);
             }
         }
-        
-        // Add missing functions that might be called by the modules
-        combinedJs += `
-// ========== Additional Functions ==========
-
-/**
- * Safe toLocaleString function that handles undefined/null values
- */
-function safeToLocaleString(value) {
-    if (value === null || value === undefined || isNaN(value)) {
-        return '0';
-    }
-    return Number(value).toLocaleString();
-}
-
-/**
- * Wrapper to ensure all embedded functions run in safe context
- */
-function runInSafeContext(fn, ...args) {
-    try {
-        return fn.apply(this, args);
-    } catch (error) {
-        debug.error('Error in embedded function:', error);
-        debug.error('Function name:', fn.name);
-        debug.error('Arguments:', args);
-        throw error;
-    }
-}
-
-/**
- * Provide VS Code API fallback for standalone HTML reports
- */
-if (typeof vscode === 'undefined') {
-    window.vscode = {
-        postMessage: function(message) {
-            debug.info('📨 VS Code API not available (standalone HTML), message:', message);
-            
-            // Handle CSV export in standalone mode
-            if (message.command === 'saveCSV') {
-                const blob = new Blob([message.data], { type: 'text/csv' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = message.filename || 'export.csv';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-                debug.info('✅ CSV file downloaded in standalone mode');
-            }
-        }
-    };
-}
-
-/**
- * Ensure data-manager functions work with HTML template data structure
- */
-function initializeReportFromEmbeddedData() {
-    debug.info('🎯 Initializing report from embedded data...');
-    
-    // Try to get embedded JSON data
-    const embeddedJsonFiles = '[{{DATA_FILES}}]';
-    if (embeddedJsonFiles && embeddedJsonFiles !== '[{{DATA_FILES}}]') {
-        try {
-            const files = JSON.parse(embeddedJsonFiles);
-            
-            // Calculate summary statistics like data-manager expects with safe numeric conversion
-            const summary = {
-                totalFiles: files.length || 0,
-                totalLines: files.reduce((sum, file) => sum + (Number(file.lines) || 0), 0),
-                totalCodeLines: files.reduce((sum, file) => sum + (Number(file.codeLines) || 0), 0),
-                totalCommentLines: files.reduce((sum, file) => sum + (Number(file.commentLines) || 0), 0),
-                totalBlankLines: files.reduce((sum, file) => sum + (Number(file.blankLines) || 0), 0),
-                languageCount: 0
-            };
-            
-            // Calculate language statistics
-            const languageMap = new Map();
-            files.forEach(file => {
-                const lang = file.language || 'Unknown';
-                if (!languageMap.has(lang)) {
-                    languageMap.set(lang, { name: lang, files: 0, lines: 0 });
-                }
-                const langStat = languageMap.get(lang);
-                langStat.files++;
-                langStat.lines += Number(file.lines) || 0;
-            });
-            
-            const languages = Array.from(languageMap.values()).sort((a, b) => b.lines - a.lines);
-            summary.languageCount = languages.length;
-            
-            const reportData = { summary, languages, files };
-            debug.info('✅ Report data prepared:', { 
-                files: files.length, 
-                languages: languages.length,
-                totalLines: summary.totalLines 
-            });
-            
-            return reportData;
-        } catch (error) {
-            debug.error('❌ Failed to parse embedded data:', error);
-            return null;
-        }
-    }
-    
-    return null;
-}
-
-// ========== End of Additional Functions ==========
-`;
         
         return combinedJs;
     }
@@ -273,8 +198,8 @@ function initializeReportFromEmbeddedData() {
                 };
             });
             
-            // Return JSON array content without outer brackets (like webview service does)
-            const filesJson = JSON.stringify(files).slice(1, -1);
+            // Return complete JSON array (template expects full array format)
+            const filesJson = JSON.stringify(files);
             console.log('Generated JSON for', files.length, 'files');
             return filesJson;
             

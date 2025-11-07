@@ -401,9 +401,6 @@ function handleExport_Standalone(format) {
             case 'xml':
                 downloadXML_Standalone();
                 break;
-            case 'all':
-                downloadAll_Standalone();
-                break;
             default:
                 debug.error(`STANDALONE: ❌ Unknown export format: ${format}`);
                 alert(`Unknown export format: ${format}`);
@@ -500,6 +497,10 @@ function setupUIHandlers_Standalone() {
             if (window.filesTable) {
                 window.filesTable.setGroupBy("language");
                 debug.info('STANDALONE: ✅ Grouped by language');
+                // Update button states
+                if (typeof updateGroupButtonStates === 'function') {
+                    updateGroupButtonStates('language');
+                }
             }
         });
     }
@@ -510,6 +511,10 @@ function setupUIHandlers_Standalone() {
             if (window.filesTable) {
                 window.filesTable.setGroupBy("directory");
                 debug.info('STANDALONE: ✅ Grouped by directory');
+                // Update button states
+                if (typeof updateGroupButtonStates === 'function') {
+                    updateGroupButtonStates('directory');
+                }
             }
         });
     }
@@ -520,6 +525,10 @@ function setupUIHandlers_Standalone() {
             if (window.filesTable) {
                 window.filesTable.setGroupBy(false);
                 debug.info('STANDALONE: ✅ Groups cleared');
+                // Update button states
+                if (typeof updateGroupButtonStates === 'function') {
+                    updateGroupButtonStates(null);
+                }
             }
         });
     }

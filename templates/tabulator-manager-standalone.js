@@ -1,4 +1,12 @@
 /**
+ * VS Code Code Counter Extension - Common Utilities Module
+ * 
+ * Copyright (c) 2025 DelightfulGames
+ * Licensed under the MIT License
+ * 
+ * Repository: https://github.com/DelightfulGames/vscode-code-counter
+ * Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter
+ * 
  * STANDALONE TABULATOR MANAGER
  * Specialized functions for standalone HTML report generation (report.html)
  * These functions are isolated from webview functionality to prevent conflicts

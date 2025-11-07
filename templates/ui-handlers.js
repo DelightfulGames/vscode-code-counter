@@ -99,7 +99,8 @@ function setupUIHandlers() {
     
     const refreshBtn = document.getElementById('refresh-btn');
     const refreshBtn2 = document.getElementById('refresh-btn2');
-    const exportBtn = document.getElementById('export-btn');
+    const exportBtn = document.getElementById('export-report-btn');
+    const exportBtn2 = document.getElementById('export-report-btn2');
     const groupLanguageBtn = document.getElementById('group-language-btn');
     const groupDirectoryBtn = document.getElementById('group-directory-btn');
     const clearGroupBtn = document.getElementById('clear-group-btn');
@@ -135,7 +136,14 @@ function setupUIHandlers() {
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
             debug.info('📄 Export HTML button clicked');
-            vscode.postMessage({ command: 'export' });
+            vscode.postMessage({ command: 'exportReport' });
+        });
+    }
+
+    if (exportBtn2) {
+        exportBtn2.addEventListener('click', () => {
+            debug.info('📄 Export HTML button clicked');
+            vscode.postMessage({ command: 'exportReport' });
         });
     }
 

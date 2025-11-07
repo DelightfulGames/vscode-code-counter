@@ -187,7 +187,7 @@ export class WebViewReportService {
                             this.debug.error('❌ No file path provided in openFile message');
                         }
                         break;
-                    case 'export':
+                    case 'exportReport':
                         // Handle export requests with current data
                         if (this.currentData) {
                             await this.exportReport(this.currentData);
@@ -407,39 +407,8 @@ export class WebViewReportService {
     }
 
     private async exportReport(data: ReportData): Promise<void> {
-        // Show export options to user
-        const exportChoice = await vscode.window.showQuickPick([
-            {
-                label: '📄 HTML Report',
-                description: 'Interactive HTML file with embedded data',
-                detail: 'Self-contained file that works in any browser'
-            },
-            {
-                label: '📊 HTML + XML',
-                description: 'HTML report with separate XML data file',
-                detail: 'Two files: clean HTML and structured XML data'
-            },
-            {
-                label: '📋 JSON Data',
-                description: 'Raw data in JSON format',
-                detail: 'Machine-readable data for integration'
-            }
-        ], {
-            placeHolder: 'Choose export format'
-        });
-
-        if (!exportChoice) {
-            return; // User cancelled
-        }
-
         try {
-            if (exportChoice.label.includes('JSON')) {
-                await this.exportAsJson(data);
-            } else if (exportChoice.label.includes('HTML + XML')) {
-                await this.exportAsHtmlXml(data);
-            } else {
-                await this.exportAsHtml(data);
-            }
+            await this.exportAsHtml(data);
         } catch (error) {
             vscode.window.showErrorMessage(`Export failed: ${error}`);
         }
