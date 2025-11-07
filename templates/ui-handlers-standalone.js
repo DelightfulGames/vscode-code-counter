@@ -26,8 +26,13 @@ function generateCSVFromTable_Standalone() {
         throw new Error('No data available in table');
     }
     
+    // Get generation timestamp from global report data
+    const generatedAt = reportData && reportData.generatedDate ? reportData.generatedDate : new Date().toISOString();
+    debug.info(`STANDALONE: 📅 Using generated date: ${generatedAt}`);
+    
     // CSV Headers
     const headers = [
+        'Generated At',
         'Directory',
         'File Name', 
         'Language',
@@ -46,6 +51,7 @@ function generateCSVFromTable_Standalone() {
     data.forEach((row, index) => {
         try {
             const csvRow = [
+                generatedAt,
                 row.directory || '',
                 row.fileName || '',
                 row.language || '',
@@ -86,6 +92,119 @@ function escapeCSVField_Standalone(field) {
 }
 
 /**
+ * Generate JSON from table data (standalone version)
+ */
+function generateJSONFromTable_Standalone() {
+    debug.info('STANDALONE: 📄 Starting JSON generation from table data...');
+    
+    if (!window.filesTable) {
+        throw new Error('No table data available');
+    }
+    
+    // Get all table data
+    const data = window.filesTable.getData();
+    debug.info(`STANDALONE: 📄 Found ${data.length} rows of data`);
+    
+    if (data.length === 0) {
+        throw new Error('No data available in table');
+    }
+    
+    // Get generation timestamp from global report data
+    const generatedAt = reportData && reportData.generatedDate ? reportData.generatedDate : new Date().toISOString();
+    
+    // Create simplified JSON structure
+    const jsonData = {
+        metadata: {
+            generatedAt: generatedAt,
+            version: "1.0.0",
+            description: "Code Counter Report Export"
+        },
+        files: data.map(row => ({
+            directory: row.directory || '',
+            fileName: row.fileName || '',
+            language: row.language || '',
+            lines: row.lines || 0,
+            codeLines: row.codeLines || 0,
+            commentLines: row.commentLines || 0,
+            blankLines: row.blankLines || 0,
+            commentRatio: row.commentRatio || 0,
+            sizeKB: row.sizeKB || 0
+        }))
+    };
+    
+    debug.info(`STANDALONE: ✅ Generated JSON with ${data.length} files`);
+    return JSON.stringify(jsonData, null, 2);
+}
+
+/**
+ * Generate XML from table data (standalone version)
+ */
+function generateXMLFromTable_Standalone() {
+    debug.info('STANDALONE: 📄 Starting XML generation from table data...');
+    
+    if (!window.filesTable) {
+        throw new Error('No table data available');
+    }
+    
+    // Get all table data
+    const data = window.filesTable.getData();
+    debug.info(`STANDALONE: 📄 Found ${data.length} rows of data`);
+    
+    if (data.length === 0) {
+        throw new Error('No data available in table');
+    }
+    
+    // Get generation timestamp from global report data
+    const generatedAt = reportData && reportData.generatedDate ? reportData.generatedDate : new Date().toISOString();
+    
+    // Create XML structure
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xml += '<codeCounterReport>\n';
+    xml += '  <metadata>\n';
+    xml += `    <generatedAt>${escapeXML_Standalone(generatedAt)}</generatedAt>\n`;
+    xml += '    <version>1.0.0</version>\n';
+    xml += '    <description>Code Counter Report Export</description>\n';
+    xml += '  </metadata>\n';
+    xml += '  <files>\n';
+    
+    data.forEach(row => {
+        xml += '    <file>\n';
+        xml += `      <directory>${escapeXML_Standalone(row.directory || '')}</directory>\n`;
+        xml += `      <fileName>${escapeXML_Standalone(row.fileName || '')}</fileName>\n`;
+        xml += `      <language>${escapeXML_Standalone(row.language || '')}</language>\n`;
+        xml += `      <lines>${row.lines || 0}</lines>\n`;
+        xml += `      <codeLines>${row.codeLines || 0}</codeLines>\n`;
+        xml += `      <commentLines>${row.commentLines || 0}</commentLines>\n`;
+        xml += `      <blankLines>${row.blankLines || 0}</blankLines>\n`;
+        xml += `      <commentRatio>${row.commentRatio || 0}</commentRatio>\n`;
+        xml += `      <sizeKB>${row.sizeKB || 0}</sizeKB>\n`;
+        xml += '    </file>\n';
+    });
+    
+    xml += '  </files>\n';
+    xml += '</codeCounterReport>\n';
+    
+    debug.info(`STANDALONE: ✅ Generated XML with ${data.length} files`);
+    return xml;
+}
+
+/**
+ * Escape XML special characters (standalone version)
+ */
+function escapeXML_Standalone(text) {
+    if (text === null || text === undefined) {
+        return '';
+    }
+    
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/**
  * Download CSV data as file (standalone version)
  */
 function downloadCSV_Standalone() {
@@ -114,10 +233,203 @@ function downloadCSV_Standalone() {
 }
 
 /**
+ * Download JSON report (standalone version)
+ */
+function downloadJSON_Standalone() {
+    try {
+        debug.info('STANDALONE: 📄 Starting JSON download...');
+        const jsonData = generateJSONFromTable_Standalone();
+        
+        // Create blob and download
+        const blob = new Blob([jsonData], { type: 'application/json;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'code-counter-report.json');
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        debug.info('STANDALONE: ✅ JSON download completed');
+    } catch (error) {
+        debug.error('STANDALONE: ❌ JSON download failed:', error);
+        alert('Failed to download JSON: ' + error.message);
+    }
+}
+
+/**
+ * Download XML report (standalone version)
+ */
+function downloadXML_Standalone() {
+    try {
+        debug.info('STANDALONE: 📄 Starting XML download...');
+        const xmlData = generateXMLFromTable_Standalone();
+        
+        // Create blob and download
+        const blob = new Blob([xmlData], { type: 'application/xml;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'code-counter-report.xml');
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        debug.info('STANDALONE: ✅ XML download completed');
+    } catch (error) {
+        debug.error('STANDALONE: ❌ XML download failed:', error);
+        alert('Failed to download XML: ' + error.message);
+    }
+}
+
+/**
+ * Download all formats (standalone version)
+ */
+function downloadAll_Standalone() {
+    try {
+        debug.info('STANDALONE: 📦 Starting download of all formats...');
+        
+        // Download each format with a small delay
+        downloadCSV_Standalone();
+        
+        setTimeout(() => {
+            downloadJSON_Standalone();
+        }, 500);
+        
+        setTimeout(() => {
+            downloadXML_Standalone();
+        }, 1000);
+        
+        debug.info('STANDALONE: ✅ All formats download initiated');
+    } catch (error) {
+        debug.error('STANDALONE: ❌ Download all formats failed:', error);
+        alert('Failed to download all formats: ' + error.message);
+    }
+}
+
+// Guard variable to prevent multiple initializations
+let dropdownsInitialized = false;
+let uiHandlersInitialized = false;
+
+/**
+ * Setup export dropdown functionality (standalone version)
+ */
+function setupExportDropdowns_Standalone() {
+    console.log('STANDALONE: setupExportDropdowns_Standalone called!');
+    
+    // Prevent multiple initializations
+    if (dropdownsInitialized) {
+        debug.info('STANDALONE: 🔒 Export dropdowns already initialized, skipping...');
+        return;
+    }
+    
+    debug.info('STANDALONE: 🎮 Setting up export dropdown handlers...');
+    
+    // Setup dropdown toggle functionality
+    const dropdownBtns = document.querySelectorAll('.export-dropdown-btn');
+    debug.info(`STANDALONE: 🔍 Found ${dropdownBtns.length} dropdown buttons`);
+    dropdownBtns.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            debug.info('STANDALONE: 🖱️ Export dropdown button clicked!');
+            e.stopPropagation();
+            const dropdown = this.parentElement;
+            const dropdownContent = dropdown.querySelector('.export-dropdown-content');
+            
+            // Toggle current dropdown
+            if (dropdownContent.classList.contains('show')) {
+                console.log('STANDALONE: Hiding dropdown');
+                dropdownContent.classList.remove('show');
+            } else {
+                console.log('STANDALONE: Showing dropdown');
+                dropdownContent.classList.add('show');
+                console.log('STANDALONE: Dropdown classes:', dropdownContent.className);
+            }
+        });
+    });
+    
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function() {
+        document.querySelectorAll('.export-dropdown-content').forEach(content => {
+            content.classList.remove('show');
+        });
+    });
+    
+    // Setup export option handlers
+    const exportOptions = document.querySelectorAll('.export-dropdown-content a');
+    debug.info(`STANDALONE: 🔍 Found ${exportOptions.length} export options`);
+    exportOptions.forEach(option => {
+        option.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const format = this.getAttribute('data-export');
+            debug.info(`STANDALONE: 🖱️ Export option clicked: ${format}`);
+            handleExport_Standalone(format);
+            
+            // Close dropdown
+            const dropdownContent = this.closest('.export-dropdown-content');
+            if (dropdownContent) {
+                dropdownContent.classList.remove('show');
+            }
+        });
+    });
+    
+    debug.info('STANDALONE: ✅ Export dropdown handlers setup completed');
+    dropdownsInitialized = true;
+}
+
+/**
+ * Handle export based on format (standalone version)
+ */
+function handleExport_Standalone(format) {
+    debug.info(`STANDALONE: 📄 Export ${format} requested`);
+    
+    try {
+        switch (format) {
+            case 'csv':
+                downloadCSV_Standalone();
+                break;
+            case 'json':
+                downloadJSON_Standalone();
+                break;
+            case 'xml':
+                downloadXML_Standalone();
+                break;
+            case 'all':
+                downloadAll_Standalone();
+                break;
+            default:
+                debug.error(`STANDALONE: ❌ Unknown export format: ${format}`);
+                alert(`Unknown export format: ${format}`);
+        }
+    } catch (error) {
+        debug.error(`STANDALONE: ❌ Export ${format} failed:`, error);
+        alert(`Failed to export ${format}: ${error.message}`);
+    }
+}
+
+/**
  * Setup all button event handlers (standalone version)
  */
 function setupUIHandlers_Standalone() {
+    console.log('STANDALONE: setupUIHandlers_Standalone called!');
+    
+    // Prevent multiple initializations
+    if (uiHandlersInitialized) {
+        debug.info('STANDALONE: 🔒 UI handlers already initialized, skipping...');
+        return;
+    }
+    
     debug.info('STANDALONE: 🎮 Setting up UI handlers...');
+    
+    // Setup export dropdowns first
+    setupExportDropdowns_Standalone();
     
     const refreshBtn = document.getElementById('refresh-btn');
     const refreshBtn2 = document.getElementById('refresh-btn2');
@@ -167,7 +479,7 @@ function setupUIHandlers_Standalone() {
             downloadCSV_Standalone();
         });
     } else {
-        debug.warn('STANDALONE: ⚠️ Export CSV button not found in DOM');
+        debug.warning('STANDALONE: ⚠️ Export CSV button not found in DOM');
     }
 
     // Handle all CSV export buttons (in case there are multiple)
@@ -213,6 +525,7 @@ function setupUIHandlers_Standalone() {
     }
     
     debug.info('STANDALONE: ✅ UI handlers setup completed');
+    uiHandlersInitialized = true;
 }
 
 /**

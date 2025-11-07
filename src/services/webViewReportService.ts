@@ -30,6 +30,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { HtmlGeneratorService } from './htmlGenerator';
 import { XmlGeneratorService } from './xmlGenerator';
+import { CsvGeneratorService } from './csvGenerator';
+import { JsonGeneratorService } from './jsonGenerator';
+import { ExportAllService } from './exportAllService';
 import { LineCountResult } from '../types';
 import { DebugService } from './debugService';
 import { LineCounterService } from './lineCounter';
@@ -74,10 +77,16 @@ export class WebViewReportService {
     private currentData: ReportData | undefined;
     private htmlGenerator: HtmlGeneratorService;
     private xmlGenerator: XmlGeneratorService;
+    private csvGenerator: CsvGeneratorService;
+    private jsonGenerator: JsonGeneratorService;
+    private exportAllService: ExportAllService;
 
     constructor() {
         this.htmlGenerator = new HtmlGeneratorService();
         this.xmlGenerator = new XmlGeneratorService();
+        this.csvGenerator = new CsvGeneratorService();
+        this.jsonGenerator = new JsonGeneratorService();
+        this.exportAllService = new ExportAllService();
     }
 
     public static getInstance(): WebViewReportService {
@@ -185,17 +194,63 @@ export class WebViewReportService {
                         }
                         break;
                     case 'saveCSV':
-                        // Handle CSV save requests from webview
+                        // Handle CSV save requests from webview - use server-side CSV generator for consistency
                         this.debug.info('💾 CSV save requested from webview');
-                        if (message.data && message.filename) {
+                        if (this.currentData) {
                             try {
-                                await this.saveCSVFile(message.data, message.filename);
+                                await this.saveCSVUsingGenerator();
                             } catch (error) {
                                 this.debug.error('❌ Failed to save CSV file:', error);
                                 vscode.window.showErrorMessage(`Failed to save CSV file: ${error instanceof Error ? error.message : String(error)}`);
                             }
                         } else {
-                            this.debug.error('❌ Invalid CSV save request - missing data or filename');
+                            this.debug.error('❌ Invalid CSV save request - no current data available');
+                            vscode.window.showErrorMessage('No data available for CSV export');
+                        }
+                        break;
+                    case 'exportJSON':
+                        // Handle JSON export requests from webview
+                        this.debug.info('💾 JSON export requested from webview');
+                        if (this.currentData) {
+                            try {
+                                await this.exportJSONUsingGenerator();
+                            } catch (error) {
+                                this.debug.error('❌ Failed to export JSON file:', error);
+                                vscode.window.showErrorMessage(`Failed to export JSON file: ${error instanceof Error ? error.message : String(error)}`);
+                            }
+                        } else {
+                            this.debug.error('❌ Invalid JSON export request - no current data available');
+                            vscode.window.showErrorMessage('No data available for JSON export');
+                        }
+                        break;
+                    case 'exportXML':
+                        // Handle XML export requests from webview
+                        this.debug.info('💾 XML export requested from webview');
+                        if (this.currentData) {
+                            try {
+                                await this.exportXMLUsingGenerator();
+                            } catch (error) {
+                                this.debug.error('❌ Failed to export XML file:', error);
+                                vscode.window.showErrorMessage(`Failed to export XML file: ${error instanceof Error ? error.message : String(error)}`);
+                            }
+                        } else {
+                            this.debug.error('❌ Invalid XML export request - no current data available');
+                            vscode.window.showErrorMessage('No data available for XML export');
+                        }
+                        break;
+                    case 'exportAll':
+                        // Handle export all formats requests from webview
+                        this.debug.info('💾 Export all formats requested from webview');
+                        if (this.currentData) {
+                            try {
+                                await this.exportAllFormatsUsingGenerator();
+                            } catch (error) {
+                                this.debug.error('❌ Failed to export all formats:', error);
+                                vscode.window.showErrorMessage(`Failed to export all formats: ${error instanceof Error ? error.message : String(error)}`);
+                            }
+                        } else {
+                            this.debug.error('❌ Invalid export all request - no current data available');
+                            vscode.window.showErrorMessage('No data available for export');
                         }
                         break;
                     case 'debugLog':
@@ -658,6 +713,241 @@ export class WebViewReportService {
             .replace(/\0/g, '\\0')     // Escape null characters
             .replace(/\u2028/g, '\\u2028') // Escape line separator
             .replace(/\u2029/g, '\\u2029'); // Escape paragraph separator
+    }
+
+    private async saveCSVUsingGenerator(): Promise<void> {
+        this.debug.info('💾 Using CSV generator service for export consistency');
+        
+        if (!this.currentData) {
+            throw new Error('No current data available for CSV export');
+        }
+
+        try {
+            const lineCountResult = this.convertReportDataToLineCountResult();
+
+            // Show save dialog to let user choose location
+            const saveUri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file('code-counter-data.csv'),
+                filters: {
+                    'CSV Files': ['csv'],
+                    'All Files': ['*']
+                },
+                saveLabel: 'Save CSV Report'
+            });
+
+            if (saveUri) {
+                // Generate CSV data using the service
+                const csvData = this.csvGenerator.generateFileCsv(lineCountResult);
+                
+                // Write the CSV data to the selected file
+                const encoder = new TextEncoder();
+                const csvBytes = encoder.encode(csvData);
+                
+                await vscode.workspace.fs.writeFile(saveUri, csvBytes);
+                
+                this.debug.info('✅ CSV file saved successfully using generator service:', saveUri.fsPath);
+                
+                // Show success message with option to open file location
+                const openAction = 'Open File Location';
+                const result = await vscode.window.showInformationMessage(
+                    `CSV export completed! File saved to: ${saveUri.fsPath}`, 
+                    openAction
+                );
+                
+                if (result === openAction) {
+                    await vscode.commands.executeCommand('revealFileInOS', saveUri);
+                }
+            } else {
+                this.debug.info('📤 CSV save cancelled by user');
+            }
+        } catch (error) {
+            this.debug.error('❌ Error saving CSV file using generator:', error);
+            throw error;
+        }
+    }
+
+    private async exportJSONUsingGenerator(): Promise<void> {
+        this.debug.info('💾 Using JSON generator service for export');
+        
+        if (!this.currentData) {
+            throw new Error('No current data available for JSON export');
+        }
+
+        try {
+            const lineCountResult = this.convertReportDataToLineCountResult();
+
+            // Show save dialog
+            const saveUri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file('code-counter-data.json'),
+                filters: {
+                    'JSON Files': ['json'],
+                    'All Files': ['*']
+                },
+                saveLabel: 'Save JSON Report'
+            });
+
+            if (saveUri) {
+                // Generate JSON data using the service
+                const jsonData = this.jsonGenerator.generateJson(lineCountResult);
+                
+                // Write the JSON data to the selected file
+                const encoder = new TextEncoder();
+                const jsonBytes = encoder.encode(jsonData);
+                
+                await vscode.workspace.fs.writeFile(saveUri, jsonBytes);
+                
+                this.debug.info('✅ JSON file saved successfully:', saveUri.fsPath);
+                
+                // Show success message with option to open file location
+                const openAction = 'Open File Location';
+                const result = await vscode.window.showInformationMessage(
+                    `JSON export completed! File saved to: ${saveUri.fsPath}`, 
+                    openAction
+                );
+                
+                if (result === openAction) {
+                    await vscode.commands.executeCommand('revealFileInOS', saveUri);
+                }
+            } else {
+                this.debug.info('📤 JSON save cancelled by user');
+            }
+        } catch (error) {
+            this.debug.error('❌ Error saving JSON file using generator:', error);
+            throw error;
+        }
+    }
+
+    private async exportXMLUsingGenerator(): Promise<void> {
+        this.debug.info('💾 Using XML generator service for export');
+        
+        if (!this.currentData) {
+            throw new Error('No current data available for XML export');
+        }
+
+        try {
+            const lineCountResult = this.convertReportDataToLineCountResult();
+
+            // Show save dialog
+            const saveUri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file('code-counter-data.xml'),
+                filters: {
+                    'XML Files': ['xml'],
+                    'All Files': ['*']
+                },
+                saveLabel: 'Save XML Report'
+            });
+
+            if (saveUri) {
+                // Generate XML data using the service
+                const xmlData = this.xmlGenerator.generateXml(lineCountResult);
+                
+                // Write the XML data to the selected file
+                const encoder = new TextEncoder();
+                const xmlBytes = encoder.encode(xmlData);
+                
+                await vscode.workspace.fs.writeFile(saveUri, xmlBytes);
+                
+                this.debug.info('✅ XML file saved successfully:', saveUri.fsPath);
+                
+                // Show success message with option to open file location
+                const openAction = 'Open File Location';
+                const result = await vscode.window.showInformationMessage(
+                    `XML export completed! File saved to: ${saveUri.fsPath}`, 
+                    openAction
+                );
+                
+                if (result === openAction) {
+                    await vscode.commands.executeCommand('revealFileInOS', saveUri);
+                }
+            } else {
+                this.debug.info('📤 XML save cancelled by user');
+            }
+        } catch (error) {
+            this.debug.error('❌ Error saving XML file using generator:', error);
+            throw error;
+        }
+    }
+
+    private async exportAllFormatsUsingGenerator(): Promise<void> {
+        this.debug.info('💾 Using export all service for multiple formats');
+        
+        if (!this.currentData) {
+            throw new Error('No current data available for export');
+        }
+
+        try {
+            const lineCountResult = this.convertReportDataToLineCountResult();
+
+            // Show folder selection dialog
+            const folderUri = await vscode.window.showOpenDialog({
+                canSelectFiles: false,
+                canSelectFolders: true,
+                canSelectMany: false,
+                openLabel: 'Select Export Folder'
+            });
+
+            if (folderUri && folderUri[0]) {
+                const outputDirectory = folderUri[0].fsPath;
+                
+                // Export all formats using the service
+                const exportResults = await this.exportAllService.exportAllFormats(lineCountResult, outputDirectory);
+                
+                this.debug.info('✅ All formats exported successfully:', exportResults);
+                
+                // Show success message with option to open folder
+                const openAction = 'Open Folder';
+                const result = await vscode.window.showInformationMessage(
+                    `All formats exported! ${exportResults.totalFiles} files saved to: ${outputDirectory}`, 
+                    openAction
+                );
+                
+                if (result === openAction) {
+                    await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(outputDirectory));
+                }
+            } else {
+                this.debug.info('📤 Export all cancelled by user');
+            }
+        } catch (error) {
+            this.debug.error('❌ Error exporting all formats:', error);
+            throw error;
+        }
+    }
+
+    private convertReportDataToLineCountResult(): LineCountResult {
+        if (!this.currentData) {
+            throw new Error('No current data available');
+        }
+
+        // Convert ReportData back to LineCountResult format
+        const lineCountResult: LineCountResult = {
+            workspacePath: this.currentData.workspacePath,
+            totalFiles: this.currentData.summary.totalFiles,
+            totalLines: this.currentData.summary.totalLines,
+            files: this.currentData.files.map(file => ({
+                path: file.path,
+                relativePath: file.relativePath,
+                fullPath: file.path,
+                language: file.language,
+                lines: file.lines,
+                codeLines: file.codeLines,
+                commentLines: file.commentLines,
+                blankLines: file.blankLines,
+                size: file.size
+            })),
+            languageStats: {},
+            generatedAt: new Date(this.currentData.generatedDate)
+        };
+
+        // Calculate language stats from files
+        this.currentData.files.forEach(file => {
+            if (!lineCountResult.languageStats[file.language]) {
+                lineCountResult.languageStats[file.language] = { files: 0, lines: 0 };
+            }
+            lineCountResult.languageStats[file.language].files += 1;
+            lineCountResult.languageStats[file.language].lines += file.lines;
+        });
+
+        return lineCountResult;
     }
 
     private async saveCSVFile(csvData: string, suggestedFilename: string): Promise<void> {

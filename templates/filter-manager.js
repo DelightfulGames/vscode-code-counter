@@ -17,7 +17,7 @@ function setupAdvancedFiltering(files) {
     // Check if table is ready, retry if not
     if (!window.filesTable) {
         debug.warning('⚠️ Tabulator table not ready for filtering setup, retrying in 200ms...');
-        setTimeout(() => setupAdvancedFiltering(files), 200);
+        setTimeout(() => setupAdvancedFiltering(files), 1000);
         return;
     }
     

@@ -78,8 +78,12 @@ import {
 // Initialize debug service
 const debug = DebugService.getInstance();
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
     try {
+        // CRITICAL: Auto-disable logging on startup to prevent crashes
+        const config = vscode.workspace.getConfiguration('codeCounter');
+        await config.update('debug', 'none', vscode.ConfigurationTarget.Global);
+        
         // Initialize debug service with configuration monitoring
         const debug = DebugService.getInstance();
         debug.initialize(context);

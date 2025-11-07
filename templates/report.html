@@ -279,6 +279,66 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
             opacity: 0.6;
             cursor: not-allowed;
         }
+
+        /* Export Dropdown Styles */
+        .export-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .export-dropdown-btn {
+            background: var(--accent-color);
+            color: var(--bg-primary);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            transition: background-color 0.2s;
+        }
+
+        .export-dropdown-btn:hover {
+            background: var(--hover-bg);
+        }
+
+        .export-dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: var(--bg-primary);
+            min-width: 180px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            z-index: 1000;
+            top: 100%;
+            right: 0;
+        }
+
+        .export-dropdown-content.show {
+            display: block !important;
+        }
+
+        .export-dropdown-content a {
+            color: var(--text-primary);
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .export-dropdown-content a:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .export-dropdown.show .export-dropdown-content {
+            display: block;
+        }
+
         .summary-section {
             margin-bottom: 30px;
         }
@@ -1383,7 +1443,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 0;
+            padding: 8px 8px;
             border-bottom: 1px solid var(--border-color);
         }
         
@@ -1491,7 +1551,15 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 </div>
             </div>
             <div class="actions">
-                <button class="btn" id="export-csv-btn" title="Export to CSV">📊 Export CSV</button>
+                <div class="export-dropdown">
+                    <button class="export-dropdown-btn" id="export-dropdown-btn-1" title="Export Data">📊 Export ▼</button>
+                    <div class="export-dropdown-content">
+                        <a href="#" data-export="csv">📊 Export CSV</a>
+                        <a href="#" data-export="json">📋 Export JSON</a>
+                        <a href="#" data-export="xml">📄 Export XML</a>
+                        <a href="#" data-export="all">📚 Export All</a>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1512,11 +1580,12 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 </div>
             </div>
 
-            <!-- <div class="section">
-                <h2>📈 Language Statistics</h2>
+            <div class="section">
+                <h2 class="section-title">🖥️ Language Statistics</h2>
                 <div class="language-stats" id="language-stats">
+                    <!-- Will be populated by JavaScript -->
                 </div>
-            </div> -->
+            </div>
 
             <!-- Group Controls and Actions -->
             <div class="actions-section">
@@ -1524,7 +1593,15 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                     <button class="btn" id="group-language-btn" title="Group by Language">📂 Group by Language</button>
                     <button class="btn" id="group-directory-btn" title="Group by Directory">📁 Group by Directory</button>
                     <button class="btn" id="clear-group-btn" title="Clear Grouping">📋 Clear Groups</button>
-                    <button class="btn" id="export-csv-btn" title="Export to CSV">📊 Export CSV</button>
+                    <div class="export-dropdown">
+                        <button class="export-dropdown-btn" id="export-dropdown-btn-2" title="Export Data">📊 Export ▼</button>
+                        <div class="export-dropdown-content">
+                            <a href="#" data-export="csv">📊 Export CSV</a>
+                            <a href="#" data-export="json">📋 Export JSON</a>
+                            <a href="#" data-export="xml">📄 Export XML</a>
+                            <a href="#" data-export="all">📚 Export All</a>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1748,16 +1825,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 
                 const files = JSON.parse(embeddedJsonFiles);
                 
-                // Calculate summary from files with safe numeric conversion
-                const summary = {
-                    totalFiles: files.length || 0,
-                    totalLines: files.reduce((sum, file) => sum + (Number(file.lines) || 0), 0),
-                    totalCodeLines: files.reduce((sum, file) => sum + (Number(file.codeLines) || 0), 0),
-                    totalCommentLines: files.reduce((sum, file) => sum + (Number(file.commentLines) || 0), 0),
-                    totalBlankLines: files.reduce((sum, file) => sum + (Number(file.blankLines) || 0), 0)
-                };
-                
-                // Calculate language statistics
+                // Calculate language statistics first
                 const languageMap = new Map();
                 files.forEach(file => {
                     const lang = file.language || 'Unknown';
@@ -1772,6 +1840,16 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 const languages = Array.from(languageMap.values())
                     .sort((a, b) => b.lines - a.lines); // Sort by lines descending
                 
+                // Calculate summary from files with safe numeric conversion
+                const summary = {
+                    totalFiles: files.length || 0,
+                    totalLines: files.reduce((sum, file) => sum + (Number(file.lines) || 0), 0),
+                    totalCodeLines: files.reduce((sum, file) => sum + (Number(file.codeLines) || 0), 0),
+                    totalCommentLines: files.reduce((sum, file) => sum + (Number(file.commentLines) || 0), 0),
+                    totalBlankLines: files.reduce((sum, file) => sum + (Number(file.blankLines) || 0), 0),
+                    languageCount: languages.length
+                };
+                
                 return { summary, languages, files };
             } catch (error) {
                 debug.error('Error parsing JSON data:', error);
@@ -1785,28 +1863,34 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
             const xmlDoc = parser.parseFromString(xmlString, "text/xml");
             
             const codeCounter = xmlDoc.querySelector('codeCounter');
-            const summary = {
-                totalFiles: parseInt(codeCounter.querySelector('summary totalFiles').textContent),
-                totalLines: parseInt(codeCounter.querySelector('summary totalLines').textContent)
-            };
-            
-            const languages = Array.from(codeCounter.querySelectorAll('languageStats language')).map(lang => ({
-                name: lang.getAttribute('name'),
-                files: parseInt(lang.getAttribute('files')),
-                lines: parseInt(lang.getAttribute('lines'))
-            }));
             
             const files = Array.from(codeCounter.querySelectorAll('files file')).map(file => ({
                 path: file.getAttribute('path'),
                 relativePath: file.getAttribute('relativePath'),
                 fullPath: file.getAttribute('fullPath') || file.getAttribute('relativePath'),
                 language: file.getAttribute('language'),
-                lines: parseInt(file.getAttribute('lines')),
-                codeLines: parseInt(file.getAttribute('codeLines')),
-                commentLines: parseInt(file.getAttribute('commentLines')),
-                blankLines: parseInt(file.getAttribute('blankLines')),
-                size: parseInt(file.getAttribute('size'))
+                lines: parseInt(file.getAttribute('lines')) || 0,
+                codeLines: parseInt(file.getAttribute('codeLines')) || 0,
+                commentLines: parseInt(file.getAttribute('commentLines')) || 0,
+                blankLines: parseInt(file.getAttribute('blankLines')) || 0,
+                size: parseInt(file.getAttribute('size')) || 0
             }));
+            
+            const languages = Array.from(codeCounter.querySelectorAll('languageStats language')).map(lang => ({
+                name: lang.getAttribute('name'),
+                files: parseInt(lang.getAttribute('files')) || 0,
+                lines: parseInt(lang.getAttribute('lines')) || 0
+            }));
+            
+            // Calculate complete summary from files data
+            const summary = {
+                totalFiles: files.length || 0,
+                totalLines: files.reduce((sum, file) => sum + (file.lines || 0), 0),
+                totalCodeLines: files.reduce((sum, file) => sum + (file.codeLines || 0), 0),
+                totalCommentLines: files.reduce((sum, file) => sum + (file.commentLines || 0), 0),
+                totalBlankLines: files.reduce((sum, file) => sum + (file.blankLines || 0), 0),
+                languageCount: languages.length
+            };
             
             return { summary, languages, files };
         }
@@ -1951,7 +2035,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                         } else {
                             debug.error('❌ window.filesTable not available for filter setup');
                         }
-                    }, 100);
+                    }, 1000);
                 } else {
                     debug.warning('⚠️ setupAdvancedFiltering function not available');
                 }

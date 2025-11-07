@@ -289,7 +289,7 @@ export function getEmojiPickerWebviewContent(badges: any,
           
         // Output Directory and Auto-Generate settings
         const settingsConfig = vscode.workspace.getConfiguration('codeCounter');
-        const outputDirectory = settingsConfig.get<string>('outputDirectory', './.cc/reports');
+        const outputDirectory = settingsConfig.get<string>('outputDirectory', '.vscode/code-counter/reports');
         const autoGenerate = settingsConfig.get<boolean>('autoGenerate', true);
         const autoGenerateChecked = autoGenerate ? 'checked' : '';
         

@@ -73,6 +73,7 @@ function initializeAdvancedTable(files) {
             
             // Get current column widths and order
             const columns = window.filesTable ? window.filesTable.getColumns() : [];
+            console.log(`🔍 [WEBVIEW groupHeader] Current column order:`, columns.map(col => `${col.getField()}(${col.getWidth()}px)`));
             let headerCells = '';
             
             // If table is not ready, use default structure
@@ -270,7 +271,8 @@ function initializeAdvancedTable(files) {
 
     // Add column move listener  
     window.filesTable.on("columnMoved", function(column, columns){
-        debug.verbose(`🔄 Column moved: ${column.getField()}`);
+        debug.info(`🔄 [WEBVIEW] Column moved: ${column.getField()}`);
+        debug.info(`🔄 [WEBVIEW] New column order:`, columns.map(col => col.getField()));
         updateGroupHeaderStructure();
         updateGroupHeaderWidths();
         // Update frozen overlay after column move
@@ -985,28 +987,7 @@ function updateGroupHeaderWidths() {
     debug.info('✅ Group header widths updated with fixed positioning');
 }
 
-/**
- * Update group header structure to match column order
- * Note: With native Tabulator group headers, structure is automatically regenerated
- * This function triggers a table redraw to refresh all group headers
- */
-function updateGroupHeaderStructure() {
-    if (!window.filesTable) return;
-    
-    debug.verbose('🔄 Triggering table redraw to update native group header structure');
-    
-    // Force Tabulator to regenerate group headers with current column structure
-    window.filesTable.redraw(true);
-    
-    // Also update widths after structure change
-    setTimeout(() => {
-        updateGroupHeaderWidths();
-    }, 50);
-    
-    debug.info('✅ Group header structure updated via native Tabulator redraw');
-}
-
-// formatSizeKB function is now loaded from tabulator-manager-common.js
+// updateGroupHeaderStructure function is now loaded from tabulator-manager-common.js
 
 /**
  * Update frozen group header positions using overlay approach

@@ -158,49 +158,123 @@ function populateReport(data) {
  * Create HTML for summary statistics section
  */
 function createSummaryHTML(summary) {
+    // Ensure all properties exist with fallback values and safe number formatting
+    const safeStats = {
+        totalFiles: summary.totalFiles || 0,
+        totalLines: summary.totalLines || 0,
+        totalCodeLines: summary.totalCodeLines || 0,
+        totalCommentLines: summary.totalCommentLines || 0,
+        totalBlankLines: summary.totalBlankLines || 0,
+        languageCount: summary.languageCount || 0
+    };
+
+    // Safe number formatting function
+    function formatNumber(num) {
+        try {
+            return Number(num).toLocaleString();
+        } catch (e) {
+            return String(num);
+        }
+    }
+
     return `
         <div class="stat-card">
-            <div class="stat-value">${summary.totalFiles.toLocaleString()}</div>
+            <div class="stat-value">${formatNumber(safeStats.totalFiles)}</div>
             <div class="stat-label">📄 Total Files</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">${summary.totalLines.toLocaleString()}</div>
+            <div class="stat-value">${formatNumber(safeStats.totalLines)}</div>
             <div class="stat-label">📊 Total Lines</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">${summary.totalCodeLines.toLocaleString()}</div>
+            <div class="stat-value">${formatNumber(safeStats.totalCodeLines)}</div>
             <div class="stat-label">💼 Code Lines</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">${summary.totalCommentLines.toLocaleString()}</div>
+            <div class="stat-value">${formatNumber(safeStats.totalCommentLines)}</div>
             <div class="stat-label">💬 Comment Lines</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">${summary.totalBlankLines.toLocaleString()}</div>
+            <div class="stat-value">${formatNumber(safeStats.totalBlankLines)}</div>
             <div class="stat-label">📝 Blank Lines</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">${summary.languageCount}</div>
+            <div class="stat-value">${formatNumber(safeStats.languageCount)}</div>
             <div class="stat-label">💻 Languages</div>
         </div>
     `;
 }
 
 /**
+ * Populate summary statistics section
+ */
+function populateSummaryStats(summary) {
+    debug.info('📊 Populating summary statistics...');
+    debug.info('📊 Summary data received:', summary);
+    
+    try {
+        const summaryDiv = document.getElementById('summary-stats');
+        if (summaryDiv) {
+            const htmlContent = createSummaryHTML(summary);
+            debug.info('📊 Generated HTML content length:', htmlContent.length);
+            summaryDiv.innerHTML = htmlContent;
+            debug.info('✅ Summary statistics populated successfully');
+        } else {
+            debug.warning('⚠️ Summary stats container not found');
+        }
+    } catch (error) {
+        debug.error('❌ Error in populateSummaryStats:', error);
+        throw new Error(`Failed to populate summary stats: ${error.message}`);
+    }
+}
+
+/**
  * Create HTML for language statistics section
  */
 function createLanguageStatsHTML(languages) {
+    // Safe number formatting function
+    function formatNumber(num) {
+        try {
+            return Number(num).toLocaleString();
+        } catch (e) {
+            return String(num);
+        }
+    }
+
     return languages
-        .sort((a, b) => b.lines - a.lines)
+        .sort((a, b) => (Number(b.lines) || 0) - (Number(a.lines) || 0))
         .map(lang => `
             <div class="language-item">
-                <span class="language-name">${lang.name}</span>
+                <span class="language-name">${lang.name || 'Unknown'}</span>
                 <div>
-                    <span class="language-files">${lang.files} files</span>
-                    <span style="margin-left: 10px; font-weight: 500;">${lang.lines.toLocaleString()} lines</span>
+                    <span class="language-files">${Number(lang.files) || 0} files</span>
+                    <span style="margin-left: 10px; font-weight: 500;">${formatNumber(lang.lines)} lines</span>
                 </div>
             </div>
         `).join('');
+}
+
+/**
+ * Populate language statistics breakdown section
+ */
+function populateLanguagesBreakdown(languages) {
+    debug.info('🖥️ Populating language breakdown...');
+    debug.info('🖥️ Languages data received:', languages);
+    
+    try {
+        const langDiv = document.getElementById('language-stats');
+        if (langDiv) {
+            const htmlContent = createLanguageStatsHTML(languages);
+            debug.info('🖥️ Generated language HTML content length:', htmlContent.length);
+            langDiv.innerHTML = htmlContent;
+            debug.info('✅ Language breakdown populated successfully');
+        } else {
+            debug.warning('⚠️ Language stats container not found');
+        }
+    } catch (error) {
+        debug.error('❌ Error in populateLanguagesBreakdown:', error);
+        throw new Error(`Failed to populate language breakdown: ${error.message}`);
+    }
 }
 
 /**

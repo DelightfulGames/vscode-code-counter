@@ -29,20 +29,30 @@
 import * as vscode from 'vscode';
 import { LineCounterService } from '../services/lineCounter';
 import { XmlGeneratorService } from '../services/xmlGenerator';
+import { JsonGeneratorService } from '../services/jsonGenerator';
+import { CsvGeneratorService } from '../services/csvGenerator';
+import { ExportAllService } from '../services/exportAllService';
 import { HtmlGeneratorService } from '../services/htmlGenerator';
 import { WebViewReportService, ReportData } from '../services/webViewReportService';
 import { WorkspaceDatabaseService } from '../services/workspaceDatabaseService';
 import { DebugService } from '../services/debugService';
+import path from 'path';
 
 export class CountLinesCommand {
     private debug = DebugService.getInstance();
     private lineCounter: LineCounterService;
     private xmlGenerator: XmlGeneratorService;
+    private jsonGenerator: JsonGeneratorService;
+    private csvGenerator: CsvGeneratorService;
+    private exportAllService: ExportAllService;
     private htmlGenerator: HtmlGeneratorService;
 
     constructor() {
         this.lineCounter = new LineCounterService();
         this.xmlGenerator = new XmlGeneratorService();
+        this.jsonGenerator = new JsonGeneratorService();
+        this.csvGenerator = new CsvGeneratorService();
+        this.exportAllService = new ExportAllService();
         this.htmlGenerator = new HtmlGeneratorService();
     }
 
@@ -99,12 +109,17 @@ export class CountLinesCommand {
                 detail: 'Interactive report with real-time updates'
             },
             {
-                label: '📄 Export HTML Files',
-                description: 'Generate HTML and XML files',
+                label: '📊 Export Report',
+                description: 'Generate a standalone HTML report file',
+                detail: 'Create File for sharing or external viewing'
+            },
+            {
+                label: '💾 Export Data',
+                description: 'Generate HTML, JSON, CSV, and XML files',
                 detail: 'Create files for sharing or external viewing'
             }
         ], {
-            placeHolder: 'How would you like to view the report?'
+            placeHolder: 'How would you like to view the data?'
         });
 
         if (!choice) {
@@ -117,7 +132,7 @@ export class CountLinesCommand {
             // Use path-based settings instead of workspace-level patterns
             const folder = workspaceFolders[0];
 
-            if (choice.label.includes('Panel')) {
+            if (choice.label.includes('Show Report Panel')) {
                 // Show in WebView panel using path-based settings
                 const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
                 
@@ -152,19 +167,102 @@ export class CountLinesCommand {
                 await webViewService.showReport(reportData);
 
                 vscode.window.showInformationMessage('Line counting completed! Report opened in panel.');
-            } else {
-                // Generate HTML/XML files
+            } else if (choice.label.includes('Export Report')) {
+                // Generate HTML files
                 const config = vscode.workspace.getConfiguration('codeCounter');
-                const outputDirectory = config.get<string>('outputDirectory', './.cc/reports');
+                const outputDirectory = config.get<string>('outputDirectory', '.vscode/code-counter/reports');
                 
+                let filePath = '';
                 for (const folder of workspaceFolders) {
                     // Use path-based settings for HTML export as well
                     const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
-                    await this.htmlGenerator.generateHtmlReport(results, folder.uri.fsPath, outputDirectory);
+                    filePath = await this.htmlGenerator.generateHtmlReport(results, folder.uri.fsPath, outputDirectory);
                 }
 
-                vscode.window.showInformationMessage('Line counting completed! HTML reports generated.');
-            }
+                vscode.window.showInformationMessage(`Line counting completed! ${filePath} generated.`, );
+            } else {
+                // Export data options
+                const exportChoice = await vscode.window.showQuickPick([                    
+                    {
+                        label: '📚 Export Data Package',
+                        description: 'Exports all available export formats',
+                        detail: 'Create Files for sharing or external viewing'
+                    },
+                    {
+                        label: '📙 Export XML',
+                        description: 'Exports the data as XML',
+                        detail: 'Create Files for sharing or external viewing'
+                    },
+                    {
+                        label: '📘 Export JSON',
+                        description: 'Exports the data as JSON',
+                        detail: 'Create files for sharing or external viewing'
+                    },
+                    {
+                        label: '📗 Export CSV',
+                        description: 'Exports the data as CSV',
+                        detail: 'Create File for sharing or external viewing'
+                    }
+                ], {
+                    placeHolder: 'How would you like to export the data?'
+                });
+
+                if (!exportChoice) {
+                    return; // User cancelled
+                }
+
+                if (exportChoice.label.includes('Export XML')) {
+                    const config = vscode.workspace.getConfiguration('codeCounter');
+                    let outputDirectory = config.get<string>('outputDirectory', '.vscode/code-counter/reports');
+
+                    for (const folder of workspaceFolders) {
+                        // Use path-based settings for XML export as well
+                        const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
+                        outputDirectory = path.join(folder.uri.fsPath, outputDirectory);
+                        const xmlPath = await this.xmlGenerator.generateXmlFile(results, outputDirectory);
+                        vscode.window.showInformationMessage(`XML export completed! File saved to: ${xmlPath}`);
+                    }                    
+                } else if (exportChoice.label.includes('Export JSON')) {
+                    const config = vscode.workspace.getConfiguration('codeCounter');
+                    let outputDirectory = config.get<string>('outputDirectory', '.vscode/code-counter/reports');
+
+                    for (const folder of workspaceFolders) {
+                        const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
+                        outputDirectory = path.join(folder.uri.fsPath, outputDirectory);
+                        const jsonPath = await this.jsonGenerator.generateJsonFile(results, outputDirectory);
+                        vscode.window.showInformationMessage(`JSON export completed! File saved to: ${jsonPath}`);
+                    }
+                } else if (exportChoice.label.includes('Export CSV')) {
+                    const config = vscode.workspace.getConfiguration('codeCounter');
+                    let outputDirectory = config.get<string>('outputDirectory', '.vscode/code-counter/reports');
+
+                    for (const folder of workspaceFolders) {
+                        const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
+                        outputDirectory = path.join(folder.uri.fsPath, outputDirectory);
+                        const csvPath = await this.csvGenerator.generateCsvFile(results, outputDirectory);
+                        vscode.window.showInformationMessage(`CSV export completed! File saved to: ${csvPath}`);
+                    }
+                } else {
+                    // Export all formats
+                    const config = vscode.workspace.getConfiguration('codeCounter');
+                    let outputDirectory = config.get<string>('outputDirectory', '.vscode/code-counter/reports');
+
+                    for (const folder of workspaceFolders) {
+                        const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
+                        outputDirectory = path.join(folder.uri.fsPath, outputDirectory);
+                        const exportResults = await this.exportAllService.exportAllFormats(results, outputDirectory);
+                        const action = await vscode.window.showInformationMessage(
+                            `All formats exported! ${exportResults.totalFiles} files saved to: ${outputDirectory}`, 
+                            'Open Folder'
+                        );
+                        
+                        if (action === 'Open Folder') {
+                            await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(outputDirectory));
+                        }
+                    }
+                }
+
+            }        
             
             // Refresh decorations after counting is complete
             this.refreshDecorations();
@@ -220,16 +318,17 @@ export class CountLinesCommand {
             // Get configuration
             const config = vscode.workspace.getConfiguration('codeCounter');
             const showNotification = config.get<boolean>('showNotificationOnAutoGenerate', false);
-            const outputDirectory = config.get<string>('outputDirectory', './.cc/reports');
+            const outputDirectory = config.get<string>('outputDirectory', '.vscode/code-counter/reports');
 
-            // Generate HTML/XML files for all workspace folders using path-based settings
+            let exportedFilePath = '';
+            // Generate HTML files for all workspace folders using path-based settings
             for (const folder of workspaceFolders) {
                 const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
-                await this.htmlGenerator.generateHtmlReport(results, folder.uri.fsPath, outputDirectory);
+                exportedFilePath = await this.htmlGenerator.generateHtmlReport(results, folder.uri.fsPath, outputDirectory);
             }
             
             // Log for debugging auto-generation
-            this.debug.info(`Auto-generated reports saved to: ${outputDirectory}`);
+            this.debug.info(`Auto-generated report saved to: ${exportedFilePath}`);
 
             // Count lines for notification (use first workspace folder for summary) using path-based settings
             const folder = workspaceFolders[0];

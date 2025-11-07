@@ -113,7 +113,7 @@ function updateThreshold(thresholdKey, value) {
 function updateOutputDirectory(value) {
     vscode.postMessage({
         command: 'updateOutputDirectory',
-        directory: value || './.cc/reports'
+        directory: value || '.vscode/code-counter/reports'
     });
 }
 

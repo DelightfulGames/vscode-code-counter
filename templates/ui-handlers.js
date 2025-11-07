@@ -26,8 +26,13 @@ function generateCSVFromTable() {
         throw new Error('No data available in table');
     }
     
+    // Get generation timestamp from global report data
+    const generatedAt = reportData && reportData.generatedDate ? reportData.generatedDate : new Date().toISOString();
+    debug.info(`📅 Using generated date: ${generatedAt}`);
+    
     // CSV Headers
     const headers = [
+        'Generated At',
         'Directory',
         'File Name', 
         'Language',
@@ -46,6 +51,7 @@ function generateCSVFromTable() {
     data.forEach((row, index) => {
         try {
             const csvRow = [
+                generatedAt,
                 row.directory || '',
                 row.fileName || '',
                 row.language || '',
@@ -94,12 +100,13 @@ function setupUIHandlers() {
     const refreshBtn = document.getElementById('refresh-btn');
     const refreshBtn2 = document.getElementById('refresh-btn2');
     const exportBtn = document.getElementById('export-btn');
-    const exportCsvBtn = document.getElementById('export-csv-btn');
-    const allExportCsvBtns = document.querySelectorAll('#export-csv-btn');
     const groupLanguageBtn = document.getElementById('group-language-btn');
     const groupDirectoryBtn = document.getElementById('group-directory-btn');
     const clearGroupBtn = document.getElementById('clear-group-btn');
     const clearAllFiltersBtn = document.getElementById('clear-all-filters-btn');
+    
+    // Setup export dropdowns
+    setupExportDropdowns();
     
     // Clear All Filters button
     if (clearAllFiltersBtn) {
@@ -131,63 +138,6 @@ function setupUIHandlers() {
             vscode.postMessage({ command: 'export' });
         });
     }
-
-    if (exportCsvBtn) {
-        exportCsvBtn.addEventListener('click', () => {
-            debug.info('📊 Export CSV button clicked');
-            if (window.filesTable) {
-                debug.info('📋 Table found, attempting CSV download...');
-                try {
-                    // Generate CSV data manually from table data
-                    const csvData = generateCSVFromTable();
-                    debug.info('📊 Generated CSV data, sending to extension...');
-                    vscode.postMessage({ 
-                        command: 'saveCSV', 
-                        data: csvData,
-                        filename: 'code-counter-report.csv'
-                    });
-                    debug.info('✅ CSV data sent to extension successfully');
-                } catch (error) {
-                    debug.error('❌ CSV generation failed:', error);
-                    debug.error('❌ Error details:', error.message);
-                    debug.error('❌ Error stack:', error.stack);
-                }
-            } else {
-                debug.error('❌ No filesTable found for CSV export');
-            }
-        });
-    } else {
-        debug.warn('⚠️ Export CSV button not found in DOM');
-    }
-
-    // Handle all CSV export buttons (in case there are multiple)
-    debug.info(`🔍 Found ${allExportCsvBtns.length} CSV export buttons`);
-    allExportCsvBtns.forEach((btn, index) => {
-        if (btn && btn !== exportCsvBtn) { // Avoid double-binding the main button
-            btn.addEventListener('click', () => {
-                debug.info(`📊 Export CSV button ${index + 1} clicked`);
-                if (window.filesTable) {
-                    debug.info('📋 Table found, attempting CSV download...');
-                    try {
-                        // Generate CSV data manually from table data
-                        const csvData = generateCSVFromTable();
-                        debug.info('📊 Generated CSV data, sending to extension...');
-                        vscode.postMessage({ 
-                            command: 'saveCSV', 
-                            data: csvData,
-                            filename: 'code-counter-report.csv'
-                        });
-                        debug.info('✅ CSV data sent to extension successfully');
-                    } catch (error) {
-                        debug.error('❌ CSV generation failed:', error);
-                        debug.error('❌ Error details:', error.message);
-                    }
-                } else {
-                    debug.error('❌ No filesTable found for CSV export');
-                }
-            });
-        }
-    });
 
     // Grouping buttons
     if (groupLanguageBtn) {
@@ -264,6 +214,88 @@ function openFileInVSCode(filePath) {
         debug.info('✅ Open file command sent to VS Code');
     } catch (error) {
         debug.error('❌ Failed to send open file command:', error);
+    }
+}
+
+/**
+ * Setup export dropdown functionality
+ */
+function setupExportDropdowns() {
+    debug.info('📊 Setting up export dropdown handlers...');
+    
+    // Get all export dropdown buttons
+    const dropdownBtns = document.querySelectorAll('.export-dropdown-btn');
+    const dropdowns = document.querySelectorAll('.export-dropdown');
+    
+    // Setup dropdown toggle behavior
+    dropdownBtns.forEach((btn, index) => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dropdown = btn.closest('.export-dropdown');
+            
+            // Close all other dropdowns
+            dropdowns.forEach(dd => {
+                if (dd !== dropdown) {
+                    dd.classList.remove('show');
+                }
+            });
+            
+            // Toggle current dropdown
+            dropdown.classList.toggle('show');
+            debug.info(`📊 Export dropdown ${index + 1} toggled`);
+        });
+    });
+    
+    // Setup export option handlers
+    const exportOptions = document.querySelectorAll('.export-dropdown-content a');
+    exportOptions.forEach(option => {
+        option.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const exportType = option.getAttribute('data-export');
+            const dropdown = option.closest('.export-dropdown');
+            
+            // Close dropdown
+            dropdown.classList.remove('show');
+            
+            // Handle export
+            handleExport(exportType);
+        });
+    });
+    
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', () => {
+        dropdowns.forEach(dropdown => {
+            dropdown.classList.remove('show');
+        });
+    });
+    
+    debug.info(`✅ Export dropdowns setup complete: ${dropdownBtns.length} buttons, ${exportOptions.length} options`);
+}
+
+/**
+ * Handle export actions
+ */
+function handleExport(exportType) {
+    debug.info(`📊 Export ${exportType} requested`);
+    
+    switch (exportType) {
+        case 'csv':
+            // Use the existing CSV export logic
+            vscode.postMessage({ command: 'saveCSV' });
+            break;
+        case 'json':
+            vscode.postMessage({ command: 'exportJSON' });
+            break;
+        case 'xml':
+            vscode.postMessage({ command: 'exportXML' });
+            break;
+        case 'all':
+            vscode.postMessage({ command: 'exportAll' });
+            break;
+        default:
+            debug.error('❌ Unknown export type:', exportType);
     }
 }
 

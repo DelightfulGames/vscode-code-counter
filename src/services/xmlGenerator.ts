@@ -32,28 +32,28 @@ import * as path from 'path';
 
 export class XmlGeneratorService {
     
+    async generateXmlFile(result: LineCountResult, outputPath: string): Promise<string> {
+        const xmlData = this.generateXml(result); 
+
+        const xmlFilePath = path.join(outputPath, 'code-counter-data.xml');
+        await fs.promises.writeFile(xmlFilePath, xmlData);
+
+        return xmlFilePath;
+    }
+
     generateXml(result: LineCountResult): string {
         // Get version from package.json
         const packageJsonPath = path.join(__dirname, '../../package.json');
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
         const version = packageJson.version;
+        
         const xmlData = {
             codeCounter: {
                 '@_generatedAt': result.generatedAt.toISOString(),
                 '@_generatedBy': `VS Code Code Counter v${version} by DelightfulGames`,
                 '@_generatorUrl': 'https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter',
                 '@_workspacePath': result.workspacePath,
-                summary: {
-                    totalFiles: result.totalFiles,
-                    totalLines: result.totalLines
-                },
-                languageStats: {
-                    language: Object.entries(result.languageStats).map(([name, stats]) => ({
-                        '@_name': name,
-                        '@_files': stats.files,
-                        '@_lines': stats.lines
-                    }))
-                },
+                '@_version': version,
                 files: {
                     file: result.files.map(file => this.convertFileToXml(file))
                 }

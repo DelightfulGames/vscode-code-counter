@@ -154,7 +154,6 @@ const createTableColumns = createTableColumns_Standalone;
  * Update group header column widths (standalone version - simplified)
  */
 function updateGroupHeaderWidths_Standalone() {
-    debug.verbose(`STANDALONE: 🔧 updateGroupHeaderWidths called (simplified)`);
     
     if (!window.filesTable) {
         debug.error(`STANDALONE: ❌ No filesTable found`);
@@ -163,9 +162,6 @@ function updateGroupHeaderWidths_Standalone() {
     
     const columns = window.filesTable.getColumns();
     const groupHeaders = document.querySelectorAll('.native-group-header');
-    
-    debug.verbose(`STANDALONE: 📊 Table has ${columns.length} columns`);
-    debug.verbose(`STANDALONE: 📋 Found ${groupHeaders.length} group headers`);
     
     groupHeaders.forEach(header => {
         // Update all column cells to match table column widths
@@ -178,13 +174,9 @@ function updateGroupHeaderWidths_Standalone() {
                 cell.style.width = `${width}px`;
                 cell.style.minWidth = `${width}px`;
                 cell.style.flex = `0 0 ${width}px`;
-                
-                debug.verbose(`STANDALONE: 📏 Updated ${field} cell width: ${width}px`);
             }
         });
     });
-    
-    debug.info('STANDALONE: ✅ Group header widths updated (no overlay positioning)');
 }
 
 // Compatibility aliases for existing code
@@ -274,6 +266,7 @@ function initializeAdvancedTable_Standalone(files) {
             
             // Get current column widths and order
             const columns = window.filesTable ? window.filesTable.getColumns() : [];
+            console.log(`🔍 [STANDALONE groupHeader] Current column order:`, columns.map(col => `${col.getField()}(${col.getWidth()}px)`));
             let headerCells = '';
             
             // If table is not ready, use default structure
@@ -457,7 +450,8 @@ function initializeAdvancedTable_Standalone(files) {
 
     // Add column move listener for STANDALONE (NO OVERLAY)
     window.filesTable.on("columnMoved", function(column, columns){
-        debug.verbose(`🔄 STANDALONE Column moved: ${column.getField()}`);
+        debug.info(`🔄 [STANDALONE] Column moved: ${column.getField()}`);
+        debug.info(`🔄 [STANDALONE] New column order:`, columns.map(col => col.getField()));
         updateGroupHeaderStructure();
         updateGroupHeaderWidths();
         // STANDALONE: Skip overlay updates

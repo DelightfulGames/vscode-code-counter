@@ -33,7 +33,7 @@ import { LineCountResult } from '../types';
 export class HtmlGeneratorService {
     private debug = DebugService.getInstance();
     
-    async generateHtmlReport(result: LineCountResult, workspacePath: string, outputDirectory: string): Promise<void> {
+    async generateHtmlReport(result: LineCountResult, workspacePath: string, outputDirectory: string): Promise<string> {
         console.log('SIMPLE DEBUG TEST - generateHtmlReport called');
         console.log('Result has files:', !!(result && result.files));
         console.log('Files count:', result && result.files ? result.files.length : 0);
@@ -84,11 +84,8 @@ export class HtmlGeneratorService {
         const htmlFilePath = path.join(fullOutputPath, 'code-counter-report.html');
         await fs.promises.writeFile(htmlFilePath, htmlTemplate);
         
-        // Write the XML file as well
-        const xmlFilePath = path.join(fullOutputPath, 'code-counter-data.xml');
-        await fs.promises.writeFile(xmlFilePath, xmlData);
-        
-        this.debug.info(`Reports generated: ${htmlFilePath} and ${xmlFilePath}`);
+        this.debug.info(`Reports generated: ${htmlFilePath}`);
+        return htmlFilePath;
     }
     
     private async ensureDirectoryExists(dirPath: string): Promise<void> {

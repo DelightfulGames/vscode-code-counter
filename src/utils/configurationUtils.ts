@@ -92,7 +92,7 @@ export function getNotificationAndOutputSettings(): {
     const config = vscode.workspace.getConfiguration('codeCounter');
     return {
         showNotificationOnAutoGenerate: config.get<boolean>('showNotificationOnAutoGenerate', false),
-        outputDirectory: config.get<string>('outputDirectory', './.cc/reports'),
+        outputDirectory: config.get<string>('outputDirectory', '.vscode/code-counter/reports'),
         autoGenerate: config.get<boolean>('autoGenerate', true)
     };
 }

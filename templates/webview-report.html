@@ -32,7 +32,15 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
             </div>
             <div class="actions">
                 <button class="btn" id="refresh-btn2" title="Refresh Data">🔄 Refresh</button>
-                <button class="btn" id="export-csv-btn" title="Export to CSV">📊 Export CSV</button>
+                <div class="export-dropdown">
+                    <button class="export-dropdown-btn" id="export-dropdown-btn-1" title="Export Data">📊 Export ▼</button>
+                    <div class="export-dropdown-content">
+                        <a href="#" data-export="csv">📊 Export CSV</a>
+                        <a href="#" data-export="json">📋 Export JSON</a>
+                        <a href="#" data-export="xml">📄 Export XML</a>
+                        <a href="#" data-export="all">📚 Export All</a>
+                    </div>
+                </div>
                 <button class="btn" id="export-btn" title="Export to HTML">📄 Export HTML</button>
             </div>
         </div>
@@ -65,7 +73,15 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                 <button class="btn" id="group-language-btn" title="Group by Language">📂 Group by Language</button>
                 <button class="btn" id="group-directory-btn" title="Group by Directory">📁 Group by Directory</button>
                 <button class="btn" id="clear-group-btn" title="Clear Grouping">📋 Clear Groups</button>
-                <button class="btn" id="export-csv-btn" title="Export to CSV">📊 Export CSV</button>
+                <div class="export-dropdown">
+                    <button class="export-dropdown-btn" id="export-dropdown-btn-2" title="Export Data">📊 Export ▼</button>
+                    <div class="export-dropdown-content">
+                        <a href="#" data-export="csv">📊 Export CSV</a>
+                        <a href="#" data-export="json">📋 Export JSON</a>
+                        <a href="#" data-export="xml">📄 Export XML</a>
+                        <a href="#" data-export="all">📚 Export All</a>
+                    </div>
+                </div>
                 <button class="btn" id="export-btn" title="Export to HTML">📄 Export HTML</button>
             </div>
             <div class="section">
