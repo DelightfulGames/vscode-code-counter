@@ -365,6 +365,15 @@ let filesTable;
 function initializeTabulatorTable(files) {
     debug.info('🚀 Initializing Tabulator table using standalone functions');
     
+    // Check if the function exists before calling it
+    if (typeof initializeAdvancedTable_Standalone === 'undefined') {
+        debug.error('❌ initializeAdvancedTable_Standalone function is not defined!');
+        debug.error('Available functions:', Object.getOwnPropertyNames(window).filter(name => name.includes('initialize') || name.includes('Table')));
+        throw new Error('initializeAdvancedTable_Standalone function is not available');
+    }
+    
+    debug.info('✅ initializeAdvancedTable_Standalone function found');
+    
     // Use the standalone initializeAdvancedTable function specifically for report.html
     // This handles the different positioning requirements for standalone reports
     filesTable = initializeAdvancedTable_Standalone(files);

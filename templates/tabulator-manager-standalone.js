@@ -501,4 +501,7 @@ function initializeAdvancedTable_Standalone(files) {
     return window.filesTable;
 }
 
+// Ensure the function is globally accessible
+window.initializeAdvancedTable_Standalone = initializeAdvancedTable_Standalone;
+
 //# sourceURL=tabulator-manager-standalone.js

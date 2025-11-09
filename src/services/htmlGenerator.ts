@@ -27,6 +27,9 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
+import { minify as terserMinify } from 'terser';
+import CleanCSS from 'clean-css';
+import { minify as htmlMinify } from 'html-minifier-terser';
 import { DebugService } from './debugService';
 import { LineCountResult } from '../types';
 
@@ -70,35 +73,49 @@ export class HtmlGeneratorService {
         
         // Generate JSON file data directly from result (must be before JS injection)
         const filesJsonData = this.generateFileDataFromResult(result);
+        const optimizedJsonData = this.optimizeEmbeddedData(filesJsonData);
         
         // Embed JavaScript modules directly into the HTML
         const embeddedJavaScript = await this.getEmbeddedJavaScript();
+        // Parse and re-stringify the JSON data to ensure proper JavaScript embedding
+        const filesData = JSON.parse(optimizedJsonData);
+        const jsEmbeddableData = JSON.stringify(filesData);
+        
         // Replace DATA_FILES in embedded JavaScript before injection
-        const processedEmbeddedJs = embeddedJavaScript.replace(/\{\{DATA_FILES\}\}/g, filesJsonData);
+        const processedEmbeddedJs = embeddedJavaScript.replace(/\{\{DATA_FILES\}\}/g, jsEmbeddableData);
         htmlTemplate = htmlTemplate.replace('{{JS_PLACEHOLDER}}', processedEmbeddedJs);
         
         // Embed report-specific JavaScript
         const reportJavaScript = await this.getReportJavaScript();
         // Replace DATA_FILES in report JavaScript before injection
-        const processedReportJs = reportJavaScript.replace(/\{\{DATA_FILES\}\}/g, filesJsonData);
+        const processedReportJs = reportJavaScript.replace(/\{\{DATA_FILES\}\}/g, jsEmbeddableData);
         htmlTemplate = htmlTemplate.replace('{{REPORT_JS_PLACEHOLDER}}', processedReportJs);
         
         // Final replacement of any remaining DATA_FILES placeholders in HTML
-        htmlTemplate = htmlTemplate.replace(/\{\{DATA_FILES\}\}/g, filesJsonData);
+        htmlTemplate = htmlTemplate.replace(/\{\{DATA_FILES\}\}/g, jsEmbeddableData);
         
         console.log('HTML GENERATOR DEBUG:');
         console.log('Result files count:', result.files ? result.files.length : 0);
-        console.log('Files JSON data length:', filesJsonData.length);
-        console.log('Files JSON preview:', filesJsonData.substring(0, 200));
+        console.log('Files JSON data length (original):', filesJsonData.length);
+        console.log('Files JSON data length (optimized):', optimizedJsonData.length);
+        console.log('Files JSON data length (JS embeddable):', jsEmbeddableData.length);
+        console.log('JSON optimization savings:', ((filesJsonData.length - optimizedJsonData.length) / filesJsonData.length * 100).toFixed(1) + '%');
+        console.log('Files JSON preview:', jsEmbeddableData.substring(0, 200));
         console.log('Embedded JavaScript length:', embeddedJavaScript.length);
         console.log('Report JavaScript length:', reportJavaScript.length);
         console.log('Template contains DATA_FILES after final replacement:', htmlTemplate.includes('{{DATA_FILES}}'));
         console.log('Processed JS contains literal DATA_FILES:', processedEmbeddedJs.includes('{{DATA_FILES}}'));
         console.log('Processed report JS contains literal DATA_FILES:', processedReportJs.includes('{{DATA_FILES}}'));
         
-        // Write the HTML file
+        // Final HTML minification
+        const originalHtmlSize = htmlTemplate.length;
+        const minifiedHtml = await this.minifyHTML(htmlTemplate);
+        const htmlSavings = ((originalHtmlSize - minifiedHtml.length) / originalHtmlSize * 100).toFixed(1);
+        console.log('HTML minified:', originalHtmlSize, '→', minifiedHtml.length, 'bytes (' + htmlSavings + '% reduction)');
+        
+        // Write the minified HTML file
         const htmlFilePath = path.join(fullOutputPath, 'code-counter-report.html');
-        await fs.promises.writeFile(htmlFilePath, htmlTemplate);
+        await fs.promises.writeFile(htmlFilePath, minifiedHtml);
         
         this.debug.info(`Reports generated: ${htmlFilePath}`);
         return htmlFilePath;
@@ -108,14 +125,17 @@ export class HtmlGeneratorService {
         const templatesPath = path.join(__dirname, '../../templates');
         const cssFilePath = path.join(templatesPath, 'report.css');
         const cssContent = await fs.promises.readFile(cssFilePath, 'utf8');
-        return cssContent; 
+        return await this.minifyCSS(cssContent);
     }
 
     async getReportJavaScript(): Promise<string> {
         const templatesPath = path.join(__dirname, '../../templates');
         const reportJsFilePath = path.join(templatesPath, 'report.js');
         const reportJsContent = await fs.promises.readFile(reportJsFilePath, 'utf8');
+        // TEMPORARY: Return unminified for debugging
+        this.debug.info('Returning unminified report.js for debugging');
         return reportJsContent;
+        // return await this.minifyJavaScript(reportJsContent);
     }
     
     private async ensureDirectoryExists(dirPath: string): Promise<void> {
@@ -130,12 +150,13 @@ export class HtmlGeneratorService {
         const templatesPath = path.join(__dirname, '../../templates');
         // Use standalone versions of JavaScript files for HTML export
         // Load in correct dependency order: common utilities, tabulator functions, filter manager, data manager, HTML generator helpers, then UI handlers
-        const jsFiles = ['tabulator-manager-common.js'
-            , 'tabulator-manager-standalone.js'
-            , 'filter-manager.js'
-            , 'data-manager.js'
-            , 'htmlgenerator-helpers.js'
-            , 'ui-handlers-standalone.js'];
+        // TESTING: Use minimal ui-handlers to isolate issue
+        const jsFiles = ['tabulator-manager-common.js', 
+            'htmlgenerator-helpers.js',
+            'filter-manager.js', 
+            'data-manager.js', 
+            'tabulator-manager-standalone.js',
+            'ui-handlers-minimal.js']; // Using minimal version
         let combinedJs = '';
         
         for (const jsFile of jsFiles) {
@@ -166,7 +187,157 @@ export class HtmlGeneratorService {
             }
         }
         
+        // Minify the combined JavaScript with obfuscation
+        // TEMPORARY: Return unminified for debugging
+        this.debug.info('Returning unminified JavaScript for debugging');
         return combinedJs;
+        // return await this.minifyJavaScript(combinedJs);
+    }
+
+    /**
+     * Minify CSS using clean-css with aggressive optimization
+     */
+    private async minifyCSS(css: string): Promise<string> {
+        try {
+            const cleanCSS = new CleanCSS({
+                level: 2, // Aggressive optimizations
+                returnPromise: false
+            });
+            
+            const result = cleanCSS.minify(css);
+            
+            if (result.errors && result.errors.length > 0) {
+                this.debug.warning('CSS minification errors:', result.errors);
+            }
+            
+            if (result.warnings && result.warnings.length > 0) {
+                this.debug.verbose('CSS minification warnings:', result.warnings);
+            }
+            
+            const originalSize = css.length;
+            const minifiedSize = result.styles.length;
+            const savings = ((originalSize - minifiedSize) / originalSize * 100).toFixed(1);
+            
+            this.debug.info(`CSS minified: ${originalSize} → ${minifiedSize} bytes (${savings}% reduction)`);
+            
+            return result.styles;
+        } catch (error) {
+            this.debug.error('CSS minification failed, using original:', error);
+            return css;
+        }
+    }
+
+    /**
+     * Minify and obfuscate JavaScript using terser with aggressive settings
+     */
+    private async minifyJavaScript(js: string): Promise<string> {
+        try {
+            const result = await terserMinify(js, {
+                compress: {
+                    dead_code: true,
+                    drop_console: false, // Keep console for debugging
+                    drop_debugger: true,
+                    keep_fargs: false,
+                    unsafe_comps: true,
+                    unsafe_Function: true,
+                    unsafe_math: true,
+                    unsafe_symbols: true,
+                    unsafe_methods: true,
+                    unsafe_proto: true,
+                    unsafe_regexp: true,
+                    unsafe_undefined: true,
+                    unused: true,
+                    passes: 3 // Multiple compression passes
+                },
+                mangle: {
+                    toplevel: true, // Mangle top-level names
+                    eval: true,
+                    keep_fnames: false,
+                    reserved: ['debug', 'console', 'window', 'document', 'vscode', 'initializeAdvancedTable_Standalone', 'initializeReportFromEmbeddedData', 'safeToLocaleString', 'runInSafeContext', 'setupUIHandlers_Standalone'] // Keep important globals and functions
+                },
+                format: {
+                    comments: false, // Remove all comments
+                    beautify: false
+                },
+                toplevel: true,
+                ie8: false,
+                safari10: false
+            });
+
+            if (!result.code) {
+                throw new Error('Minification produced no code');
+            }
+
+            const originalSize = js.length;
+            const minifiedSize = result.code.length;
+            const savings = ((originalSize - minifiedSize) / originalSize * 100).toFixed(1);
+            
+            this.debug.info(`JavaScript minified: ${originalSize} → ${minifiedSize} bytes (${savings}% reduction)`);
+            
+            return result.code;
+        } catch (error) {
+            this.debug.error('JavaScript minification failed, using original:', error);
+            return js;
+        }
+    }
+
+    /**
+     * Optimize embedded JSON data by removing unnecessary whitespace
+     */
+    private optimizeEmbeddedData(jsonData: string): string {
+        try {
+            // Parse and re-stringify without whitespace
+            const parsed = JSON.parse(jsonData);
+            return JSON.stringify(parsed);
+        } catch (error) {
+            // If parsing fails, just remove basic whitespace
+            this.debug.warning('Failed to optimize JSON data, using basic minification:', error);
+            return jsonData.replace(/\s+/g, ' ').trim();
+        }
+    }
+
+    /**
+     * Minify HTML using html-minifier-terser with aggressive optimization
+     */
+    private async minifyHTML(html: string): Promise<string> {
+        try {
+            const minifiedHtml = await htmlMinify(html, {
+                // Remove whitespace
+                collapseWhitespace: true,
+                removeComments: true,
+                removeEmptyAttributes: true,
+                removeRedundantAttributes: true,
+                removeScriptTypeAttributes: true,
+                removeStyleLinkTypeAttributes: true,
+                removeOptionalTags: true,
+                removeEmptyElements: false, // Keep for functionality
+                
+                // Minify embedded CSS and JS (though they're already minified)
+                minifyCSS: true,
+                minifyJS: true,
+                
+                // Advanced optimizations
+                caseSensitive: false,
+                collapseBooleanAttributes: true,
+                decodeEntities: true,
+                html5: true,
+                includeAutoGeneratedTags: false,
+                keepClosingSlash: false,
+                processConditionalComments: true,
+                processScripts: ['text/javascript'],
+                quoteCharacter: '"',
+                removeAttributeQuotes: true,
+                sortAttributes: true,
+                sortClassName: true,
+                trimCustomFragments: true,
+                useShortDoctype: true
+            });
+
+            return minifiedHtml;
+        } catch (error) {
+            this.debug.error('HTML minification failed, using original:', error);
+            return html;
+        }
     }
 
     private generateFileDataFromResult(result: any): string {

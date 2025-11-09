@@ -8,6 +8,10 @@
  * Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter
  */
 
+// Wrap in IIFE to prevent variable conflicts with other modules
+(function() {
+    'use strict';
+
 /**
  * Generate CSV data from table without using Tabulator's download method
  */
@@ -600,5 +604,17 @@ const clearAllFilters = clearAllFilters_Standalone;
 const openFileInVSCode = openFileInVSCode_Standalone;
 const handleExtensionMessages = handleExtensionMessages_Standalone;
 const formatFileSize = formatFileSize_Standalone;
+
+// Ensure functions are globally accessible
+window.setupUIHandlers_Standalone = setupUIHandlers_Standalone;
+window.setupUIHandlers = setupUIHandlers;
+window.generateCSVFromTable_Standalone = generateCSVFromTable_Standalone;
+window.escapeCSVField_Standalone = escapeCSVField_Standalone;
+window.clearAllFilters_Standalone = clearAllFilters_Standalone;
+window.openFileInVSCode_Standalone = openFileInVSCode_Standalone;
+window.handleExtensionMessages_Standalone = handleExtensionMessages_Standalone;
+window.formatFileSize_Standalone = formatFileSize_Standalone;
+
+})(); // Close IIFE
 
 //# sourceURL=ui-handlers-standalone.js
