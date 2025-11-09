@@ -151,6 +151,63 @@
     }
 
     /**
+     * Dynamically load XML export module
+     */
+    function loadXMLExportModule() {
+        return new Promise(function(resolve, reject) {
+            // Check if already loaded
+            if (window.XMLExport) {
+                console.log('STANDALONE: XML Export module already loaded');
+                resolve(window.XMLExport);
+                return;
+            }
+
+            console.log('STANDALONE: Loading XML Export module...');
+            
+            // Check if module code is available
+            if (!window.xmlExportModuleCode) {
+                reject(new Error('XML Export module code not found'));
+                return;
+            }
+            
+            try {
+                // Execute the module code directly
+                var moduleScript = window.xmlExportModuleCode;
+                console.log('STANDALONE: Executing XML module code...');
+                
+                // Use eval to execute the module code
+                eval(moduleScript);
+                
+                // Check if module loaded successfully
+                if (window.XMLExport) {
+                    console.log('STANDALONE: XML Export module loaded and initialized successfully');
+                    resolve(window.XMLExport);
+                } else {
+                    reject(new Error('XML Export module failed to initialize properly'));
+                }
+            } catch (error) {
+                console.error('STANDALONE: Error executing XML module:', error);
+                reject(new Error('Failed to execute XML Export module: ' + error.message));
+            }
+        });
+    }
+
+    /**
+     * Handle XML export with dynamic loading
+     */
+    function handleXMLExport() {
+        console.log('STANDALONE: XML export requested');
+        
+        loadXMLExportModule().then(function(xmlExport) {
+            console.log('STANDALONE: XML module loaded, starting download...');
+            xmlExport.download();
+        }).catch(function(error) {
+            console.error('STANDALONE: XML export failed:', error);
+            alert('Failed to load XML export functionality: ' + error.message);
+        });
+    }
+
+    /**
      * Handle export based on format
      */
     function handleExport_Standalone(format) {
@@ -165,7 +222,7 @@
                     downloadJSON_Standalone();
                     break;
                 case 'xml':
-                    alert('XML export will be available in a future update');
+                    handleXMLExport();
                     break;
                 default:
                     throw new Error('Unknown export format: ' + format);

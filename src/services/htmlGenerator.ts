@@ -159,6 +159,16 @@ export class HtmlGeneratorService {
             'ui-handlers-minimal.js']; // Using minimal version
         let combinedJs = '';
         
+        // Load XML export module as embedded code (not executed initially)
+        try {
+            const xmlModulePath = path.join(templatesPath, 'xml-export-standalone.js');
+            const xmlModuleContent = await fs.promises.readFile(xmlModulePath, 'utf8');
+            // Embed XML module code as a variable for dynamic loading
+            combinedJs += `\n// XML Export Module Code (for dynamic loading)\nwindow.xmlExportModuleCode = ${JSON.stringify(xmlModuleContent)};\n\n`;
+        } catch (error) {
+            this.debug.warning('Failed to load XML export module:', error);
+        }
+        
         for (const jsFile of jsFiles) {
             try {
                 const sourcePath = path.join(templatesPath, jsFile);
