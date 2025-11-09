@@ -442,13 +442,35 @@ export class WebViewReportService {
 
         const fileUri = await vscode.window.showSaveDialog(options);
         if (fileUri) {
-            // Convert ReportData back to the format expected by existing generators
-            const xmlData = this.convertReportDataToXml(data);
+            // Store the data temporarily for conversion
+            const previousData = this.currentData;
+            this.currentData = data;
             
-            // Use existing HTML generator but save to user-selected location
-            const htmlContent = await this.generateStandaloneHtml(data, xmlData);
-            await vscode.workspace.fs.writeFile(fileUri, Buffer.from(htmlContent, 'utf8'));
-            vscode.window.showInformationMessage(`HTML report exported successfully: ${path.basename(fileUri.fsPath)}`);
+            try {
+                // Convert ReportData to LineCountResult format for professional HTML generator
+                const lineCountResult = this.convertReportDataToLineCountResult();
+                
+                // Get the output directory (parent of selected file)
+                const outputDirectory = path.dirname(fileUri.fsPath);
+                
+                // Use the professional minified HTML generator
+                const generatedFilePath = await this.htmlGenerator.generateHtmlReport(lineCountResult, data.workspacePath, outputDirectory);
+                
+                // If the generated file has a different name than what user selected, rename it
+                if (generatedFilePath !== fileUri.fsPath) {
+                    try {
+                        await fs.promises.rename(generatedFilePath, fileUri.fsPath);
+                        this.debug.info(`Renamed generated file from ${generatedFilePath} to ${fileUri.fsPath}`);
+                    } catch (error) {
+                        this.debug.error('Failed to rename file, but file was generated successfully', error);
+                    }
+                }
+                
+                vscode.window.showInformationMessage(`Professional HTML report exported successfully: ${path.basename(fileUri.fsPath)}`);
+            } finally {
+                // Restore previous data
+                this.currentData = previousData;
+            }
         }
     }
 
