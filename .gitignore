@@ -76,3 +76,4 @@ temp/
 # Project specific files
 .vscode/code-counter/**
 !.vscode/code-counter/*.db
+!.vscode/code-counter/reports/

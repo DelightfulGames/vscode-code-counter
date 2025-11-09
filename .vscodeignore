@@ -21,6 +21,18 @@ node_modules/**
 !node_modules/clean-css/**
 !node_modules/html-minifier-terser/**
 !node_modules/tabulator-tables/**
+!node_modules/sql.js/**
+!node_modules/fast-xml-parser/**
+!node_modules/strnum/**
+!node_modules/@jridgewell/source-map/**
+!node_modules/@jridgewell/gen-mapping/**
+!node_modules/@jridgewell/sourcemap-codec/**
+!node_modules/@jridgewell/trace-mapping/**
+!node_modules/@jridgewell/resolve-uri/**
+!node_modules/entities/**
+!node_modules/minimatch/**
+!node_modules/@isaacs/brace-expansion/**
+!node_modules/@isaacs/balanced-match/**
 
 # Include dependency chains for minification libraries
 !node_modules/commander/**
