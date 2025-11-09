@@ -32,7 +32,6 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 > **🎉 MAJOR RELEASE v1.0.0**: Revolutionary database-powered settings architecture with lightning-fast performance! Now featuring advanced context menu exclusion management. See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
 ## 📸 **See It In Action**
-### 🎯 **Instant Visual Feedback**
 ### Before VS Code Code Counter
 ```bash
 📁 src/
@@ -50,10 +49,14 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
     └── legacy.ts         🔴 # (2,847 lines)
 ```
 
+### 🎯 **Instant Visual Feedback**
 <video width="600" autoplay muted loop>
   <source src="./marketplace/videos/SeeItWork.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
+
+###  📊 **Professional reporting tools** 
+<a href="./.vscode/code-counter/reports/code-counter-report-2025-11-09T17-40-26.html">Click here for a DEMO!</a>
 
 ## 🎯 **Perfect For**
 | Role | Primary Benefit |
