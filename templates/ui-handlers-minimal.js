@@ -154,7 +154,7 @@
      * Handle export based on format
      */
     function handleExport_Standalone(format) {
-        console.log(`STANDALONE: Handling export for format: ${format}`);
+        console.log('STANDALONE: Handling export for format: ' + format);
         
         try {
             switch (format) {
@@ -165,13 +165,13 @@
                     downloadJSON_Standalone();
                     break;
                 case 'xml':
-                    alert('XML export temporarily disabled');
+                    alert('XML export will be available in a future update');
                     break;
                 default:
-                    throw new Error(`Unknown export format: ${format}`);
+                    throw new Error('Unknown export format: ' + format);
             }
         } catch (error) {
-            console.error('STANDALONE: ❌ Export failed:', error);
+            console.error('STANDALONE: Export failed:', error);
             alert('Export failed: ' + error.message);
         }
     }
