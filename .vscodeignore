@@ -1,68 +1,52 @@
 # Development files
 .vscode/**
 .vscode-test/**
-out/test/**
 src/**
 .gitignore
-.mocharc.json
-tsconfig.json
-.copilot-instructions.md
-
-# Exclude dev dependencies but keep runtime dependencies
-node_modules/**
-!node_modules/fast-xml-parser/**
-!node_modules/sql.js/**
-!node_modules/minimatch/**
-!node_modules/@isaacs/brace-expansion/**
-!node_modules/@isaacs/balanced-match/**
-!node_modules/strnum/**
-
-# Documentation files (exclude all internal docs)
+.yarnrc
+vsc-extension-quickstart.md
+**/tsconfig.json
+**/.eslintrc.json
+**/*.map
+**/*.ts
+.nyc_output
+coverage/
+test/**
 docs/**
-coverage/**
-marketplace/**
-!marketplace/images/codeCounter-icon.png
-
-# Build artifacts
 *.vsix
 
-# System files
-.DS_Store
-Thumbs.db
+# Exclude most node_modules but include specific runtime dependencies
+node_modules/**
+!node_modules/terser/**
+!node_modules/clean-css/**
+!node_modules/html-minifier-terser/**
+!node_modules/tabulator-tables/**
 
-# IDE files
-*.swp
-*.swo
-*~
+# Include dependency chains for minification libraries
+!node_modules/commander/**
+!node_modules/source-map/**
+!node_modules/source-map-support/**
+!node_modules/acorn/**
+!node_modules/he/**
+!node_modules/param-case/**
+!node_modules/relateurl/**
+!node_modules/camel-case/**
+!node_modules/lower-case/**
+!node_modules/no-case/**
+!node_modules/upper-case/**
+!node_modules/upper-case-first/**
 
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Dependency directories
-jspm_packages/
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# dotenv environment variables file
-.env
+# Exclude unnecessary files from included dependencies
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/spec/**
+node_modules/**/example/**
+node_modules/**/examples/**
+node_modules/**/docs/**
+node_modules/**/*.md
+node_modules/**/*.txt
+node_modules/**/LICENSE*
+node_modules/**/CHANGELOG*
+node_modules/**/README*
+node_modules/**/.nyc_output/**
+node_modules/**/coverage/**
