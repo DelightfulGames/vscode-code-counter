@@ -75,9 +75,7 @@ export class XmlGeneratorService {
         const directory = require('path').dirname(file.relativePath);
         
         return {
-            '@_path': file.path,
             '@_relativePath': file.relativePath,
-            '@_fullPath': file.fullPath || file.relativePath,
             '@_fileName': fileName,
             '@_directory': directory === '.' ? '' : directory,
             '@_language': file.language,

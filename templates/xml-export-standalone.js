@@ -84,7 +84,6 @@
             for (i = 0; i < dataLength; i++) {
                 var fileRow = data[i];
                 xml = xml + '    <File>\n';
-                xml = xml + '      <Path>' + escapeXML(fileRow.path || '') + '</Path>\n';
                 xml = xml + '      <RelativePath>' + escapeXML(fileRow.relativePath || '') + '</RelativePath>\n';
                 xml = xml + '      <Directory>' + escapeXML(fileRow.directory || '') + '</Directory>\n';
                 xml = xml + '      <FileName>' + escapeXML(fileRow.fileName || '') + '</FileName>\n';

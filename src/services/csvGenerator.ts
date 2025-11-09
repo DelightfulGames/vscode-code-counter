@@ -45,7 +45,6 @@ export class CsvGeneratorService {
         const generatedAt = result.generatedAt.toISOString();
         const headers = [
             'Generated At',
-            'File Path',
             'Relative Path', 
             'File Name',
             'Directory',
@@ -63,7 +62,6 @@ export class CsvGeneratorService {
             
             return [
                 this.escapeCsvField(generatedAt),
-                this.escapeCsvField(file.path || ''),
                 this.escapeCsvField(file.relativePath || ''),
                 this.escapeCsvField(fileName),
                 this.escapeCsvField(directory === '.' ? '' : directory),

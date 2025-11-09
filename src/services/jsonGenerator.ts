@@ -65,9 +65,7 @@ export class JsonGeneratorService {
         const directory = path.dirname(file.relativePath);
         
         return {
-            path: file.path,
             relativePath: file.relativePath,
-            fullPath: file.fullPath || file.relativePath,
             fileName: fileName,
             directory: directory === '.' ? '' : directory,
             language: file.language,

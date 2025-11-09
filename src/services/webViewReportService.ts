@@ -917,7 +917,6 @@ export class WebViewReportService {
             files: this.currentData.files.map(file => ({
                 path: file.path,
                 relativePath: file.relativePath,
-                fullPath: file.path,
                 language: file.language,
                 lines: file.lines,
                 codeLines: file.codeLines,

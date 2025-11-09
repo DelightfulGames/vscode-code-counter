@@ -31,12 +31,16 @@
             throw new Error('No data available for export');
         }
 
-        // Create CSV header
-        let csv = 'Directory,File,Language,Lines,Code Lines,Comment Lines,Blank Lines,Size\n';
+        // Get current timestamp for "Generated At" metadata
+        const generatedAt = new Date().toISOString();
+
+        // Create CSV header with "Generated At" as first column
+        let csv = 'Generated At,Directory,File,Language,Lines,Code Lines,Comment Lines,Blank Lines,Size\n';
         
         // Add data rows
         data.forEach(row => {
             const csvRow = [
+                generatedAt,
                 row.directory || '',
                 row.fileName || '',
                 row.language || '',
