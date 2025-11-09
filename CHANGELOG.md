@@ -16,6 +16,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-11-09
+
+### 🎉 Major Feature Release: Professional Reporting & Interactive Analytics
+
+#### ✨ Professional Standalone Reporting
+- **Interactive HTML Reports**: Self-contained reports with advanced table functionality
+  - Interactive sortable, filterable tables with real-time search capabilities
+  - Group by language or directory with intuitive one-click buttons
+  - Advanced filtering by language, line count ranges, and file size
+  - Clear all filters and grouping with single-button reset functionality
+  - Professional responsive design that adapts to all screen sizes
+- **Professional Minification Pipeline**: Optimized reports using industry-standard tools
+  - JavaScript minification with terser and source maps for debugging
+  - CSS optimization with clean-css for advanced compression
+  - HTML compression with html-minifier-terser and whitespace optimization
+  - 6-module JavaScript system with IIFE conflict prevention and dependency management
+- **Self-Contained Architecture**: Standalone HTML files with all dependencies embedded
+  - No external links - reports work offline and in any environment
+  - All JavaScript, CSS, and assets included for complete portability
+  - Optimized loading with professional module system
+
+#### 📊 Enhanced Export Capabilities
+- **Multi-Format Exports**: Export data in CSV, JSON, and XML formats with consistent structure
+  - CSV exports with professional formatting and "Generated At" metadata timestamps
+  - JSON exports with structured data and comprehensive metadata
+  - XML exports with clean hierarchical format optimized for processing
+  - Dynamic XML module loading to prevent JavaScript parsing conflicts
+- **Export Data Consistency**: Streamlined data structure across all export formats
+  - Added "Generated At" metadata column to all CSV exports for tracking
+  - Removed redundant "path" and "fullPath" properties from all export formats
+  - Focused data structure on essential information: relativePath, fileName, directory, language, and line counts
+  - Unified data format ensuring consistency between standalone and service-generated exports
+- **Export Integration**: WebView and command palette exports use the same professional generation pipeline
+  - WebView "Export HTML" now produces same high-quality minified reports as command palette
+  - Consistent export quality regardless of generation method
+  - All UI enhancements available in both generation approaches
+
+#### 🎛️ Advanced WebView Controls
+- **Enhanced Directory Management**: Comprehensive interface for project navigation
+  - Smart directory filtering with three modes: "All" (normal directories), "All + Hidden" (including hidden), and "Active" (directories with settings and their parents)
+  - Professional control panel layout with filter dropdown and action buttons
+  - Clean, organized interface with seamless VS Code theming integration
+- **Expand/Collapse Functionality**: Professional tree navigation controls
+  - Individual directory expansion with ▶/▼ visual indicators
+  - "Expand All" and "Collapse All" buttons for bulk tree operations
+  - Hover effects and visual feedback for all interactive elements
+  - Smart handling of nested directory structures
+- **Hidden Directory Management**: Intelligent handling of hidden folders
+  - Toggle visibility of hidden directories (starting with .) and their subdirectories
+  - Default state properly hides hidden directories on initial load
+  - Smart filtering that includes/excludes entire directory hierarchies
+
+#### 🔧 Technical Enhancements
+- **Advanced JavaScript Module System**: Professional 6-module loading architecture
+  - Core functionality, UI handlers, table initialization, filtering, exports, and dynamic XML
+  - Proper module loading order with dependency resolution
+  - IIFE wrappers prevent variable namespace collisions
+  - Error recovery and graceful handling of module loading issues
+- **Performance Optimizations**: Enhanced rendering and data processing
+  - Optimized database queries for fast report generation
+  - Efficient DOM manipulation for large directory trees
+  - Intelligent caching and real-time updates
+- **UI/UX Improvements**: Enhanced user experience across all interfaces
+  - Consistent theming with VS Code color schemes
+  - Professional typography and spacing
+  - Logical grouping of information and controls
+  - Progressive enhancement with graceful degradation
+
+### Enhanced
+- **HTML Generation Service**: Professional minification pipeline with terser, clean-css, and html-minifier-terser integration
+- **Export System Architecture**: Unified export quality across command palette and webView generation methods
+- **Directory Tree Rendering**: Advanced filtering and expansion controls with proper state management
+- **CSS Framework**: Enhanced styling system with VS Code theme integration and responsive design
+
+### Technical
+- Enhanced module conflict resolution and JavaScript error handling
+- Advanced CSS optimization with clean-css integration for maximum compression
+- Improved template system architecture for better maintainability and extensibility
+- Professional-grade HTML generation with industry-standard minification tools
+
 ## [1.0.2] - 2025-10-31
 
 ### Changed

@@ -1097,3 +1097,90 @@ body.workspace-mode .workspace-only {
 .hidden-directory .directory-icon {
     opacity: 0.8;
 }
+
+/* Directory Controls */
+.directory-controls {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    gap: 12px;
+}
+
+.directory-filter-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.directory-filter-control label {
+    font-size: 12px;
+    color: var(--vscode-foreground);
+    margin: 0;
+    white-space: nowrap;
+}
+
+.directory-filter-control select {
+    padding: 4px 8px;
+    border: 1px solid var(--vscode-widget-border);
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border-radius: 3px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.directory-expand-controls {
+    display: flex;
+    gap: 6px;
+}
+
+.expand-button, .collapse-button {
+    padding: 4px 8px;
+    border: 1px solid var(--vscode-button-border);
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.expand-button:hover, .collapse-button:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+/* Directory Tree Expand/Collapse */
+.expand-glyph {
+    display: inline-block;
+    width: 12px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 10px;
+    margin-right: 4px;
+    color: var(--vscode-foreground);
+    user-select: none;
+}
+
+.expand-glyph:hover {
+    background: var(--vscode-list-hoverBackground);
+    border-radius: 2px;
+}
+
+.expand-glyph-spacer {
+    display: inline-block;
+    width: 16px;
+}
+
+.directory-children {
+    margin-left: 0;
+}
+
+.directory-container {
+    position: relative;
+}

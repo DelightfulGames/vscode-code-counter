@@ -207,4 +207,139 @@ function updateFieldDisplay(field, resolvedSettings) {
     }
 }
 
+/**
+ * Filter directories based on the dropdown selection
+ */
+function filterDirectories(filterType) {
+    const containers = document.querySelectorAll('.directory-container');
+    
+    containers.forEach(container => {
+        const isHidden = container.classList.contains('hidden-directory');
+        const isActive = container.getAttribute('data-has-settings') === 'true';
+        
+        let shouldShow = false;
+        
+        switch (filterType) {
+            case 'all':
+                shouldShow = !isHidden;
+                break;
+            case 'all-hidden':
+                shouldShow = true;
+                break;
+            case 'active':
+                shouldShow = isActive || hasActiveChildren(container);
+                break;
+        }
+        
+        container.style.display = shouldShow ? 'block' : 'none';
+        
+        // Also hide/show parent directories if needed for active filter
+        if (filterType === 'active' && isActive) {
+            showParentDirectories(container);
+        }
+    });
+}
+
+/**
+ * Check if a directory container has any children with settings
+ */
+function hasActiveChildren(container) {
+    const childContainers = container.querySelectorAll('.directory-container');
+    return Array.from(childContainers).some(child => 
+        child.getAttribute('data-has-settings') === 'true'
+    );
+}
+
+/**
+ * Show parent directories for active filter
+ */
+function showParentDirectories(container) {
+    let parent = container.parentElement;
+    while (parent && parent.classList.contains('directory-children')) {
+        const parentContainer = parent.parentElement;
+        if (parentContainer && parentContainer.classList.contains('directory-container')) {
+            parentContainer.style.display = 'block';
+            parent = parentContainer.parentElement;
+        } else {
+            break;
+        }
+    }
+}
+
+/**
+ * Toggle directory expansion/collapse
+ */
+function toggleDirectory(event, glyph) {
+    event.stopPropagation();
+    
+    const container = glyph.closest('.directory-container');
+    const childrenDiv = container.querySelector('.directory-children');
+    
+    if (childrenDiv) {
+        const isExpanded = childrenDiv.style.display !== 'none';
+        childrenDiv.style.display = isExpanded ? 'none' : 'block';
+        glyph.textContent = isExpanded ? '▶' : '▼';
+    }
+}
+
+/**
+ * Expand all directories
+ */
+function expandAllDirectories() {
+    const glyphs = document.querySelectorAll('.expand-glyph');
+    const childrenDivs = document.querySelectorAll('.directory-children');
+    
+    glyphs.forEach(glyph => {
+        glyph.textContent = '▼';
+    });
+    
+    childrenDivs.forEach(div => {
+        div.style.display = 'block';
+    });
+}
+
+/**
+ * Collapse all directories
+ */
+function collapseAllDirectories() {
+    const glyphs = document.querySelectorAll('.expand-glyph');
+    const childrenDivs = document.querySelectorAll('.directory-children');
+    
+    glyphs.forEach(glyph => {
+        glyph.textContent = '▶';
+    });
+    
+    childrenDivs.forEach(div => {
+        div.style.display = 'none';
+    });
+}
+
+/**
+ * Initialize directory tree with default settings
+ */
+function initializeDirectoryTree() {
+    // Set default filter to "All" and apply it
+    const filterDropdown = document.getElementById('directoryFilter');
+    if (filterDropdown) {
+        filterDropdown.value = 'all';
+        filterDirectories('all');
+    }
+    
+    // Initialize with all directories collapsed
+    collapseAllDirectories();
+}
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    initializeDirectoryTree();
+});
+
+// Also initialize immediately if DOM is already loaded
+if (document.readyState === 'loading') {
+    // Do nothing, DOMContentLoaded will handle it
+} else {
+    // DOM is already loaded
+    initializeDirectoryTree();
+}
+
 //# sourceURL=settings.js

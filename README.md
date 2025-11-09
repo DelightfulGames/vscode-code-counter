@@ -12,7 +12,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 
 > **Transform your code visibility with intelligent line counting, visual indicators, and comprehensive reporting**
 
-[![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/DelightfulGames/vscode-code-counter/releases)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
@@ -85,17 +85,21 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 - **🗄️ Database-Powered**: Lightning-fast SQLite database replaces scattered JSON files (10-100x performance boost)
 - **📁 Organized Structure**: All extension data in clean `.vscode/code-counter/` directory with reports in `reports/` subfolder
 - **🎯 Context Menu Magic**: Right-click any file/folder for instant exclusion management
-- **For Architects**: Comprehensive project analytics and reporting capabilities  
+- **📊 Professional Reporting**: Advanced standalone HTML reports with interactive filtering, grouping, and multiple export formats
+- **🎨 Enhanced UI Controls**: Group by language/directory, advanced filtering, and export to CSV/JSON/XML
+- **🔧 Directory Management**: Smart directory filtering with expand/collapse controls and hidden directory toggle
+- **For Architects**: Comprehensive project analytics with minified, self-contained reports
 - **For Developers**: Real-time visual feedback on code complexity with fun emoji indicators  
-- **For Teams**: Standardized code metrics across projects and languages
-- **For VS Code Enthusiasts**: Professional-grade extension reaching v1.0.0 milestone
+- **For Teams**: Standardized code metrics with professional export capabilities
+- **For VS Code Enthusiasts**: Professional-grade extension with cutting-edge reporting features
 
 ## **Quick Start**
 1. **Install**: Search "Code Counter" in VS Code Extensions
 2. **Activate**: Extension activates automatically on startup
 3. **Customize**: Press `Ctrl+Shift+P` → "CodeCounter: Customize Emoji Indicators"
 4. **View**: See emoji badges (🟢🟡🔴) next to files in explorer
-5. **Reports**: Run "Count Lines of Code" command for detailed HTML reports
+5. **Reports**: Run "Count Lines of Code" command for professional interactive HTML reports
+6. **Export**: Use webView "Export HTML" for standalone reports with filtering and export capabilities
 
 ## 🗄️ **Database-Powered Performance**
 **v1.0.0 introduces revolutionary SQLite database architecture:**
@@ -115,7 +119,9 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 - 🔍 **Smart Search**: Find emojis by typing "smile", "heart", "circle", etc.
 - 🧠 **Smart Exclusions**: Configurable patterns (node_modules, build files, etc.)
 - ⚡ **Performance First**: Intelligent caching and real-time updates
-- 📊 **Detailed Reports**: HTML and XML export with filtering
+- 📊 **Professional Reports**: Interactive HTML reports with grouping, filtering, and multi-format exports
+- 🎛️ **Advanced UI Controls**: Group by language/directory, expand/collapse trees, smart filtering
+- 🔧 **WebView Enhancements**: Export HTML with same professional quality as command palette reports
 - 🎯 **127-Line Rule**: Based on proven software engineering principles
 - 🎨 **Theme Integration**: Respects VS Code's color schemes
 
@@ -147,16 +153,38 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 - Clean workspace with no scattered configuration files
 - Easy backup and synchronization of all extension data
 
-## 📈 **Comprehensive Analytics**
+## 📈 **Professional Reporting & Analytics**
+### **🎯 Advanced Standalone HTML Reports**
+- **📊 Interactive Tables**: Sortable, filterable tables with real-time search
+- **🎛️ Group Controls**: Group by language or directory with one-click buttons
+- **🔍 Advanced Filtering**: Filter by language, line count ranges, and file size
+- **🧹 Clear Functions**: Reset all filters and grouping with a single button
+- **📱 Responsive Design**: Professional layout that works across all screen sizes
+
+### **🚀 Enhanced Export Capabilities**
+- **📊 Multiple Formats**: Export to CSV, JSON, and XML with consistent data structure
+- **⚡ Professional Minification**: Optimized HTML with terser, clean-css, and html-minifier-terser
+- **📦 Self-Contained Reports**: Standalone HTML files with all dependencies embedded
+- **🔗 Export Integration**: WebView and standalone reports use the same professional generation pipeline
+- **📋 Metadata Support**: All exports include "Generated At" timestamps for tracking
+
+### **🎨 WebView Enhancements**
+- **📁 Smart Directory Management**: Filter directories with "All", "All + Hidden", and "Active" modes
+- **🗂️ Expand/Collapse Controls**: Individual directory expansion with ▶/▼ glyphs
+- **🔧 Bulk Operations**: "Expand All" and "Collapse All" buttons for quick navigation
+- **👁️ Hidden Directory Toggle**: Show/hide hidden directories and their subdirectories
+- **⚙️ Settings Organization**: Clean, organized settings interface with hierarchical directory display
+
+### **📊 Comprehensive Analytics**
 - 📊 **Count Lines of Code**: Analyzes all files in your workspace with smart caching
 - 📈 **Detailed Statistics**: Shows code lines, comment lines, and blank lines separately
 - 📄 **Enhanced HTML Reports**: Beautiful, interactive HTML reports with intelligent path display system
   - 📁 **Smart Path Toggle**: Interactive button to show/hide full directory paths
   - 🎯 **Optimized Layout**: Clean filename display with expandable path information
   - 💾 **Persistent Preferences**: Remembers your path display choice across sessions
-- 🗂️ **Enhanced XML Data**: Comprehensive XML exports with full path metadata
-  - 📍 **Multiple Path Formats**: Includes fullPath, fileName, and directory attributes
-  - 🔄 **Backward Compatible**: Enhanced data while maintaining existing XML structure
+- 🗂️ **Enhanced XML Data**: Comprehensive XML exports with streamlined data structure
+  - 📍 **Clean Data Format**: Optimized structure focusing on essential information
+  - 🔄 **Consistent Exports**: Unified data format across CSV, JSON, and XML exports
 - ⚡ **Performance Optimized**: Only recalculates on file save, not every keystroke
 - 🎯 **Glob Exclusions**: Exclude files and directories using customizable glob patterns
 

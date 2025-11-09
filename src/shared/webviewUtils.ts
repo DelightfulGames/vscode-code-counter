@@ -432,6 +432,20 @@ export function generateWorkspaceSettingsHtml(workspaceData: any): string {
                 <div class="current-scope">
                     Currently editing: <strong>&lt;global&gt;</strong>
                 </div>
+                <div class="directory-controls">
+                    <div class="directory-filter-control">
+                        <label for="directoryFilter">Show:</label>
+                        <select id="directoryFilter" onchange="filterDirectories(this.value)">
+                            <option value="all">All</option>
+                            <option value="all-hidden">All + Hidden</option>
+                            <option value="active">Active</option>
+                        </select>
+                    </div>
+                    <div class="directory-expand-controls">
+                        <button onclick="expandAllDirectories()" class="expand-button" title="Expand All">📂 Expand All</button>
+                        <button onclick="collapseAllDirectories()" class="collapse-button" title="Collapse All">📁 Collapse All</button>
+                    </div>
+                </div>
                 <div class="directory-tree">
                     Select a workspace directory to view or edit its settings.
                 </div>
@@ -451,6 +465,20 @@ export function generateWorkspaceSettingsHtml(workspaceData: any): string {
             <h3>📁 Directory Settings</h3>
             <div class="current-scope">
                 Currently editing: <strong>${currentScope}</strong>
+            </div>
+            <div class="directory-controls">
+                <div class="directory-filter-control">
+                    <label for="directoryFilter">Show:</label>
+                    <select id="directoryFilter" onchange="filterDirectories(this.value)">
+                        <option value="all">All</option>
+                        <option value="all-hidden">All + Hidden</option>
+                        <option value="active">Active</option>
+                    </select>
+                </div>
+                <div class="directory-expand-controls">
+                    <button onclick="expandAllDirectories()" class="expand-button" title="Expand All">📂 Expand All</button>
+                    <button onclick="collapseAllDirectories()" class="collapse-button" title="Collapse All">📁 Collapse All</button>
+                </div>
             </div>
             <div class="directory-tree">
                 <div class="directory-item ${workspaceData.currentDirectory === '<global>' ? 'selected' : ''}" 
@@ -497,9 +525,14 @@ export function generateDirectoryTreeHtml(directories: any[], currentDirectory: 
         const isHidden = dir.name.startsWith('.');
         const folderIcon = dir.hasSettings ? '📁' : (isHidden ? '🫣' : '📁');
         const hiddenClass = isHidden ? 'hidden-directory' : '';
+        const activeClass = dir.hasSettings ? 'active-directory' : '';
+        
+        // Expand/collapse functionality
+        const hasChildren = dir.children && dir.children.length > 0;
+        const expandGlyph = hasChildren ? '<span class="expand-glyph" onclick="toggleDirectory(event, this)">▶</span>' : '<span class="expand-glyph-spacer"></span>';
         
         // Recursively generate children HTML
-        const childrenHtml = dir.children && dir.children.length > 0 ? 
+        const childrenHtml = hasChildren ? 
             generateDirectoryTreeHtml(dir.children, currentDirectory, level + 1) : '';
         
         // Escape directory name and path for safe HTML
@@ -507,15 +540,18 @@ export function generateDirectoryTreeHtml(directories: any[], currentDirectory: 
         const safePath = escapeHtml(dir.relativePath.replace(/\\/g, '/'));
         
         return `
-            <div class="directory-container">
-                <div class="directory-item ${selectedClass} ${hasSettingsClass} ${hiddenClass}" 
+            <div class="directory-container ${hiddenClass} ${activeClass}" data-has-settings="${dir.hasSettings}">
+                <div class="directory-item ${selectedClass} ${hasSettingsClass}" 
                      style="margin-left: ${level * 15}px"
                      onclick="selectDirectory('${safePath}')">
+                    ${expandGlyph}
                     <span class="directory-icon">${folderIcon}</span>
                     <span class="directory-name">${safeName}</span>
                     <span class="settings-indicator">${settingsIndicator}</span>
                 </div>
-                ${childrenHtml}
+                <div class="directory-children" style="display: none;">
+                    ${childrenHtml}
+                </div>
             </div>
         `;
     }).filter(html => html.trim() !== '').join('');

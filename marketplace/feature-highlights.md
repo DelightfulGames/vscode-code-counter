@@ -10,37 +10,37 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 
 # Feature Highlights for VS Code Marketplace
 
-## 🎯 **Core Value Propositions**
+## 🎯 **Revolutionary Reporting Features**
 
-### 1. **🏗️ NEW: Hierarchical Workspace Settings** 
-- **What**: Smart configuration that cascades from nearest .vscode/settings.json files
-- **Why**: Different parts of large projects need different complexity rules
-- **Benefit**: Automatic context-aware configuration without manual setup
+### 1. **📊 Professional Standalone Reports** 
+- **What**: Self-contained HTML reports with full interactivity and advanced controls
+- **Why**: Teams need professional, shareable reports that work anywhere
+- **Benefit**: Client-ready reports with grouping, filtering, and multi-format exports
 
-### 2. **Instant Visual Feedback** ⚡
-- **What**: Emoji indicators (🟢🟡🔴) appear next to files in explorer
-- **Why**: Immediately see which files need attention without opening them
-- **Benefit**: Faster code navigation and refactoring decisions
+### 2. **🎛️ Advanced Interactive Controls** 
+- **What**: Group by language/directory, filter by multiple criteria, export to CSV/JSON/XML
+- **Why**: Different stakeholders need different views of the same data
+- **Benefit**: One report serves multiple audiences with interactive customization
 
-### 3. **Live Status Bar Integration** 📊
-- **What**: Current file metrics displayed in VS Code status bar
-- **Why**: Always know your current file's complexity while coding
-- **Benefit**: Real-time awareness prevents complexity buildup
+### 3. **🔧 Enhanced WebView Management** 
+- **What**: Smart directory filtering, expand/collapse trees, hidden directory management
+- **Why**: Large projects need sophisticated navigation to find relevant settings
+- **Benefit**: Efficiently manage complex workspace configurations
 
-### 4. **Professional Report Generation** 📈
-- **What**: Beautiful HTML/XML reports with charts and statistics
-- **Why**: Share metrics with team, stakeholders, or documentation
-- **Benefit**: Data-driven conversations about code quality
+### 4. **⚡ Professional Optimization** 
+- **What**: Minified reports with terser, clean-css, and html-minifier-terser
+- **Why**: Production reports need to be fast-loading and bandwidth-efficient
+- **Benefit**: Enterprise-grade performance for large-scale deployments
 
-### 5. **Zero-Configuration Start** 🚀
-- **What**: Works immediately after installation with smart defaults
-- **Why**: No complex setup required to get value
-- **Benefit**: Instant productivity boost
+### 5. **🗄️ Database-Powered Architecture** 
+- **What**: SQLite database with 10-100x performance improvement over JSON files
+- **Why**: Hierarchical settings and fast queries require proper database architecture
+- **Benefit**: Lightning-fast configuration management that scales with project size
 
-### 6. **Fully Customizable Thresholds** 🎨
-- **What**: Configure your own complexity boundaries and emoji styles  
-- **Why**: Teams have different standards and preferences
-- **Benefit**: Adapts to your workflow, not the other way around
+### 6. **📦 Export Integration** 
+- **What**: WebView and command palette exports use the same professional pipeline
+- **Why**: Consistent quality regardless of how reports are generated
+- **Benefit**: Unified user experience across all extension features
 
 ---
 
