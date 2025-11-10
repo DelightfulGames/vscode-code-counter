@@ -90,7 +90,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 
 - **51/51 Tests Passing** - Reliability you can trust
 - **41% Code Coverage** - Real metrics, not marketing claims  
-- **20+ Languages Supported** - Works with your entire stack
+- **78+ Languages Supported** - Works with your entire technology stack
 - **Zero Dependencies** - Lightweight and secure
 - **Sub-second Analysis** - Performance optimized
 - **MIT Licensed** - Open source and transparent

@@ -8,6 +8,23 @@
 
 ## 🎉 **What's New in v1.1.0**
 
+### 🌍 **Massive Language Support Expansion**
+**From 25+ to 78+ Programming Languages!**
+
+Code Counter v1.1.0 introduces **revolutionary language support** with systematic expansion across all major programming paradigms:
+
+- **🚀 5x Language Growth**: Expanded from 25+ to **78+ programming languages and file types**
+- **🔬 Scientific Computing**: R, MATLAB, Julia, Fortran for data science and research
+- **⚡ Systems Programming**: Assembly, Rust, Zig, V, Nim, Crystal for performance-critical applications  
+- **🏢 Enterprise Solutions**: COBOL, Visual Basic, Pascal, Ada for enterprise and legacy systems
+- **🧠 Functional Programming**: Haskell, Erlang, Elixir, Clojure, F#, OCaml, Scheme, Racket
+- **📱 Platform Development**: Enhanced mobile support with Objective-C, Vala, and additional Kotlin/Scala variants
+- **🛠️ DevOps & Config**: Dockerfile, CMake, Makefile, TOML, Environment files, Properties, GitIgnore
+- **💻 Shell Variants**: Bash, Zsh, Fish, PowerShell modules (.psm1, .psd1), AWK, Tcl
+- **🌐 Modern Web**: GraphQL, Protocol Buffers, ANTLR for next-generation applications
+
+**Smart Language Detection**: Intelligent comment pattern recognition and file extension conflict resolution (e.g., MATLAB vs Objective-C `.m` files)
+
 ### 📊 **Professional Standalone Reporting**
 Transform your code analysis with industry-grade interactive reports:
 

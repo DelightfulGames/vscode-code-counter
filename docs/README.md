@@ -72,7 +72,7 @@ The VS Code Code Counter extension is a comprehensive line counting tool that pr
 ### Key Features
 - **Smart Color Coding**: Configurable thresholds with visual color picker
 - **Glob Pattern Management**: Visual interface for file exclusion patterns  
-- **Multi-language Support**: 25+ programming languages and file types
+- **Multi-language Support**: 78+ programming languages and file types
 - **Theme Integration**: Seamless VS Code theme compatibility
 - **Real-time Updates**: File system watching with debounced updates
 

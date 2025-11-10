@@ -146,7 +146,30 @@ Configure what files to skip with inheritance:
 
 ---
 
-## 🏆 **Quality You Can Trust**
+## � **78+ Programming Languages Supported**
+
+**Comprehensive language detection and intelligent comment pattern recognition:**
+
+### **Programming Languages**
+- **Web Development**: JavaScript, TypeScript, JSX, TSX, HTML, CSS, SCSS, Sass, Less, CoffeeScript, LiveScript
+- **Systems Programming**: C, C++, C#, Java, Go, Rust, Swift, Kotlin, Scala, Dart, Assembly, Zig, V, Nim, Crystal
+- **Scripting & Shell**: Python, Ruby, PHP, Shell, Bash, Zsh, Fish, PowerShell, Batch, AWK, Tcl
+- **Functional Programming**: Haskell, Erlang, Elixir, Clojure, F#, OCaml, Scheme, Racket
+- **Mobile & Platform**: Swift, Kotlin, Scala, Dart, Objective-C, Vala
+- **Data Science & Analytics**: R, MATLAB, Julia, SQL
+- **Enterprise & Legacy**: COBOL, Fortran, Visual Basic, Pascal, Ada, Groovy, Delphi
+- **Specialized Languages**: GraphQL, Protocol Buffers, ANTLR
+
+### **Configuration & Build Files**  
+- **Build & Project**: CMake, Makefile, Dockerfile, TOML, YAML, JSON, XML
+- **Development Tools**: Environment files, Properties, GitIgnore, EditorConfig
+- **Documentation**: Markdown, Text, INI, Config files
+
+**Smart Language Detection**: Automatic file type recognition with proper comment syntax handling for accurate line counting across all supported languages.
+
+---
+
+## �🏆 **Quality You Can Trust**
 
 - ✅ **161/183 Tests Passing** - Comprehensive test coverage with hierarchical features
 - ✅ **88% Success Rate** - Reliable functionality across complex scenarios

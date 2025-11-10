@@ -20,16 +20,16 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2+-blue.svg)](https://www.typescriptlang.org/)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
-[![Tests](https://img.shields.io/badge/tests-261%2F261%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-260%2F261%20passing-brightgreen.svg)](#)
 [![Coverage](https://img.shields.io/badge/coverage-41%25-green.svg)](#)
 [![GitHub Issues](https://img.shields.io/github/issues/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/network)
 
 ## 🚀 **What Makes Code Counter Special?**
-> A Visual Studio Code extension that counts lines of code in your project and generates beautiful HTML reports with XML data sources. Features intelligent file explorer integration with customizable emoji indicators, performance-optimized caching, and a professional emoji picker for complete customization.
+> A Visual Studio Code extension that counts lines of code in your project and generates beautiful HTML reports with XML data sources. Features intelligent file explorer integration with customizable emoji indicators, performance-optimized caching, and support for **78+ programming languages and file types**.
 
-> **🎉 MAJOR RELEASE v1.0.0**: Revolutionary database-powered settings architecture with lightning-fast performance! Now featuring advanced context menu exclusion management. See [CHANGELOG.md](./CHANGELOG.md) for complete details.
+> **🎉 MAJOR RELEASE v1.1.0**: Revolutionary language support expansion with systematic coverage across all major programming paradigms! Now supporting 78+ languages from web development to enterprise systems. See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
 ## 📸 **See It In Action**
 ### Before VS Code Code Counter
@@ -50,13 +50,19 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 ```
 
 ### 🎯 **Instant Visual Feedback**
-<video width="600" autoplay muted loop>
-  <source src="./marketplace/videos/SeeItWork.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
 
-###  📊 **Professional reporting tools** 
-<a href="./.vscode/code-counter/reports/code-counter-report-2025-11-09T17-40-26.html">Click here for a DEMO!</a>
+[![See Code Counter in Action](https://img.youtube.com/vi/mbV8kka7yA0/maxresdefault.jpg)](https://www.youtube.com/watch?v=mbV8kka7yA0)
+
+*▶️ Click to watch on YouTube*
+
+### 📊 **Professional reporting tools** 
+
+[![See Code Counter Reports](https://img.youtube.com/vi/IyIiTtnrF7M/maxresdefault.jpg)](https://www.youtube.com/watch?v=IyIiTtnrF7M)
+
+*▶️ Click to watch on YouTube*
+
+### 🖥️ **Standalone reports and data export**
+<div style="text-align: center; font-size: 24px"><strong><a href="https://code-counter.delightful-games.com/report-demo.html">Click here for a DEMO!</a></strong></div>
 
 ## 🎯 **Perfect For**
 | Role | Primary Benefit |
@@ -118,7 +124,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 - ⚙️ **Hierarchical Workspace Settings**: Workspace/Directory-specific configurations with inheritance
 - ⚙️🎨 **Emoji Customization**: Choose ANY emoji for your line count thresholds
 - 📝 **Glob Pattern Manager**: Visual interface for managing file exclusion patterns
-- ⌨️ **Language Support**: supports most programming languages
+- ⌨️ **Language Support**: 78+ programming languages and file types
 - 🔍 **Smart Search**: Find emojis by typing "smile", "heart", "circle", etc.
 - 🧠 **Smart Exclusions**: Configurable patterns (node_modules, build files, etc.)
 - ⚡ **Performance First**: Intelligent caching and real-time updates
@@ -257,6 +263,9 @@ Right-click on files or folders in the File Explorer or Editor Tab to access exc
 
 ### Smart Emoji Badge Selection
 The extension provides comprehensive emoji customization options:
+
+[![See Code Counter Emojis](https://img.youtube.com/vi/dIdzrnTg6Z8/maxresdefault.jpg)](https://www.youtube.com/watch?v=dIdzrnTg6Z8)
+
 - **Universal Emoji Support**: Choose ANY emoji for your line count thresholds
 - **Professional Emoji Picker**: Search through 1800+ emojis by name and aliases
 - **Searchable Database**: Find emojis by typing "smile", "heart", "circle", "warning", etc.
@@ -328,13 +337,24 @@ The extension generates two files in the configured output directory:
 - **Configuration API**: Seamless settings management
 
 ### **Supported Languages**
-The extension automatically detects and counts lines for:
-- **Web**: JavaScript, TypeScript, HTML, CSS, SCSS, Sass, Less
-- **System**: C, C++, C#, Java, Go, Rust
-- **Scripting**: Python, Ruby, PHP, Shell, Batch, PowerShell
-- **Mobile**: Swift, Kotlin, Scala
-- **Data**: JSON, XML, YAML, Markdown
-- **And more**: Any text file with configurable comment patterns
+The extension automatically detects and counts lines for **78+ programming languages and file types**, including:
+
+#### **Programming Languages**
+- **Web Development**: JavaScript, TypeScript, JSX, TSX, HTML, CSS, SCSS, Sass, Less, CoffeeScript, LiveScript
+- **Systems Programming**: C, C++, C#, Java, Go, Rust, Swift, Kotlin, Scala, Dart, Assembly, Zig, V, Nim, Crystal
+- **Scripting & Shell**: Python, Ruby, PHP, Shell, Bash, Zsh, Fish, PowerShell, Batch, AWK, Tcl
+- **Functional Programming**: Haskell, Erlang, Elixir, Clojure, F#, OCaml, Scheme, Racket  
+- **Mobile & Platform**: Swift, Kotlin, Scala, Dart, Objective-C, Vala
+- **Data Science & Analytics**: R, MATLAB, Julia, SQL
+- **Enterprise & Legacy**: COBOL, Fortran, Visual Basic, Pascal, Ada, Groovy, Delphi
+- **Specialized Languages**: GraphQL, Protocol Buffers, ANTLR
+
+#### **Configuration & Data Files**
+- **Build & Project**: CMake, Makefile, Dockerfile, TOML, YAML, JSON, XML
+- **Development Tools**: Environment files, Properties, GitIgnore, EditorConfig
+- **Documentation**: Markdown, Text, INI, Config files
+
+> **🚀 Total Coverage**: 78+ languages with intelligent comment detection and proper line counting algorithms for each language family.
 
 ## 🔍 **Visibility & Accessibility**
 
@@ -366,19 +386,6 @@ If you find the emoji badges (🟢🟡🔴) in the File Explorer too small or ha
 ## **Report Features**
 
 ### 🎯 **Enhanced Path Display System**
-> **New in v0.10.0**: Revolutionary file path visibility controls
-
-The HTML reports now feature an intelligent path display system designed for large codebases:
-
-<video width="900" controls>
-  <source src="./marketplace/videos/Reports.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
-#### **🔄 Interactive Toggle Controls**
-- **📁 Compact View** (default): Shows only filenames for clean, readable reports
-- **📄 Expanded View**: Reveals full directory paths when you need detailed location info
-- **Toggle Button**: Click the 📁/📄 button in the table header to switch views instantly
 
 #### **💾 Smart Persistence** 
 - Your path display preference is automatically saved using localStorage
@@ -392,15 +399,16 @@ The HTML reports now feature an intelligent path display system designed for lar
 
 #### **📊 Multiple Export Formats**
 - **HTML Reports**: Interactive reports with enhanced path toggle functionality
-- **XML Data**: Comprehensive exports with `fullPath`, `fileName`, and `directory` attributes
+- **XML**, **JSON**, **CSV**
 - **Backward Compatible**: Existing integrations continue to work seamlessly
 
 ### **📈 Comprehensive Analytics**
 The generated reports include:
 - **Summary Statistics**: Total files, lines, languages, and averages
 - **Language Breakdown**: Files and lines per programming language  
+- **Grouping Controls**: data can be grouped by directory or language
 - **Enhanced File Details**: Searchable table with intelligent path display and individual file statistics
-- **Interactive Elements**: Search, filtering, responsive design, and path visibility controls
+- **Interactive Elements**: Search, filtering, and responsive design
 
 ## **Contributing**
 We welcome contributions from developers, architects, and VS Code enthusiasts!
