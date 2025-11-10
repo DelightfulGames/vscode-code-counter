@@ -20,7 +20,7 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/DelightfulGames.vscode-code-counter)](https://marketplace.visualstudio.com/items?itemName=DelightfulGames.vscode-code-counter)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2+-blue.svg)](https://www.typescriptlang.org/)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
-[![Tests](https://img.shields.io/badge/tests-260%2F261%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-261%2F261%20passing-brightgreen.svg)](#)
 [![Coverage](https://img.shields.io/badge/coverage-41%25-green.svg)](#)
 [![GitHub Issues](https://img.shields.io/github/issues/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/DelightfulGames/vscode-code-counter.svg)](https://github.com/DelightfulGames/vscode-code-counter/stargazers)
