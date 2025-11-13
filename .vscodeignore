@@ -23,6 +23,7 @@ node_modules/**
 !node_modules/tabulator-tables/**
 !node_modules/sql.js/**
 !node_modules/fast-xml-parser/**
+!node_modules/file-type/**
 !node_modules/strnum/**
 !node_modules/@jridgewell/source-map/**
 !node_modules/@jridgewell/gen-mapping/**

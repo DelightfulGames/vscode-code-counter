@@ -31,15 +31,27 @@ import * as path from 'path';
 import { CountLinesCommand } from '../commands/countLines';
 import { GlobUtils } from '../utils/globUtils';
 import { DebugService } from '../services/debugService';
+import { BinaryDetectionService } from '../services/binaryDetectionService';
 
 export class FileWatcherProvider implements vscode.Disposable {
     private debug = DebugService.getInstance();
     private fileWatcher: vscode.FileSystemWatcher;
     private countLinesCommand: CountLinesCommand;
     private documentSaveWatcher!: vscode.Disposable;
+    private binaryDetectionService?: BinaryDetectionService;
 
     constructor() {
         this.countLinesCommand = new CountLinesCommand();
+        
+        // Initialize binary detection service if workspace is available
+        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            this.binaryDetectionService = new BinaryDetectionService(vscode.workspace.workspaceFolders[0].uri.fsPath);
+            
+            // Cleanup binary cache on startup
+            this.binaryDetectionService.cleanupCache().catch(error => {
+                this.debug.error('Failed to cleanup binary cache on startup:', error);
+            });
+        }
         
         // Watch for file changes - but only for code files, not all files
         this.fileWatcher = vscode.workspace.createFileSystemWatcher('**/*.{js,ts,jsx,tsx,py,java,c,cpp,cs,php,rb,go,rs,swift,kt,scala,html,css,scss,sass,less,json,xml,yaml,yml,md,txt,sh,bat,ps1}');
@@ -112,5 +124,6 @@ export class FileWatcherProvider implements vscode.Disposable {
         }
         this.fileWatcher.dispose();
         this.documentSaveWatcher.dispose();
+        this.binaryDetectionService?.dispose();
     }
 }

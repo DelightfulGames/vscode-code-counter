@@ -66,6 +66,17 @@ export interface SettingsWithInheritance {
     parentSettings: WorkspaceSettings;
 }
 
+export interface BinaryFileCache {
+    id?: number;
+    filePath: string;
+    modificationTime: number;
+    isBinary: boolean;
+    fileSize?: number;
+    detectionMethod?: string;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+
 /**
  * Database-powered workspace settings service
  * Replaces scattered .code-counter.json files with a lightweight SQLite database
@@ -196,6 +207,23 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             
             CREATE INDEX IF NOT EXISTS idx_setting_key 
                 ON workspace_settings(setting_key);
+
+            CREATE TABLE IF NOT EXISTS binary_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_path TEXT NOT NULL UNIQUE,
+                modification_time INTEGER NOT NULL,
+                is_binary INTEGER NOT NULL,
+                file_size INTEGER,
+                detection_method TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_binary_files_path 
+                ON binary_files(file_path);
+            
+            CREATE INDEX IF NOT EXISTS idx_binary_files_mod_time 
+                ON binary_files(modification_time);
         `);
         
         // Save the database to disk
@@ -923,6 +951,138 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     getCodeCounterDirectory(): string {
         return this.codeCounterDir;
+    }
+
+    /**
+     * Get binary file status from cache
+     */
+    async getBinaryFileStatus(filePath: string, modificationTime: number): Promise<boolean | null> {
+        await this.initPromise;
+        if (!this.db) return null;
+
+        try {
+            const stmt = this.db.prepare('SELECT is_binary, modification_time FROM binary_files WHERE file_path = ?');
+            const result = stmt.getAsObject({ ':1': filePath });
+            
+            if (result && Object.keys(result).length > 0) {
+                const cachedModTime = result['modification_time'] as number;
+                if (cachedModTime === modificationTime) {
+                    return Boolean(result['is_binary']);
+                }
+                // File has been modified, remove stale cache entry
+                await this.removeBinaryFileStatus(filePath);
+            }
+            return null;
+        } catch (error) {
+            this.debug.error('Failed to get binary file status:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Set binary file status in cache
+     */
+    async setBinaryFileStatus(filePath: string, modificationTime: number, isBinary: boolean, fileSize?: number, detectionMethod?: string): Promise<void> {
+        await this.initPromise;
+        if (!this.db) return;
+
+        try {
+            const stmt = this.db.prepare(`
+                INSERT OR REPLACE INTO binary_files 
+                (file_path, modification_time, is_binary, file_size, detection_method, updated_at) 
+                VALUES (?, ?, ?, ?, ?, datetime('now'))
+            `);
+            stmt.run([filePath, modificationTime, isBinary ? 1 : 0, fileSize || null, detectionMethod || null]);
+            this.saveToFile();
+            this.debug.verbose('setBinaryFileStatus:', { filePath, isBinary, detectionMethod });
+        } catch (error) {
+            this.debug.error('Failed to set binary file status:', error);
+        }
+    }
+
+    /**
+     * Remove binary file status from cache
+     */
+    async removeBinaryFileStatus(filePath: string): Promise<void> {
+        await this.initPromise;
+        if (!this.db) return;
+
+        try {
+            const stmt = this.db.prepare('DELETE FROM binary_files WHERE file_path = ?');
+            stmt.run([filePath]);
+            this.saveToFile();
+            this.debug.verbose('removeBinaryFileStatus:', { filePath });
+        } catch (error) {
+            this.debug.error('Failed to remove binary file status:', error);
+        }
+    }
+
+    /**
+     * Clear all binary file cache entries
+     */
+    async clearBinaryFileCache(): Promise<void> {
+        await this.initPromise;
+        if (!this.db) return;
+
+        try {
+            const stmt = this.db.prepare('DELETE FROM binary_files');
+            stmt.run();
+            this.saveToFile();
+            this.debug.info('Cleared binary file cache');
+        } catch (error) {
+            this.debug.error('Failed to clear binary file cache:', error);
+        }
+    }
+
+    /**
+     * Cleanup non-existent files from binary cache during startup
+     */
+    async cleanupBinaryFileCache(): Promise<void> {
+        await this.initPromise;
+        if (!this.db) return;
+
+        try {
+            const startTime = Date.now();
+            const stmt = this.db.prepare('SELECT file_path FROM binary_files');
+            const results = stmt.getAsObject({});
+            
+            const filePaths: string[] = [];
+            if (Array.isArray(results)) {
+                filePaths.push(...results.map(row => row['file_path'] as string));
+            } else if (results && Object.keys(results).length > 0) {
+                filePaths.push(results['file_path'] as string);
+            }
+
+            const fs = require('fs').promises;
+            const filesToRemove: string[] = [];
+
+            // Batch check file existence
+            for (const filePath of filePaths) {
+                try {
+                    await fs.access(filePath);
+                } catch {
+                    filesToRemove.push(filePath);
+                }
+            }
+
+            // Batch remove non-existent files
+            if (filesToRemove.length > 0) {
+                const removeStmt = this.db.prepare('DELETE FROM binary_files WHERE file_path = ?');
+                for (const filePath of filesToRemove) {
+                    removeStmt.run([filePath]);
+                }
+                this.saveToFile();
+            }
+
+            const endTime = Date.now();
+            this.debug.info('cleanupBinaryFileCache completed:', {
+                processingTimeMs: endTime - startTime,
+                totalCachedFiles: filePaths.length,
+                removedFiles: filesToRemove.length
+            });
+        } catch (error) {
+            this.debug.error('Failed to cleanup binary file cache:', error);
+        }
     }
 
     /**

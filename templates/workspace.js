@@ -524,7 +524,7 @@ function resetField(event, fieldType, fieldKey) {
                 const parentEmojiValue = window.workspaceData.parentSettings[`codeCounter.emojis.${emojiKeyMap[fieldKey]}`];
                 
                 // Display parent emoji with inherited styling
-                fileEmojiDisplay.textContent = parentEmojiValue || '❓';
+                fileEmojiDisplay.textContent = parentEmojiValue || '❔';
                 fileEmojiDisplay.style.opacity = '0.6';
                 fileEmojiDisplay.title = 'Inherited from parent settings';
                 
@@ -547,7 +547,7 @@ function resetField(event, fieldType, fieldKey) {
                 const parentEmojiValue = window.workspaceData.parentSettings[`codeCounter.emojis.folders.${emojiKeyMap[fieldKey]}`];
                 
                 // Display parent emoji with inherited styling
-                folderEmojiDisplay.textContent = parentEmojiValue || '❓';
+                folderEmojiDisplay.textContent = parentEmojiValue || '❔';
                 folderEmojiDisplay.style.opacity = '0.6';
                 folderEmojiDisplay.title = 'Inherited from parent settings';
                 

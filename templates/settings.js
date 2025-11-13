@@ -70,6 +70,12 @@ function openDebugLogFile() {
     });
 }
 
+function invalidateBinaryCache() {
+    vscode.postMessage({
+        command: 'invalidateBinaryCache'
+    });
+}
+
 function initializeDebugService() {
     const backendSelect = document.getElementById('debugBackend');
     
@@ -163,7 +169,7 @@ function updateFieldDisplay(field, resolvedSettings) {
         
         if (fileEmojiEl) {
             // Field was reset, so display resolved value (inherited) with grayed styling
-            fileEmojiEl.textContent = resolvedSettings[field] || '❓';
+            fileEmojiEl.textContent = resolvedSettings[field] || '❔';
             fileEmojiEl.style.opacity = '0.6';
             fileEmojiEl.title = 'Inherited from parent settings';
             

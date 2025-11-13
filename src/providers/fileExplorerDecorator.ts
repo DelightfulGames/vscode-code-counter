@@ -34,6 +34,7 @@ import { PathBasedSettingsService } from '../services/pathBasedSettingsService';
 import { WorkspaceDatabaseService } from '../services/workspaceDatabaseService';
 import { GlobUtils } from '../utils/globUtils';
 import { DebugService } from '../services/debugService';
+import { BinaryDetectionService } from '../services/binaryDetectionService';
 
 export class FileExplorerDecorationProvider implements vscode.FileDecorationProvider {
     private _onDidChangeFileDecorations: vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined> = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
@@ -43,12 +44,20 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     private pathBasedSettings: PathBasedSettingsService;
     private disposables: vscode.Disposable[] = [];
     private debug: DebugService;
+    private binaryDetectionService?: BinaryDetectionService;
 
     constructor(pathBasedSettings?: PathBasedSettingsService) {
         this.lineCountCache = new LineCountCacheService();
         this.pathBasedSettings = pathBasedSettings || new PathBasedSettingsService();
         this.debug = DebugService.getInstance();
         this.setupConfigurationWatcher();
+    }
+
+    private initializeBinaryDetection(): void {
+        // Initialize binary detection service if workspace is available
+        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0 && !this.binaryDetectionService) {
+            this.binaryDetectionService = new BinaryDetectionService(vscode.workspace.workspaceFolders[0].uri.fsPath);
+        }
     }
 
     private setupConfigurationWatcher(): void {
@@ -283,15 +292,18 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     private async provideFileDecorationForFile(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {
         this.debug.verbose('provideFileDecorationForFile called for:', uri.fsPath);
 
-        // Skip certain file types
-        const shouldSkip = await this.shouldSkipFile(uri.fsPath);
-        this.debug.verbose('provideFileDecorationForFile - shouldSkipFile result:', shouldSkip, 'for file:', uri.fsPath);
-        if (shouldSkip) {
-            this.debug.verbose('provideFileDecorationForFile - shouldSkipFile returned true, skipping');
-            return undefined;
-        }
-
         try {
+            // Check file status first to handle binary files
+            const fileStatus = await this.analyzeFileStatus(uri.fsPath);
+            
+            // Handle binary files with special tooltip
+            if (fileStatus.isBinary) {
+                return {
+                    badge: '', // Lock icon for binary files
+                    tooltip: '‼️Code Counter‼️ : binary files are not scanned by default',
+                };
+            }
+
             this.debug.verbose('provideFileDecorationForFile - getting line count for:', uri.fsPath);
             this.debug.verbose('About to call this.lineCountCache.getLineCount');
             const lineCount = await this.lineCountCache.getLineCount(uri.fsPath);
@@ -312,15 +324,19 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             // Get custom emojis from path-based configuration
             const emoji = await this.pathBasedSettings.getThemeEmojiForPath(threshold, uri.fsPath);
             
+            // Check if file is unsupported for special handling (for non-binary files)
+            const normalFileStatus = await this.analyzeFileStatus(uri.fsPath);
+            
             // Create path-aware tooltip
-            const coloredTooltip = await this.createPathAwareTooltip(uri.fsPath, lineCount, threshold, emoji);
+            let coloredTooltip = await this.createPathAwareTooltip(uri.fsPath, lineCount, threshold, emoji);
             
             // Use different colored icons based on line count thresholds
             let badge = '●';
             this.debug.verbose('FileExplorerDecorationProvider emoji retrieved', { 
                 emoji: emoji, 
                 threshold: threshold, 
-                fsPath: uri.fsPath 
+                fsPath: uri.fsPath,
+                fileStatus: normalFileStatus
             });
             
             switch (threshold) {
@@ -337,6 +353,22 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
                     badge = '⚪'; // White circle for unknown
             }
             
+            // Add question mark for unsupported text files (not in include patterns)
+            if (!normalFileStatus.isSupported && !normalFileStatus.isBinary && !normalFileStatus.isInIncludePatterns) {
+                badge = '❔'; // White question mark for unsupported files
+                
+                // Add GitHub integration instructions to tooltip
+                const extension = normalFileStatus.extension;
+                const githubTooltip = `❔ Code Counter doesn't officially support files with ${extension} extensions.\n\n` +
+                    `🚀 Request Language Support:\n` +
+                    `1. Open Command Palette (Ctrl+Shift+P / Cmd+Shift+P)\n` +
+                    `2. Run "Code Counter: Request Language Support"\n` +
+                    `3. Choose to create a GitHub issue or search existing requests\n\n` +
+                    `This will help the developers prioritize language support!`;
+                
+                coloredTooltip = githubTooltip;
+            }
+            
             return {
                 badge: badge,
                 tooltip: coloredTooltip,
@@ -349,55 +381,121 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     }
 
     private async shouldSkipFile(filePath: string): Promise<boolean> {
+        const fileStatus = await this.analyzeFileStatus(filePath);
+        
+        // Don't skip any files - let binary files be handled in decoration logic
+        // This allows us to show binary file tooltips instead of hiding them entirely
+        return false;
+    }
+
+    /**
+     * Analyze file status for binary detection and support classification
+     */
+    private async analyzeFileStatus(filePath: string): Promise<{ 
+        isBinary: boolean; 
+        isSupported: boolean; 
+        isInIncludePatterns: boolean;
+        extension: string;
+    }> {
+        this.initializeBinaryDetection();
+        
         const ext = path.extname(filePath).toLowerCase();
         
-        // Skip binary files that don't make sense to count
-        const skipExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg', 
-                               '.mp4', '.avi', '.mov', '.mp3', '.wav', '.pdf', '.zip', 
-                               '.tar', '.gz', '.exe', '.dll', '.so', '.dylib'];
-        
-        if (skipExtensions.includes(ext)) {
-            return true;
-        }
-
         // Check against path-based exclusion and inclusion patterns
         const excludePatterns = await this.pathBasedSettings.getExcludePatternsForPath(filePath);
         const includePatterns = await this.pathBasedSettings.getIncludePatternsForPath(filePath);
         const relativePath = vscode.workspace.asRelativePath(filePath);
         
-        // Check if file matches any exclusion pattern
-        let isExcluded = false;
-        for (const pattern of excludePatterns) {
-            if (this.matchesPattern(relativePath, pattern)) {
-                isExcluded = true;
-                break;
-            }
-        }
-        
-        // Check if file matches any inclusion pattern (overrides exclusion)
-        let isIncluded = false;
+        // Check if file matches any inclusion pattern
+        let isInIncludePatterns = false;
         for (const pattern of includePatterns) {
             if (this.matchesPattern(relativePath, pattern)) {
-                isIncluded = true;
+                isInIncludePatterns = true;
                 break;
             }
         }
         
-        // Apply inclusion override logic:
-        // - If file matches inclusion pattern, never skip (even if excluded)
-        // - If file doesn't match inclusion pattern but is excluded, skip
-        // - If file doesn't match inclusion pattern and is not excluded, don't skip
-        if (isIncluded) {
-            this.debug.verbose('File included by inclusion pattern', { filePath, relativePath });
-            return false; // Don't skip - inclusion pattern overrides exclusion
+        // If file is in include patterns, bypass binary detection and treat as text
+        if (isInIncludePatterns) {
+            return {
+                isBinary: false,
+                isSupported: this.isExtensionSupported(ext),
+                isInIncludePatterns: true,
+                extension: ext
+            };
         }
         
-        if (isExcluded) {
-            this.debug.verbose('File excluded by exclusion pattern', { filePath, relativePath });
-            return true; // Skip - file is excluded and no inclusion pattern matches
+        // Check against hardcoded binary extensions first
+        const skipExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg', 
+                               '.mp4', '.avi', '.mov', '.mp3', '.wav', '.pdf', '.zip', 
+                               '.tar', '.gz', '.exe', '.dll', '.so', '.dylib'];
+        
+        if (skipExtensions.includes(ext)) {
+            return {
+                isBinary: true,
+                isSupported: false,
+                isInIncludePatterns: false,
+                extension: ext
+            };
         }
         
-        return false; // Don't skip - file is neither excluded nor specifically included
+        // For known extensions, assume they're supported text files
+        if (this.isExtensionSupported(ext)) {
+            return {
+                isBinary: false,
+                isSupported: true,
+                isInIncludePatterns: false,
+                extension: ext
+            };
+        }
+        
+        // For unknown extensions, use binary detection if available
+        if (this.binaryDetectionService) {
+            try {
+                const binaryResult = await this.binaryDetectionService.isBinary(filePath);
+                return {
+                    isBinary: binaryResult.isBinary,
+                    isSupported: false, // Unknown extensions are unsupported
+                    isInIncludePatterns: false,
+                    extension: ext
+                };
+            } catch (error) {
+                this.debug.error('Binary detection failed, defaulting to binary:', error);
+                return {
+                    isBinary: true, // Default to binary on error for safety
+                    isSupported: false,
+                    isInIncludePatterns: false,
+                    extension: ext
+                };
+            }
+        }
+        
+        // Fallback: assume unknown extensions are text but unsupported
+        return {
+            isBinary: false,
+            isSupported: false,
+            isInIncludePatterns: false,
+            extension: ext
+        };
+    }
+    
+    /**
+     * Check if file extension is in our supported languages list
+     */
+    private isExtensionSupported(extension: string): boolean {
+        const supportedExtensions = [
+            '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp', '.cs', '.php', '.rb', '.go', '.rs', '.swift',
+            '.kt', '.scala', '.dart', '.lua', '.r', '.R', '.m', '.pl', '.pm', '.hs', '.erl', '.ex', '.exs', '.clj',
+            '.cljs', '.fs', '.fsx', '.asm', '.s', '.cbl', '.cob', '.f', '.f90', '.f95', '.vb', '.pas', '.ads', '.adb',
+            '.groovy', '.jl', '.nim', '.cr', '.mm', '.dpr', '.dfm', '.vala', '.zig', '.v', '.ml', '.mli', '.scm',
+            '.ss', '.rkt', '.coffee', '.ls', '.kts', '.sc', '.sbt', '.psm1', '.psd1', '.bash', '.zsh', '.fish',
+            '.tcl', '.tk', '.awk', '.gawk', '.dockerfile', '.toml', '.ini', '.cfg', '.conf', '.sql', '.graphql',
+            '.gql', '.proto', '.g4', '.cmake', '.makefile', '.mk', '.env', '.properties', '.gitignore', '.editorconfig',
+            '.html', '.css', '.scss', '.sass', '.less', '.json', '.xml', '.yaml', '.yml', '.md', '.txt', '.text',
+            '.log', '.readme', '.sh', '.bat', '.ps1'
+        ];
+        
+        return supportedExtensions.includes(extension);
     }
 
     private async provideFolderDecoration(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {

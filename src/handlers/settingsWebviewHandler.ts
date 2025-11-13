@@ -322,6 +322,10 @@ export class SettingsWebviewHandler {
                 await SettingsHandler.handleOpenDebugLogFile();
                 break;
             
+            case 'invalidateBinaryCache':
+                await SettingsHandler.handleInvalidateBinaryCache();
+                break;
+            
             case 'debugLog':
                 // Handle debug messages from webview
                 const webviewPrefix = '[WEBVIEW]';

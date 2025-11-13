@@ -32,11 +32,23 @@ import * as vscode from 'vscode';
 import { FileInfo, LineCountResult } from '../types';
 import { PathBasedSettingsService } from './pathBasedSettingsService';
 import { DebugService } from './debugService';
+import { BinaryDetectionService } from './binaryDetectionService';
 
 export class LineCounterService {
     private debug = DebugService.getInstance();
+    private binaryDetectionService: BinaryDetectionService | null = null;
+
+    /**
+     * Initialize binary detection service for the workspace
+     */
+    private initializeBinaryDetection(workspacePath: string): void {
+        if (!this.binaryDetectionService) {
+            this.binaryDetectionService = new BinaryDetectionService(workspacePath);
+        }
+    }
     
     async countLines(workspacePath: string, excludePatterns: string[] = []): Promise<LineCountResult> {
+        this.initializeBinaryDetection(workspacePath);
         const files = await this.getFiles(workspacePath, excludePatterns);
         const fileInfos: FileInfo[] = [];
         
@@ -413,12 +425,109 @@ export class LineCounterService {
             '.yml': 'YAML',
             '.md': 'Markdown',
             '.txt': 'Text',
+            '.text': 'Text',
+            '.log': 'Text',
+            '.readme': 'Text',
             '.sh': 'Shell',
             '.bat': 'Batch',
             '.ps1': 'PowerShell'
         };
 
         return languageMap[extension] || 'Unknown';
+    }
+
+    /**
+     * Enhanced language detection with binary detection for unknown extensions
+     */
+    async detectLanguageEnhanced(filePath: string): Promise<{ language: string; isUnsupported: boolean; isBinary: boolean }> {
+        const language = this.detectLanguage(filePath);
+        
+        // If language is known, it's supported
+        if (language !== 'Unknown') {
+            return {
+                language,
+                isUnsupported: false,
+                isBinary: false
+            };
+        }
+
+        // Check if file is in include patterns - if so, bypass binary detection
+        const isInIncludePatterns = await this.isFileInIncludePatterns(filePath);
+        if (isInIncludePatterns) {
+            const extension = path.extname(filePath);
+            return {
+                language: `Unsupported${extension}`,
+                isUnsupported: true,
+                isBinary: false // Treat as text file due to include pattern
+            };
+        }
+
+        // For unknown extensions, use binary detection
+        if (this.binaryDetectionService) {
+            try {
+                const binaryResult = await this.binaryDetectionService.isBinary(filePath);
+                
+                if (binaryResult.isBinary) {
+                    return {
+                        language: 'Binary',
+                        isUnsupported: false, // Binary files are excluded, not unsupported
+                        isBinary: true
+                    };
+                } else {
+                    // It's a text file with unknown extension - mark as unsupported
+                    const extension = path.extname(filePath);
+                    return {
+                        language: `Unsupported${extension}`,
+                        isUnsupported: true,
+                        isBinary: false
+                    };
+                }
+            } catch (error) {
+                this.debug.error('Binary detection failed for', filePath, ':', error);
+                // On error, assume binary for safety
+                return {
+                    language: 'Binary',
+                    isUnsupported: false,
+                    isBinary: true
+                };
+            }
+        }
+
+        // Fallback if binary detection service is not available
+        return {
+            language: 'Unknown',
+            isUnsupported: true,
+            isBinary: false
+        };
+    }
+
+    /**
+     * Check if file is in include patterns and should bypass binary detection
+     */
+    private async isFileInIncludePatterns(filePath: string): Promise<boolean> {
+        try {
+            const config = vscode.workspace.getConfiguration('codeCounter');
+            const includePatterns = config.get<string[]>('includePatterns', []);
+            
+            if (includePatterns.length === 0) {
+                return false;
+            }
+
+            const relativePath = vscode.workspace.asRelativePath(filePath);
+            const { minimatch } = require('minimatch');
+            
+            for (const pattern of includePatterns) {
+                if (minimatch(relativePath, pattern, { dot: true })) {
+                    this.debug.verbose('File matches include pattern, bypassing binary detection:', { filePath, pattern });
+                    return true;
+                }
+            }
+            
+            return false;
+        } catch (error) {
+            this.debug.error('Error checking include patterns:', error);
+            return false;
+        }
     }
 
     private getCommentPatterns(language: string): string[] {
@@ -488,6 +597,7 @@ export class LineCounterService {
             'Makefile': ['#'],
             'Environment': ['#'],
             'Properties': ['#', '!'],
+            'Text': [], // Text files don't have formal comment syntax
             'GitIgnore': ['#'],
             'EditorConfig': ['#', ';'],
             'HTML': ['<!--', '-->'],
@@ -519,6 +629,7 @@ export class LineCounterService {
      * allowing for subworkspace-specific configuration files
      */
     async countLinesWithPathBasedSettings(workspacePath: string): Promise<LineCountResult> {
+        const startTime = Date.now();
         const pathBasedSettings = new PathBasedSettingsService();
         
         this.debug.info('countLinesWithPathBasedSettings starting with workspacePath:', workspacePath);
@@ -760,6 +871,14 @@ export class LineCounterService {
             totalLines,
             totalFiles,
             languageStats
+        });
+
+        const endTime = Date.now();
+        this.debug.info('countLinesWithPathBasedSettings performance baseline:', {
+            processingTimeMs: endTime - startTime,
+            totalFiles: fileInfos.length,
+            totalLines,
+            avgTimePerFile: fileInfos.length > 0 ? (endTime - startTime) / fileInfos.length : 0
         });
 
         return {

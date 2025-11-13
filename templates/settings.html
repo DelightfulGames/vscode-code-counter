@@ -40,71 +40,6 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                     </div>
                 </div>
 
-                <div class="color-section">
-                    <h3>🫣 Exclude Patterns</h3>
-                    <details open>
-                        <summary>Glob patterns for files to exclude from line counting:</summary>
-                        <div class="glob-patterns-container">
-                            {{excludePatterns}}
-                        </div>
-                        <div class="add-pattern-container">
-                            <input type="text" id="newPattern" placeholder="Enter glob pattern (e.g., **/*.tmp)" />
-                            <button onclick="addPattern()">➕ Add Pattern</button>
-                            <button class="emoji-reset-btn workspace-only" onclick="resetField(event, 'excludePatterns')" title="Reset to parent settings">Reset All Patterns</button>
-                        </div>
-                        <div class="pattern-examples">
-                            <details>
-                                <summary>📖 Pattern Examples</summary>
-                                <ul>
-                                    <li><code>**/node_modules/**</code> - Exclude all node_modules folders</li>
-                                    <li><code>**/*.tmp</code> - Exclude all .tmp files</li>
-                                    <li><code>**/dist/**</code> - Exclude all dist folders</li>
-                                    <li><code>**/.git/**</code> - Exclude all .git folders</li>
-                                    <li><code>**/test/**</code> - Exclude all test folders</li>
-                                    <li><code>**/*.min.js</code> - Exclude minified JS files</li>
-                                </ul>
-                            </details>
-                        </div>
-                        <button onclick="resetPatterns()" class="reset-button">🔄 Reset Exclude Patterns to Parent/Defaults</button>
-                    </details>
-                </div>
-
-                <div class="color-section">
-                    <h3>🌍 Include Patterns (Whitelist)</h3>
-                    <details open>
-                        <summary>Glob patterns for files to include even if they match exclusion patterns:</summary>
-                        <div class="glob-patterns-container">
-                            {{includePatterns}}
-                        </div>
-                        <div class="add-pattern-container">
-                            <input type="text" id="newIncludePattern" placeholder="Enter glob pattern (e.g., **/*.spec.ts)" />
-                            <button onclick="addIncludePattern()">➕ Add Pattern</button>
-                            <button class="emoji-reset-btn workspace-only" onclick="resetField(event, 'includePatterns')" title="Reset to parent settings">Reset All Patterns</button>
-                        </div>
-                        <div class="pattern-examples">
-                            <details>
-                                <summary>📖 Pattern Examples</summary>
-                                <ul>
-                                    <li><code>**/*.spec.ts</code> - Include all test files even if tests folder is excluded</li>
-                                    <li><code>node_modules/important/**</code> - Include specific important dependencies</li>
-                                    <li><code>build/**/*.map</code> - Include source maps from build folder</li>
-                                    <li><code>**/README.md</code> - Include all README files</li>
-                                    <li><code>dist/types/**</code> - Include TypeScript declaration files</li>
-                                    <li><code>**/*.config.*</code> - Include all configuration files</li>
-                                </ul>
-                                <div class="pattern-info">
-                                    <strong>Note:</strong> Inclusion patterns override exclusion patterns. If a file matches both, it will be included.
-                                </div>
-                            </details>
-                        </div>
-                        <button onclick="resetIncludePatterns()" class="reset-button">🔄 Reset Inclusion Patterns to Parent/Defaults</button>
-                    </details>
-                </div>
-
-                <div class="reset-section">
-                    <button class="reset-button" onclick="resetEmojis()">🔄 Reset All Emojis to Parent/Defaults</button>
-                </div>
-
                 <div class="directory-type-section">
                     <h2>📄-🟢🟡🔴 File Badges (individual files)</h2>
                     <div class="emoji-horizontal-container">
@@ -230,6 +165,121 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                         </div>
                     </div>
                 </div>
+
+                <div class="reset-section">
+                    <button class="reset-button" onclick="resetEmojis()">🔄 Reset All Emojis to Parent/Defaults</button>
+                </div>
+
+                <!-- GitHub Integration Section -->
+                <div class="color-section">
+                    <h3>🐙 GitHub Integration</h3>
+                    <details open>
+                        <summary>Request support for unsupported file extensions:</summary>
+                        <div class="github-integration-container">
+                            <div class="extension-input-container">
+                                <label for="githubExtensionInput">File extension:</label>
+                                <input type="text" id="githubExtensionInput" placeholder="Enter extension (e.g., .kt, .swift, .zig)" />
+                            </div>
+                            <div class="github-actions-container">
+                                <button onclick="searchGitHubIssues()" class="github-button search-button">
+                                    🔍 Search Existing Issues
+                                </button>
+                                <button onclick="createGitHubIssue()" class="github-button create-button">
+                                    ➕ Create New Issue
+                                </button>
+                            </div>
+                            <div class="github-results" id="githubResults" style="display: none;">
+                                <!-- Dynamic content populated by JavaScript -->
+                            </div>
+                        </div>
+                        <div class="github-info">
+                            <div class="info-content">
+                                <strong>📝 How it works:</strong>
+                                <ul>
+                                    <li><strong>Search:</strong> Searches existing GitHub issues for extension support requests</li>
+                                    <li><strong>Create:</strong> Opens a new GitHub issue with pre-filled template for requesting extension support</li>
+                                    <li><strong>Community-driven:</strong> Help prioritize which file extensions to add next</li>
+                                </ul>
+                                <div class="integration-note">
+                                    <strong>Note:</strong> This feature uses GitHub's web interface and requires an internet connection. No authentication is required for searching or creating issues.
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="color-section">
+                    <h3>🫣 Exclude Patterns</h3>
+                    <details open>
+                        <summary>Glob patterns for files to exclude from line counting:</summary>
+                        <div class="glob-patterns-container">
+                            {{excludePatterns}}
+                        </div>
+                        <div class="add-pattern-container">
+                            <input type="text" id="newPattern" placeholder="Enter glob pattern (e.g., **/*.tmp)" />
+                            <button onclick="addPattern()">➕ Add Pattern</button>
+                        </div>
+                        <div class="pattern-examples">
+                            <details>
+                                <summary>📖 Pattern Examples</summary>
+                                <ul>
+                                    <li><code>**/node_modules/**</code> - Exclude all node_modules folders</li>
+                                    <li><code>**/*.tmp</code> - Exclude all .tmp files</li>
+                                    <li><code>**/dist/**</code> - Exclude all dist folders</li>
+                                    <li><code>**/.git/**</code> - Exclude all .git folders</li>
+                                    <li><code>**/test/**</code> - Exclude all test folders</li>
+                                    <li><code>**/*.min.js</code> - Exclude minified JS files</li>
+                                </ul>
+                            </details>
+                        </div>
+                        <button onclick="resetPatterns()" class="reset-button">🔄 Reset Exclude Patterns to Parent/Defaults</button>
+                    </details>
+                </div>
+
+                <div class="color-section">
+                    <h3>🌍 Include Patterns (Whitelist)</h3>
+                    <details open>
+                        <summary>Glob patterns for files to include even if they match exclusion patterns:</summary>
+                        <!-- Safety Warning for Include Patterns -->
+                        <div class="safety-warning">
+                            <div class="warning-icon">⚠️</div>
+                            <div class="warning-content">
+                                <strong>🛡️ Safety Warning:</strong> Include patterns bypass Code Counter's binary file detection and safety checks. Files matching include patterns will be processed as text files regardless of their actual content or extension. This could result in:
+                                <ul>
+                                    <li>Performance issues with large binary files</li>
+                                    <li>Incorrect line counts for non-text files</li>
+                                    <li>Processing of potentially unsafe file content</li>
+                                </ul>
+                                <strong>Use include patterns only for files you know are safe text files.</strong>
+                            </div>
+                        </div>
+
+                        <div class="glob-patterns-container">
+                            {{includePatterns}}
+                        </div>
+                        <div class="add-pattern-container">
+                            <input type="text" id="newIncludePattern" placeholder="Enter glob pattern (e.g., **/*.spec.ts)" />
+                            <button onclick="addIncludePattern()">➕ Add Pattern</button>
+                        </div>
+                        <div class="pattern-examples">
+                            <details>
+                                <summary>📖 Pattern Examples</summary>
+                                <ul>
+                                    <li><code>**/*.spec.ts</code> - Include all test files even if tests folder is excluded</li>
+                                    <li><code>node_modules/important/**</code> - Include specific important dependencies</li>
+                                    <li><code>build/**/*.map</code> - Include source maps from build folder</li>
+                                    <li><code>**/README.md</code> - Include all README files</li>
+                                    <li><code>dist/types/**</code> - Include TypeScript declaration files</li>
+                                    <li><code>**/*.config.*</code> - Include all configuration files</li>
+                                </ul>
+                                <div class="pattern-info">
+                                    <strong>Note:</strong> Inclusion patterns override exclusion patterns. If a file matches both, it will be included.
+                                </div>
+                            </details>
+                        </div>
+                        <button onclick="resetIncludePatterns()" class="reset-button">🔄 Reset Inclusion Patterns to Parent/Defaults</button>
+                    </details>
+                </div>
             </div>
             <div class="workspace-settings-sidebar">
                 <div class="color-section">
@@ -261,6 +311,10 @@ Marketplace: https://marketplace.visualstudio.com/items?itemName=DelightfulGames
                             <div class="debug-file-link-container" id="debugFileLink" style="display: none;">
                                 <label>Debug Log File:</label>
                                 <a href="#" onclick="openDebugLogFile()" class="debug-log-link">📄 Open .vscode/code-counter/debug.log</a>
+                            </div>
+                            <div class="debug-actions-container">
+                                <label>Cache Management:</label>
+                                <button onclick="invalidateBinaryCache()" class="debug-action-button" title="Clear binary file detection cache">🗑️ Invalidate Binary Cache</button>
                             </div>
                         </div>
                     </details>

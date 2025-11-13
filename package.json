@@ -49,6 +49,10 @@
       {
         "command": "codeCounter.excludeExtension",
         "title": "CodeCounter: Exclude Files with Same Extension"
+      },
+      {
+        "command": "codeCounter.requestLanguageSupport",
+        "title": "CodeCounter: Request Language Support"
       }
     ],
     "configuration": {
@@ -285,11 +289,12 @@
   "dependencies": {
     "@isaacs/balanced-match": "^4.0.1",
     "@isaacs/brace-expansion": "^5.0.0",
+    "clean-css": "^5.3.3",
     "fast-xml-parser": "^4.3.2",
+    "file-type": "^21.1.0",
+    "html-minifier-terser": "^7.2.0",
     "minimatch": "^10.1.1",
     "sql.js": "^1.13.0",
-    "terser": "^5.44.1",
-    "clean-css": "^5.3.3",
-    "html-minifier-terser": "^7.2.0"
+    "terser": "^5.44.1"
   }
 }

@@ -219,6 +219,37 @@ export async function activate(context: vscode.ExtensionContext) {
         await TestExclusionCommand.testCurrentFileExclusion();
     });
 
+    // Request language support command
+    const requestLanguageSupportDisposable = vscode.commands.registerCommand('codeCounter.requestLanguageSupport', async (filePath?: string) => {
+        try {
+            // Get file path from active editor if not provided
+            const targetFilePath = filePath || vscode.window.activeTextEditor?.document.uri.fsPath;
+            
+            if (!targetFilePath) {
+                vscode.window.showWarningMessage('No file selected for language support request.');
+                return;
+            }
+
+            // Import and use GitHub integration service
+            const { GitHubIntegrationService } = await import('./services/githubIntegrationService');
+            const githubService = GitHubIntegrationService.getInstance();
+            
+            // Extract file extension
+            const path = await import('path');
+            const fileExtension = path.extname(targetFilePath).toLowerCase();
+            
+            if (!fileExtension) {
+                vscode.window.showWarningMessage('File has no extension to request support for.');
+                return;
+            }
+
+            // Show GitHub integration dialog
+            await githubService.showGitHubIntegrationDialog(fileExtension, targetFilePath);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to request language support: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    });
+
     // Add all disposables to context
     console.log('[CODE-COUNTER] All commands registered successfully');
     context.subscriptions.push(
@@ -231,6 +262,7 @@ export async function activate(context: vscode.ExtensionContext) {
         excludeFilePatternDisposable,
         excludeExtensionDisposable,
         testExclusionDisposable,
+        requestLanguageSupportDisposable,
         decorationProvider,
         fileWatcher,
         fileExplorerDecorator,

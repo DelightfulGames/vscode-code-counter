@@ -244,7 +244,7 @@ suite('WorkspaceSettingsService Tests', () => {
         
         try {
             const settings: WorkspaceSettings = {
-                'codeCounter.emojis.normal': '🔒'
+                'codeCounter.emojis.normal': ''
             };
             
             // Should handle permission error gracefully

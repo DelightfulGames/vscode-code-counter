@@ -429,6 +429,158 @@ input[type="text"]:focus {
     color: var(--vscode-textCodeBlock-foreground);
 }
 
+.pattern-info {
+    margin: 10px 0;
+    padding: 8px;
+    background: var(--vscode-textBlockQuote-background);
+    border-left: 3px solid var(--vscode-textLink-foreground);
+    border-radius: 3px;
+    font-size: 13px;
+}
+
+.safety-warning {
+    margin: 15px 0;
+    padding: 12px;
+    background: var(--vscode-inputValidation-warningBackground);
+    border: 2px solid var(--vscode-inputValidation-warningBorder);
+    border-radius: 5px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.safety-warning .warning-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.safety-warning .warning-content {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.safety-warning .warning-content strong {
+    color: var(--vscode-inputValidation-warningForeground);
+}
+
+.safety-warning ul {
+    margin: 8px 0 8px 20px;
+    padding: 0;
+}
+
+.safety-warning li {
+    margin: 4px 0;
+}
+
+/* GitHub Integration Styles */
+.github-integration-container {
+    margin: 15px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.extension-input-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.extension-input-container label {
+    font-weight: bold;
+    min-width: 110px;
+}
+
+.extension-input-container input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--vscode-input-border);
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border-radius: 3px;
+    font-family: var(--vscode-font-family);
+}
+
+.github-actions-container {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.github-button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.github-button.search-button {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+}
+
+.github-button.search-button:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.github-button.create-button {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.github-button.create-button:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.github-results {
+    margin: 15px 0;
+    padding: 12px;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.github-info {
+    margin: 15px 0;
+    padding: 12px;
+    background: var(--vscode-textBlockQuote-background);
+    border-left: 4px solid var(--vscode-textBlockQuote-border);
+    border-radius: 3px;
+}
+
+.github-info .info-content {
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.github-info ul {
+    margin: 8px 0 8px 20px;
+    padding: 0;
+}
+
+.github-info li {
+    margin: 4px 0;
+}
+
+.integration-note {
+    margin-top: 10px;
+    padding: 8px;
+    background: var(--vscode-inputValidation-infoBackground);
+    border-left: 3px solid var(--vscode-inputValidation-infoBorder);
+    border-radius: 3px;
+    font-size: 13px;
+}
+
 .emoji-horizontal-container {
     display: flex;
     gap: 10px;
@@ -1052,6 +1204,44 @@ body.workspace-mode .workspace-only {
     background-color: rgba(255, 255, 255, 0.05);
     border-radius: 4px;
     border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.debug-actions-container {
+    margin-top: 10px;
+    padding: 8px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.debug-actions-container label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: var(--vscode-foreground);
+}
+
+.debug-action-button {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    text-decoration: none;
+    border-radius: 3px;
+    border: 1px solid var(--vscode-button-border);
+    font-size: 12px;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+}
+
+.debug-action-button:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.debug-action-button:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
 }
 
 .debug-file-link-container label {

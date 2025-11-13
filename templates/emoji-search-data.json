@@ -919,7 +919,6 @@
   "❗": [ "exclamation", "mark", "heavy", "bang", "symbol", "orange", "surprise", "punctuation", "wow", "warning" ],
   "❕": [ "white", "exclamation", "mark", "surprise", "punctuation", "gray", "wow", "warning" ],
   "❓": [ "question", "mark", "heavy", "black", "doubt", "confused" ],
-  "❔": [ "white", "question", "mark", "doubts", "gray", "huh", "confused" ],
   "‼️": [ "double", "exclamation", "mark", "exclamation", "punctuation", "surprise" ],
   "⁉️": [ "exclamation", "question", "mark", "punctuation", "surprise" ],
   "🔅": [ "low", "brightness", "symbol", "sun", "afternoon", "warm", "summer" ],

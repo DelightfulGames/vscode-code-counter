@@ -556,4 +556,28 @@ export class SettingsHandler {
             vscode.window.showErrorMessage('Failed to open debug log file: ' + (error as Error).message);
         }
     }
+
+    /**
+     * Handle invalidateBinaryCache command
+     */
+    static async handleInvalidateBinaryCache(): Promise<void> {
+        try {
+            // Check if workspace is available
+            if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+                vscode.window.showWarningMessage('Binary cache invalidation requires an open workspace.');
+                return;
+            }
+
+            const { BinaryDetectionService } = await import('../services/binaryDetectionService');
+            const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+            const binaryService = new BinaryDetectionService(workspacePath);
+            
+            // Clear the binary cache
+            await binaryService.clearCache();
+            
+            vscode.window.showInformationMessage('Binary file detection cache has been cleared successfully.');
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to invalidate binary cache: ' + (error as Error).message);
+        }
+    }
 }
