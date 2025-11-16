@@ -142,7 +142,9 @@ export class LineCounterService {
             sampleFiles: files.slice(0, 5).map(f => f.fsPath)
         });
         
-        return files.map(file => file.fsPath);
+        // Filter out binary files
+        const filePaths = files.map(file => file.fsPath);
+        return await this.filterBinaryFiles(filePaths);
     }
 
     /**
@@ -257,18 +259,23 @@ export class LineCounterService {
             const isIncluded = normalizedIncludePatterns.some(pattern => minimatch(relativePath, pattern, minimatchOptions));
             
             // Inclusion patterns act as overrides for exclusions:
-            // 1. If file matches inclusion pattern -> include (even if also excluded)
+            // 1. If file matches inclusion pattern -> include (even if also excluded or binary)
             // 2. If file doesn't match inclusion pattern but is excluded -> exclude
-            // 3. If file doesn't match inclusion pattern and is not excluded -> include
-            if (isIncluded || !isExcluded) {
+            // 3. If file doesn't match inclusion pattern and is not excluded -> include only if not binary
+            if (isIncluded) {
+                // Include files that match inclusion patterns regardless of binary status
                 filteredFiles.push(filePath);
-                if (isIncluded) {
-                    includedViaPattern++;
+                includedViaPattern++;
+            } else if (!isExcluded) {
+                // For files not matching inclusion patterns and not excluded, check if binary
+                if (!(await this.isFileBinary(filePath))) {
+                    filteredFiles.push(filePath);
+                } else {
+                    excludedCount++; // Count binary files as excluded
                 }
             } else {
                 excludedCount++;
             }
-            // Only exclude if the file is excluded AND doesn't match any inclusion pattern
         }
         
         this.debug.verbose('getFilesWithInclusions results:', {
@@ -283,41 +290,67 @@ export class LineCounterService {
     }
 
     async countFileLines(filePath: string, workspacePath?: string): Promise<FileInfo> {
-        const content = await fs.promises.readFile(filePath, 'utf8');
-        const lines = content.split('\n');
+        // Reduced timeout for better responsiveness - let the overall process handle timeouts
+        const FILE_TIMEOUT_MS = 10000; // 10 second timeout per file
         
-        let codeLines = 0;
-        let commentLines = 0;
-        let blankLines = 0;
-        
-        const language = this.detectLanguage(filePath);
-        const commentPatterns = this.getCommentPatterns(language);
-        
-        for (const line of lines) {
-            const trimmed = line.trim();
+        return new Promise(async (resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error(`File processing timeout (${FILE_TIMEOUT_MS}ms): ${filePath}`));
+            }, FILE_TIMEOUT_MS);
             
-            if (trimmed === '') {
-                blankLines++;
-            } else if (this.isCommentLine(trimmed, commentPatterns)) {
-                commentLines++;
-            } else {
-                codeLines++;
-            }
-        }
+            try {
+                const content = await fs.promises.readFile(filePath, 'utf8');
+                const lines = content.split('\n');
+                
+                let codeLines = 0;
+                let commentLines = 0;
+                let blankLines = 0;
+                
+                const language = this.detectLanguage(filePath);
+                const commentPatterns = this.getCommentPatterns(language);
+                
+                // Process lines in smaller batches for very large files
+                const LINE_BATCH_SIZE = 1000;
+                for (let i = 0; i < lines.length; i += LINE_BATCH_SIZE) {
+                    const batch = lines.slice(i, i + LINE_BATCH_SIZE);
+                    
+                    for (const line of batch) {
+                        const trimmed = line.trim();
+                        
+                        if (trimmed === '') {
+                            blankLines++;
+                        } else if (this.isCommentLine(trimmed, commentPatterns)) {
+                            commentLines++;
+                        } else {
+                            codeLines++;
+                        }
+                    }
+                    
+                    // Yield after processing each batch of lines
+                    if (i + LINE_BATCH_SIZE < lines.length) {
+                        await new Promise(resolve => setImmediate(resolve));
+                    }
+                }
 
-        const relativePath = workspacePath ? path.relative(workspacePath, filePath) : path.relative(path.dirname(filePath), filePath);
-        
-        return {
-            path: filePath,
-            relativePath,
-            fullPath: relativePath.replace(/\\/g, '/'), // Use normalized relative path
-            language,
-            lines: lines.length,
-            codeLines,
-            commentLines,
-            blankLines,
-            size: content.length
-        };
+                const relativePath = workspacePath ? path.relative(workspacePath, filePath) : path.relative(path.dirname(filePath), filePath);
+                
+                clearTimeout(timeout);
+                resolve({
+                    path: filePath,
+                    relativePath,
+                    fullPath: relativePath.replace(/\\/g, '/'), // Use normalized relative path
+                    language,
+                    lines: lines.length,
+                    codeLines,
+                    commentLines,
+                    blankLines,
+                    size: content.length
+                });
+            } catch (error) {
+                clearTimeout(timeout);
+                reject(error);
+            }
+        });
     }
 
     private detectLanguage(filePath: string): string {
@@ -428,6 +461,7 @@ export class LineCounterService {
             '.text': 'Text',
             '.log': 'Text',
             '.readme': 'Text',
+            '.csv': 'CSV',
             '.sh': 'Shell',
             '.bat': 'Batch',
             '.ps1': 'PowerShell'
@@ -499,6 +533,89 @@ export class LineCounterService {
             isUnsupported: true,
             isBinary: false
         };
+    }
+
+    /**
+     * Filter out binary files from an array of file paths with parallel processing
+     */
+    private async filterBinaryFiles(filePaths: string[]): Promise<string[]> {
+        const textFiles: string[] = [];
+        let binaryCount = 0;
+        
+        // Process in smaller batches for better UI responsiveness
+        const BINARY_BATCH_SIZE = 20;
+        const startTime = Date.now();
+        
+        this.debug.info('Starting binary file filtering for', filePaths.length, 'files');
+        
+        for (let i = 0; i < filePaths.length; i += BINARY_BATCH_SIZE) {
+            const batch = filePaths.slice(i, i + BINARY_BATCH_SIZE);
+            
+            // Process batch in parallel
+            const binaryChecks = await Promise.allSettled(
+                batch.map(async (filePath) => {
+                    try {
+                        const isBinary = await this.isFileBinary(filePath);
+                        return { filePath, isBinary };
+                    } catch (error) {
+                        this.debug.warning('Binary detection error for', filePath, '- assuming binary');
+                        return { filePath, isBinary: true };
+                    }
+                })
+            );
+            
+            // Process results
+            for (const check of binaryChecks) {
+                if (check.status === 'fulfilled') {
+                    const { filePath, isBinary } = check.value;
+                    if (!isBinary) {
+                        textFiles.push(filePath);
+                    } else {
+                        binaryCount++;
+                    }
+                } else {
+                    // On error, assume binary for safety
+                    binaryCount++;
+                }
+            }
+            
+            // Yield to event loop after each batch
+            await new Promise(resolve => setImmediate(resolve));
+            
+            // Progress logging every 100 files
+            if (i > 0 && i % 100 === 0) {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.round((i / filePaths.length) * 100);
+                this.debug.info(`Binary filtering progress: ${progress}% (${i}/${filePaths.length}) - ${elapsed}ms elapsed`);
+            }
+        }
+        
+        const totalTime = Date.now() - startTime;
+        this.debug.info('Binary file filtering completed:', {
+            totalFiles: filePaths.length,
+            textFiles: textFiles.length,
+            binaryFilesFiltered: binaryCount,
+            processingTimeMs: totalTime,
+            avgTimePerFile: Math.round(totalTime / filePaths.length * 100) / 100
+        });
+        
+        return textFiles;
+    }
+
+    /**
+     * Check if a file is binary
+     */
+    private async isFileBinary(filePath: string): Promise<boolean> {
+        if (this.binaryDetectionService) {
+            try {
+                const result = await this.binaryDetectionService.isBinary(filePath);
+                return result.isBinary;
+            } catch (error) {
+                this.debug.warning('Binary detection failed for', filePath, '- assuming binary for safety');
+                return true; // Assume binary if detection fails
+            }
+        }
+        return false; // No binary detection service available
     }
 
     /**
@@ -598,6 +715,7 @@ export class LineCounterService {
             'Environment': ['#'],
             'Properties': ['#', '!'],
             'Text': [], // Text files don't have formal comment syntax
+            'CSV': [], // CSV files don't have formal comment syntax
             'GitIgnore': ['#'],
             'EditorConfig': ['#', ';'],
             'HTML': ['<!--', '-->'],
@@ -624,11 +742,11 @@ export class LineCounterService {
     }
 
     /**
-     * Count lines using path-based settings for inclusion/exclusion patterns
+     * Count lines using path-based settings for inclusion/exclusion patterns with progress tracking
      * This method uses PathBasedSettingsService to get patterns per file path,
      * allowing for subworkspace-specific configuration files
      */
-    async countLinesWithPathBasedSettings(workspacePath: string): Promise<LineCountResult> {
+    async countLinesWithPathBasedSettings(workspacePath: string, progressCallback?: (processed: number, total: number, remaining: number) => void): Promise<LineCountResult> {
         const startTime = Date.now();
         const pathBasedSettings = new PathBasedSettingsService();
         
@@ -663,6 +781,23 @@ export class LineCounterService {
             totalFilesFound: allFiles.length,
             sampleFiles: allFiles.slice(0, 5).map(f => f.fsPath)
         });
+        
+        // Check for extremely large workspaces and warn user
+        if (allFiles.length > 10000) {
+            this.debug.warning(`Large workspace detected: ${allFiles.length} files. This may take several minutes.`);
+            
+            // Consider showing a warning to the user
+            const shouldContinue = await vscode.window.showWarningMessage(
+                `Large workspace detected (${allFiles.length} files). This may take several minutes and could impact VS Code performance. Continue?`,
+                { modal: true },
+                'Continue',
+                'Cancel'
+            );
+            
+            if (shouldContinue !== 'Continue') {
+                throw new Error('Operation cancelled by user due to large workspace size');
+            }
+        }
         
         // Fallback: If VS Code findFiles returns nothing, use Node.js file system
         if (allFiles.length === 0) {
@@ -780,14 +915,23 @@ export class LineCounterService {
             }
             
             // Apply inclusion/exclusion logic exactly like the decorator:
-            // - If include patterns exist and file matches one, include it (overrides exclusion)
+            // - If include patterns exist and file matches one, include it (overrides exclusion and binary detection)
             // - If include patterns exist and file doesn't match any, exclude it
-            // - If no include patterns exist, include unless excluded
+            // - If no include patterns exist, include unless excluded or binary
             let shouldIncludeFile: boolean;
             if (hasIncludePatterns) {
-                shouldIncludeFile = matchesInclusionPattern; // Only include if explicitly included
+                shouldIncludeFile = matchesInclusionPattern; // Only include if explicitly included (bypasses binary detection)
             } else {
-                shouldIncludeFile = !isExcluded; // Include unless explicitly excluded
+                shouldIncludeFile = !isExcluded; // Include unless explicitly excluded, but still need to check for binary
+            }
+            
+            // For files not explicitly included via patterns, also check if they're binary
+            if (shouldIncludeFile && !matchesInclusionPattern) {
+                // Check if file is binary (only if not explicitly included via pattern)
+                if (await this.isFileBinary(filePath)) {
+                    shouldIncludeFile = false;
+                    excludedCount++; // Count binary files as excluded
+                }
             }
             
             if (shouldIncludeFile) {
@@ -800,7 +944,7 @@ export class LineCounterService {
                     matchesInclusionPattern, 
                     isExcluded,
                     hasIncludePatterns,
-                    reason: matchesInclusionPattern ? 'inclusion pattern override' : 'not excluded' 
+                    reason: matchesInclusionPattern ? 'inclusion pattern override' : 'not excluded and not binary' 
                 });
             } else {
                 excludedCount++;
@@ -810,8 +954,13 @@ export class LineCounterService {
                     excludingPattern: excludingPattern || 'none',
                     matchesInclusionPattern,
                     hasIncludePatterns,
-                    reason: hasIncludePatterns ? 'no inclusion pattern match' : 'matched exclusion pattern'
+                    reason: hasIncludePatterns ? 'no inclusion pattern match' : (isExcluded ? 'matched exclusion pattern' : 'binary file')
                 });
+            }
+            
+            // Yield periodically during file filtering to prevent UI blocking
+            if (filteredFiles.length % 100 === 0) {
+                await new Promise(resolve => setImmediate(resolve));
             }
         }
         
@@ -832,13 +981,23 @@ export class LineCounterService {
         
         this.debug.info('Starting line counting for filtered files...');
         
-        // Now count lines for the filtered files
+        // Now count lines for the filtered files using chunked processing
         const fileInfos: FileInfo[] = [];
         let totalLines = 0;
         let totalFiles = 0;
         const languageStats: { [language: string]: { files: number; lines: number } } = {};
 
-        for (const filePath of filteredFiles) {
+        // Process files in chunks to prevent extension timeout
+        const CHUNK_SIZE = 50; // Process 50 files at a time
+        const YIELD_INTERVAL = 100; // Yield every 100ms
+        let lastYieldTime = Date.now();
+        
+        const progressIncrement = Math.max(1, Math.floor(filteredFiles.length / 100));
+        let processedCount = 0;
+
+        for (let i = 0; i < filteredFiles.length; i++) {
+            const filePath = filteredFiles[i];
+            
             try {
                 this.debug.verbose(`Counting lines in: ${filePath}`);
                 const fileInfo = await this.countFileLines(filePath, workspacePath);
@@ -852,6 +1011,7 @@ export class LineCounterService {
                 
                 totalLines += fileInfo.lines;
                 totalFiles++;
+                processedCount++;
                 
                 // Update language statistics
                 if (!languageStats[fileInfo.language]) {
@@ -860,8 +1020,29 @@ export class LineCounterService {
                 languageStats[fileInfo.language].files++;
                 languageStats[fileInfo.language].lines += fileInfo.lines;
                 
+                // Yield control back to VS Code periodically to prevent timeout
+                const currentTime = Date.now();
+                if (currentTime - lastYieldTime > YIELD_INTERVAL || i % CHUNK_SIZE === 0) {
+                    // Update progress every chunk or time interval
+                    if (processedCount % progressIncrement === 0) {
+                        const progressPercent = Math.round((processedCount / filteredFiles.length) * 100);
+                        const filesRemaining = filteredFiles.length - processedCount;
+                        this.debug.info(`Progress: ${progressPercent}% (${processedCount}/${filteredFiles.length} files) - ${filesRemaining} files remaining`);
+                        
+                        // Call progress callback if provided
+                        if (progressCallback) {
+                            progressCallback(processedCount, filteredFiles.length, filesRemaining);
+                        }
+                    }
+                    
+                    // Yield control to VS Code event loop
+                    await new Promise(resolve => setImmediate(resolve));
+                    lastYieldTime = currentTime;
+                }
+                
             } catch (error) {
                 this.debug.error(`Failed to count lines in ${filePath}:`, error);
+                processedCount++; // Still count as processed for progress tracking
             }
         }
         
@@ -872,6 +1053,11 @@ export class LineCounterService {
             totalFiles,
             languageStats
         });
+
+        // Final progress callback to show completion
+        if (progressCallback) {
+            progressCallback(filteredFiles.length, filteredFiles.length, 0);
+        }
 
         const endTime = Date.now();
         this.debug.info('countLinesWithPathBasedSettings performance baseline:', {

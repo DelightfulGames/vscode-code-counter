@@ -41,6 +41,7 @@ export interface BinaryDetectionResult {
 export class BinaryDetectionService {
     private debug = DebugService.getInstance();
     private databaseService: WorkspaceDatabaseService;
+    private workspacePath: string;
     
     // 1GB file size limit
     private readonly MAX_FILE_SIZE = 1024 * 1024 * 1024;
@@ -49,6 +50,7 @@ export class BinaryDetectionService {
     private readonly DETECTION_BUFFER_SIZE = 8192; // 8KB
 
     constructor(workspacePath: string) {
+        this.workspacePath = workspacePath;
         this.databaseService = new WorkspaceDatabaseService(workspacePath);
     }
 
@@ -79,12 +81,14 @@ export class BinaryDetectionService {
 
             const modificationTime = Math.floor(stats.mtimeMs);
             
-            // Check cache first
-            const cachedResult = await this.databaseService.getBinaryFileStatus(filePath, modificationTime);
+            // Check cache first using relative path
+            const relativePath = this.getRelativePath(filePath);
+            const cachedResult = await this.databaseService.getBinaryFileStatus(relativePath, modificationTime);
             if (cachedResult !== null) {
                 const endTime = Date.now();
                 this.debug.verbose('Binary detection cache hit:', {
                     filePath,
+                    relativePath,
                     isBinary: cachedResult,
                     processingTimeMs: endTime - startTime
                 });
@@ -99,9 +103,9 @@ export class BinaryDetectionService {
             // Perform detection
             const detectionResult = await this.performBinaryDetection(filePath, stats.size);
             
-            // Cache the result
+            // Cache the result using relative path
             await this.databaseService.setBinaryFileStatus(
-                filePath, 
+                relativePath, 
                 modificationTime, 
                 detectionResult.isBinary, 
                 stats.size, 
@@ -230,6 +234,13 @@ export class BinaryDetectionService {
         } catch (error) {
             this.debug.error('Failed to clear binary detection cache:', error);
         }
+    }
+
+    /**
+     * Convert absolute file path to relative path for storage
+     */
+    private getRelativePath(filePath: string): string {
+        return path.relative(this.workspacePath, filePath);
     }
 
     /**

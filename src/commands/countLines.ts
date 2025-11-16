@@ -127,14 +127,37 @@ export class CountLinesCommand {
         }
 
         try {
-            vscode.window.showInformationMessage('Counting lines of code...');
-            
             // Use path-based settings instead of workspace-level patterns
             const folder = workspaceFolders[0];
 
             if (choice.label.includes('Show Report Panel')) {
-                // Show in WebView panel using path-based settings
-                const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
+                // Show in WebView panel using path-based settings with progress tracking
+                const results = await vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'Code Counter',
+                    cancellable: false
+                }, async (progress) => {
+                    progress.report({ message: 'Discovering files...', increment: 0 });
+                    
+                    // Add a small delay to let the progress UI show
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    progress.report({ message: 'Analyzing workspace and counting lines...', increment: 10 });
+                    
+                    const result = await this.lineCounter.countLinesWithPathBasedSettings(
+                        folder.uri.fsPath,
+                        (processed: number, total: number, remaining: number) => {
+                            const percent = Math.round((processed / total) * 100);
+                            progress.report({ 
+                                message: `${percent}% complete - ${remaining} files remaining (${processed}/${total})`,
+                                increment: percent 
+                            });
+                        }
+                    );
+                    
+                    progress.report({ message: 'Processing complete!', increment: 100 });
+                    return result;
+                });
                 
                 this.debug.info('CountLinesCommand execute results (path-based):', {
                     totalFiles: results.files?.length || 0,
@@ -168,18 +191,42 @@ export class CountLinesCommand {
 
                 vscode.window.showInformationMessage('Line counting completed! Report opened in panel.');
             } else if (choice.label.includes('Export Report')) {
-                // Generate HTML files
+                // Generate HTML files with progress tracking
                 const config = vscode.workspace.getConfiguration('codeCounter');
                 const outputDirectory = config.get<string>('outputDirectory', '.vscode/code-counter/reports');
                 
-                let filePath = '';
-                for (const folder of workspaceFolders) {
-                    // Use path-based settings for HTML export as well
-                    const results = await this.lineCounter.countLinesWithPathBasedSettings(folder.uri.fsPath);
-                    filePath = await this.htmlGenerator.generateHtmlReport(results, folder.uri.fsPath, outputDirectory);
-                }
+                const filePath = await vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'Code Counter - Exporting Report',
+                    cancellable: false
+                }, async (progress) => {
+                    progress.report({ message: 'Analyzing workspace...', increment: 0 });
+                    
+                    let generatedFilePath = '';
+                    for (const folder of workspaceFolders) {
+                        progress.report({ message: 'Counting lines...', increment: 20 });
+                        
+                        // Use path-based settings for HTML export as well with progress callback
+                        const results = await this.lineCounter.countLinesWithPathBasedSettings(
+                            folder.uri.fsPath,
+                            (processed: number, total: number, remaining: number) => {
+                                const percent = Math.round((processed / total) * 80); // Scale to 80% of total progress
+                                progress.report({ 
+                                    message: `Counting lines: ${remaining} files remaining (${processed}/${total})`,
+                                    increment: 20 + percent 
+                                });
+                            }
+                        );
+                        
+                        progress.report({ message: 'Generating HTML report...', increment: 80 });
+                        generatedFilePath = await this.htmlGenerator.generateHtmlReport(results, folder.uri.fsPath, outputDirectory);
+                        
+                        progress.report({ message: 'Report generated!', increment: 100 });
+                    }
+                    return generatedFilePath;
+                });
 
-                vscode.window.showInformationMessage(`Line counting completed! ${filePath} generated.`, );
+                vscode.window.showInformationMessage(`Line counting completed! ${filePath} generated.`);
             } else {
                 // Export data options
                 const exportChoice = await vscode.window.showQuickPick([                    

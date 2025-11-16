@@ -383,8 +383,13 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     private async shouldSkipFile(filePath: string): Promise<boolean> {
         const fileStatus = await this.analyzeFileStatus(filePath);
         
-        // Don't skip any files - let binary files be handled in decoration logic
-        // This allows us to show binary file tooltips instead of hiding them entirely
+        // Skip binary files for folder statistics calculation
+        // This ensures directories with only binary files don't get badges
+        if (fileStatus.isBinary) {
+            this.debug.verbose('Skipping binary file for folder stats:', filePath);
+            return true;
+        }
+        
         return false;
     }
 
@@ -492,7 +497,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             '.tcl', '.tk', '.awk', '.gawk', '.dockerfile', '.toml', '.ini', '.cfg', '.conf', '.sql', '.graphql',
             '.gql', '.proto', '.g4', '.cmake', '.makefile', '.mk', '.env', '.properties', '.gitignore', '.editorconfig',
             '.html', '.css', '.scss', '.sass', '.less', '.json', '.xml', '.yaml', '.yml', '.md', '.txt', '.text',
-            '.log', '.readme', '.sh', '.bat', '.ps1'
+            '.log', '.readme', '.csv', '.sh', '.bat', '.ps1'
         ];
         
         return supportedExtensions.includes(extension);

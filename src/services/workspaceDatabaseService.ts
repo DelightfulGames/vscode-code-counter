@@ -1037,6 +1037,10 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
     /**
      * Cleanup non-existent files from binary cache during startup
      */
+    /**
+     * Clean up binary file cache by removing entries for non-existent files
+     * Note: Database stores relative paths, but file existence is checked with absolute paths
+     */
     async cleanupBinaryFileCache(): Promise<void> {
         await this.initPromise;
         if (!this.db) return;
@@ -1046,30 +1050,31 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             const stmt = this.db.prepare('SELECT file_path FROM binary_files');
             const results = stmt.getAsObject({});
             
-            const filePaths: string[] = [];
+            const relativePaths: string[] = [];
             if (Array.isArray(results)) {
-                filePaths.push(...results.map(row => row['file_path'] as string));
+                relativePaths.push(...results.map(row => row['file_path'] as string));
             } else if (results && Object.keys(results).length > 0) {
-                filePaths.push(results['file_path'] as string);
+                relativePaths.push(results['file_path'] as string);
             }
 
             const fs = require('fs').promises;
             const filesToRemove: string[] = [];
 
-            // Batch check file existence
-            for (const filePath of filePaths) {
+            // Batch check file existence - convert relative paths to absolute
+            for (const relativePath of relativePaths) {
                 try {
-                    await fs.access(filePath);
+                    const absolutePath = path.resolve(this.workspacePath, relativePath);
+                    await fs.access(absolutePath);
                 } catch {
-                    filesToRemove.push(filePath);
+                    filesToRemove.push(relativePath);
                 }
             }
 
             // Batch remove non-existent files
             if (filesToRemove.length > 0) {
                 const removeStmt = this.db.prepare('DELETE FROM binary_files WHERE file_path = ?');
-                for (const filePath of filesToRemove) {
-                    removeStmt.run([filePath]);
+                for (const relativePath of filesToRemove) {
+                    removeStmt.run([relativePath]);
                 }
                 this.saveToFile();
             }
@@ -1077,7 +1082,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             const endTime = Date.now();
             this.debug.info('cleanupBinaryFileCache completed:', {
                 processingTimeMs: endTime - startTime,
-                totalCachedFiles: filePaths.length,
+                totalCachedFiles: relativePaths.length,
                 removedFiles: filesToRemove.length
             });
         } catch (error) {
