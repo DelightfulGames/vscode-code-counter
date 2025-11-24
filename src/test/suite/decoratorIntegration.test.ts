@@ -264,7 +264,7 @@ suite('Decorator Integration Tests', () => {
         
         // Clear PathBasedSettingsService cache to ensure fresh state for each test
         if (pathBasedSettings) {
-            pathBasedSettings.clearWorkspaceServices();
+            pathBasedSettings.clearCaches(); // Use the new method that clears all caches
         }
         
         // Dispose VS Code decoration provider
@@ -392,6 +392,7 @@ suite('Decorator Integration Tests', () => {
                 'codeCounter.lineThresholds.midThreshold': 100,
                 'codeCounter.lineThresholds.highThreshold': 500
             };
+            console.log('DEBUG: Saving root settings:', rootSettings);
             await workspaceSettingsService.saveWorkspaceSettings(tempDir, rootSettings);
             
             // Create settings with custom exclude patterns
@@ -399,7 +400,11 @@ suite('Decorator Integration Tests', () => {
             const srcSettings: WorkspaceSettings = {
                 'codeCounter.excludePatterns': ['**/*.tsx'] // Exclude tsx files in src
             };
+            console.log('DEBUG: Saving src settings:', srcSettings);
             await workspaceSettingsService.saveWorkspaceSettings(srcDir, srcSettings);
+            
+            // Clear caches after saving settings
+            pathBasedSettings.clearCaches();
             
             // Create tsx and ts files
             const tsxFile = path.join(srcDir, 'component.tsx');
@@ -411,8 +416,13 @@ suite('Decorator Integration Tests', () => {
             const tsxUri = vscode.Uri.file(tsxFile);
             const tsUri = vscode.Uri.file(tsFile);
             
+            console.log('DEBUG: Testing tsx file:', tsxFile);
             const tsxDecoration = await fileExplorerDecorator.provideFileDecoration(tsxUri);
+            console.log('DEBUG: TSX decoration result:', tsxDecoration);
+            
+            console.log('DEBUG: Testing ts file:', tsFile);
             const tsDecoration = await fileExplorerDecorator.provideFileDecoration(tsUri);
+            console.log('DEBUG: TS decoration result:', tsDecoration);
             
             expect(tsxDecoration).to.be.undefined; // Should be excluded
             expect(tsDecoration).to.not.be.undefined; // Should not be excluded

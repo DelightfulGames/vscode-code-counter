@@ -29,6 +29,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { WorkspaceDatabaseService, ResolvedSettings } from './workspaceDatabaseService';
 import { DebugService } from './debugService';
+import { SettingsCache } from './settingsCache';
+import { FileMetadataCache } from './fileMetadataCache';
 
 export type ColorThreshold = 'normal' | 'warning' | 'danger';
 
@@ -53,6 +55,8 @@ export interface ColorThresholdConfig {
 export class PathBasedSettingsService implements vscode.Disposable {
     private debug = DebugService.getInstance();
     private workspaceServices: Map<string, WorkspaceDatabaseService> = new Map();
+    private settingsCache = new SettingsCache();
+    private fileMetadataCache = new FileMetadataCache();
     private _onDidChangeSettings: vscode.EventEmitter<string> = new vscode.EventEmitter<string>();
     readonly onDidChangeSettings: vscode.Event<string> = this._onDidChangeSettings.event;
     
@@ -60,6 +64,7 @@ export class PathBasedSettingsService implements vscode.Disposable {
         // Listen to VS Code configuration changes as fallback
         vscode.workspace.onDidChangeConfiguration((e) => {
             if (e.affectsConfiguration('codeCounter')) {
+                this.settingsCache.onSettingsChange();
                 this._onDidChangeSettings.fire('global');
             }
         });
@@ -72,8 +77,10 @@ export class PathBasedSettingsService implements vscode.Disposable {
         // For backwards compatibility with tests
         if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
             const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-            this.debug.verbose('Setting workspace service for path:', workspacePath);
-            this.workspaceServices.set(workspacePath, service);
+            // Normalize path for case-insensitive matching on Windows
+            const normalizedPath = this.normalizePath(workspacePath);
+            this.debug.verbose('Setting workspace service for path:', normalizedPath);
+            this.workspaceServices.set(normalizedPath, service);
         }
     }
 
@@ -84,6 +91,16 @@ export class PathBasedSettingsService implements vscode.Disposable {
         this.workspaceServices.clear();
     }
 
+    /**
+     * Clear all caches for test isolation
+     */
+    public clearCaches(): void {
+        this.settingsCache.invalidate();
+        this.fileMetadataCache.dispose();
+        // Don't clear workspaceServices here - that breaks the test database connection
+        this.debug.verbose('Settings and file metadata caches cleared for testing');
+    }
+
     private getWorkspaceService(filePath: string): WorkspaceDatabaseService | null {
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
         if (!workspaceFolder) {
@@ -92,28 +109,56 @@ export class PathBasedSettingsService implements vscode.Disposable {
         }
 
         const workspacePath = workspaceFolder.uri.fsPath;
-        this.debug.verbose('PathBasedSettingsService.getWorkspaceService - Workspace folder found:', workspacePath, 'for file:', filePath);
+        // Normalize path for case-insensitive matching on Windows
+        const normalizedPath = this.normalizePath(workspacePath);
+        
+        this.debug.verbose('PathBasedSettingsService.getWorkspaceService - Workspace folder found:', normalizedPath, 'for file:', filePath);
         this.debug.verbose('PathBasedSettingsService.getWorkspaceService - Available services keys:', Array.from(this.workspaceServices.keys()));
         
-        if (!this.workspaceServices.has(workspacePath)) {
-            this.debug.verbose('PathBasedSettingsService.getWorkspaceService - No service found in cache for:', workspacePath);
-            // In tests, we should always have a service set via setWorkspaceSettingsService
-            // If we reach here during tests, it means the service wasn't properly configured
-            if (process.env.NODE_ENV === 'test') {
-                this.debug.error('*** CRITICAL: PathBasedSettingsService creating new WorkspaceDatabaseService during tests - this WILL cause data isolation issues ***');
-            } else {
-                this.debug.info('Creating new WorkspaceDatabaseService for production use');
-            }
-            this.workspaceServices.set(workspacePath, new WorkspaceDatabaseService(workspacePath));
+        // First check for exact normalized match
+        if (this.workspaceServices.has(normalizedPath)) {
+            const service = this.workspaceServices.get(normalizedPath) || null;
+            this.debug.verbose('PathBasedSettingsService.getWorkspaceService - found exact match, returning service for', normalizedPath);
+            return service;
         }
         
-        const service = this.workspaceServices.get(workspacePath) || null;
-        this.debug.verbose('PathBasedSettingsService.getWorkspaceService - returning service for', workspacePath, 'found:', !!service);
+        // Check for case-insensitive match (fallback for legacy keys)
+        for (const [key, service] of this.workspaceServices.entries()) {
+            if (this.normalizePath(key) === normalizedPath) {
+                this.debug.verbose(`PathBasedSettingsService.getWorkspaceService - found case-insensitive match: ${key} -> ${normalizedPath}`);
+                // Update the map with the normalized key for future lookups
+                this.workspaceServices.delete(key);
+                this.workspaceServices.set(normalizedPath, service);
+                return service;
+            }
+        }
+        
+        this.debug.verbose('PathBasedSettingsService.getWorkspaceService - No service found in cache for:', normalizedPath);
+        // In tests, we should always have a service set via setWorkspaceSettingsService
+        // If we reach here during tests, it means the service wasn't properly configured
+        if (process.env.NODE_ENV === 'test') {
+            this.debug.error('*** CRITICAL: PathBasedSettingsService creating new WorkspaceDatabaseService during tests - this WILL cause data isolation issues ***');
+        } else {
+            this.debug.info('Creating new WorkspaceDatabaseService for production use');
+        }
+        this.workspaceServices.set(normalizedPath, new WorkspaceDatabaseService(normalizedPath));
+        
+        const service = this.workspaceServices.get(normalizedPath) || null;
+        this.debug.verbose('PathBasedSettingsService.getWorkspaceService - returning service for', normalizedPath, 'found:', !!service);
         return service;
     }
 
     async getResolvedSettings(filePath: string): Promise<ResolvedSettings> {
         this.debug.verbose('PathBasedSettingsService.getResolvedSettings called for:', filePath);
+        
+        // Try cache first
+        let cached = this.settingsCache.get(filePath);
+        if (cached) {
+            this.debug.verbose('Settings cache HIT for:', filePath);
+            return cached;
+        }
+        
+        // Resolve from database
         const workspaceService = this.getWorkspaceService(filePath);
         this.debug.verbose('PathBasedSettingsService.getResolvedSettings - getWorkspaceService returned:', !!workspaceService);
         
@@ -123,7 +168,7 @@ export class PathBasedSettingsService implements vscode.Disposable {
             const emojiConfig = vscode.workspace.getConfiguration('codeCounter.emojis');
             const folderEmojiConfig = vscode.workspace.getConfiguration('codeCounter.emojis.folders');
             
-            return {
+            cached = {
                 'codeCounter.excludePatterns': config.get<string[]>('excludePatterns', []),
                 'codeCounter.emojis.normal': emojiConfig.get('normal', '🟢'),
                 'codeCounter.emojis.warning': emojiConfig.get('warning', '🟡'),
@@ -135,43 +180,48 @@ export class PathBasedSettingsService implements vscode.Disposable {
                 'codeCounter.lineThresholds.highThreshold': config.get('lineThresholds.highThreshold', 1000),
                 'codeCounter.showNotificationOnAutoGenerate': config.get('showNotificationOnAutoGenerate', false)
             } as ResolvedSettings;
+        } else {
+            try {
+                // Get directory path for the file
+                const directoryPath = path.dirname(filePath);
+                this.debug.verbose('Calling getSettingsWithInheritance for directory:', directoryPath);
+                const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(directoryPath);
+                this.debug.verbose('Got resolved settings keys:', Object.keys(settingsWithInheritance.resolvedSettings));
+                this.debug.verbose('Emoji settings in resolved:', {
+                    normal: settingsWithInheritance.resolvedSettings['codeCounter.emojis.normal'],
+                    warning: settingsWithInheritance.resolvedSettings['codeCounter.emojis.warning'],
+                    danger: settingsWithInheritance.resolvedSettings['codeCounter.emojis.danger']
+                });
+                
+                // Return the resolved settings that include inheritance
+                cached = settingsWithInheritance.resolvedSettings;
+            } catch (error) {
+                this.debug.error('Failed to get database settings, falling back to global:', error);
+                
+                // Fallback to global settings
+                const config = vscode.workspace.getConfiguration('codeCounter');
+                const emojiConfig = vscode.workspace.getConfiguration('codeCounter.emojis');
+                const folderEmojiConfig = vscode.workspace.getConfiguration('codeCounter.emojis.folders');
+                
+                cached = {
+                    'codeCounter.excludePatterns': config.get<string[]>('excludePatterns', []),
+                    'codeCounter.emojis.normal': emojiConfig.get('normal', '🟢'),
+                    'codeCounter.emojis.warning': emojiConfig.get('warning', '🟡'),
+                    'codeCounter.emojis.danger': emojiConfig.get('danger', '🔴'),
+                    'codeCounter.emojis.folders.normal': folderEmojiConfig.get('normal', '🟩'),
+                    'codeCounter.emojis.folders.warning': folderEmojiConfig.get('warning', '🟨'),
+                    'codeCounter.emojis.folders.danger': folderEmojiConfig.get('danger', '🟥'),
+                    'codeCounter.lineThresholds.midThreshold': config.get('lineThresholds.midThreshold', 300),
+                    'codeCounter.lineThresholds.highThreshold': config.get('lineThresholds.highThreshold', 1000),
+                    'codeCounter.showNotificationOnAutoGenerate': config.get('showNotificationOnAutoGenerate', false)
+                } as ResolvedSettings;
+            }
         }
-
-        try {
-            // Get directory path for the file
-            const directoryPath = path.dirname(filePath);
-            this.debug.verbose('Calling getSettingsWithInheritance for directory:', directoryPath);
-            const settingsWithInheritance = await workspaceService.getSettingsWithInheritance(directoryPath);
-            this.debug.verbose('Got resolved settings keys:', Object.keys(settingsWithInheritance.resolvedSettings));
-            this.debug.verbose('Emoji settings in resolved:', {
-                normal: settingsWithInheritance.resolvedSettings['codeCounter.emojis.normal'],
-                warning: settingsWithInheritance.resolvedSettings['codeCounter.emojis.warning'],
-                danger: settingsWithInheritance.resolvedSettings['codeCounter.emojis.danger']
-            });
-            
-            // Return the resolved settings that include inheritance
-            return settingsWithInheritance.resolvedSettings;
-        } catch (error) {
-            this.debug.error('Failed to get database settings, falling back to global:', error);
-            
-            // Fallback to global settings
-            const config = vscode.workspace.getConfiguration('codeCounter');
-            const emojiConfig = vscode.workspace.getConfiguration('codeCounter.emojis');
-            const folderEmojiConfig = vscode.workspace.getConfiguration('codeCounter.emojis.folders');
-            
-            return {
-                'codeCounter.excludePatterns': config.get<string[]>('excludePatterns', []),
-                'codeCounter.emojis.normal': emojiConfig.get('normal', '🟢'),
-                'codeCounter.emojis.warning': emojiConfig.get('warning', '🟡'),
-                'codeCounter.emojis.danger': emojiConfig.get('danger', '🔴'),
-                'codeCounter.emojis.folders.normal': folderEmojiConfig.get('normal', '🟩'),
-                'codeCounter.emojis.folders.warning': folderEmojiConfig.get('warning', '🟨'),
-                'codeCounter.emojis.folders.danger': folderEmojiConfig.get('danger', '🟥'),
-                'codeCounter.lineThresholds.midThreshold': config.get('lineThresholds.midThreshold', 300),
-                'codeCounter.lineThresholds.highThreshold': config.get('lineThresholds.highThreshold', 1000),
-                'codeCounter.showNotificationOnAutoGenerate': config.get('showNotificationOnAutoGenerate', false)
-            } as ResolvedSettings;
-        }
+        
+        // Cache the resolved settings and return
+        this.settingsCache.set(filePath, cached);
+        this.debug.verbose('Settings cached for:', filePath);
+        return cached;
     }
 
     /**
@@ -414,9 +464,19 @@ export class PathBasedSettingsService implements vscode.Disposable {
      * Notify that settings have changed (call this when database settings are updated)
      */
     public notifySettingsChanged(): void {
+        // Invalidate settings cache when settings change
+        this.settingsCache.onSettingsChange();
         // Clear cached services so fresh instances are created with updated settings
         this.clearWorkspaceServices();
         this._onDidChangeSettings.fire('database');
+    }
+
+    /**
+     * Normalize path for case-insensitive matching on Windows
+     */
+    private normalizePath(path: string): string {
+        // Convert to lowercase and normalize path separators for Windows
+        return process.platform === 'win32' ? path.toLowerCase().replace(/\//g, '\\') : path;
     }
 
     /**
@@ -425,5 +485,7 @@ export class PathBasedSettingsService implements vscode.Disposable {
     public dispose(): void {
         this._onDidChangeSettings.dispose();
         this.workspaceServices.clear();
+        this.settingsCache.dispose();
+        this.fileMetadataCache.dispose();
     }
 }

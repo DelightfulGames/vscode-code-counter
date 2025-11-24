@@ -98,7 +98,9 @@ suite('PathBasedSettingsService Tests', () => {
         // Verify the service is properly set up by checking the internal cache
         // Note: We check the cache directly rather than calling getWorkspaceService which might create a new instance
         const workspaceServices = (service as any).workspaceServices;
-        if (!workspaceServices.has(tempDir) || workspaceServices.get(tempDir) !== workspaceDatabaseService) {
+        // Use the same path normalization as the service to check the cache
+        const normalizedPath = (service as any).normalizePath(tempDir);
+        if (!workspaceServices.has(normalizedPath) || workspaceServices.get(normalizedPath) !== workspaceDatabaseService) {
             throw new Error('Test setup failed: WorkspaceDatabaseService not properly configured');
         }
     });
@@ -107,6 +109,11 @@ suite('PathBasedSettingsService Tests', () => {
     
     teardown(() => {
         vscodeMock.restore();
+        
+        // Clear caches to prevent interference between tests
+        if (service) {
+            service.clearCaches();
+        }
     });
 
     suite('Basic Functionality', () => {
@@ -155,18 +162,37 @@ suite('PathBasedSettingsService Tests', () => {
                 'codeCounter.lineThresholds.midThreshold': 150,
                 'codeCounter.lineThresholds.highThreshold': 500
             };
+            console.log('DEBUG: Saving root settings:', rootSettings);
+            console.log('DEBUG: Saving to tempDir:', tempDir);
             await workspaceDatabaseService.saveWorkspaceSettings(tempDir, rootSettings);
+            
+            // Clear caches after saving settings to ensure fresh retrieval
+            service.clearCaches();
             
             // Test file in workspace root
             const rootFilePath = path.join(tempDir, 'package.json');
+            console.log('DEBUG: Testing file path:', rootFilePath);
+            
+            // Check workspace folder mapping
+            const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(rootFilePath));
+            console.log('DEBUG: VS Code workspace folder:', workspaceFolder?.uri.fsPath);
+            console.log('DEBUG: Available workspace services:', Array.from((service as any).workspaceServices.keys()));
             
             // Check emojis
+            console.log('DEBUG: About to get emojis for path:', rootFilePath);
             const emojis = await service.getCustomEmojisForPath(rootFilePath);
+            console.log('DEBUG: Retrieved emojis:', emojis);
+            
+            // Let's also check what the workspace service directly returns
+            const directSettings = await workspaceDatabaseService.getSettingsWithInheritance('');
+            console.log('DEBUG: Direct workspace settings:', directSettings);
+            
             expect(emojis.normal).to.equal('🎯');
             expect(emojis.warning).to.equal('⚠️');
             
             // Check thresholds
             const thresholds = await service.getThresholdConfigForPath(rootFilePath);
+            console.log('DEBUG: Retrieved thresholds:', thresholds);
             expect(thresholds.midThreshold).to.equal(150);
             expect(thresholds.highThreshold).to.equal(500);
         });

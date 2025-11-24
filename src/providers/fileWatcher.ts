@@ -32,6 +32,7 @@ import { CountLinesCommand } from '../commands/countLines';
 import { GlobUtils } from '../utils/globUtils';
 import { DebugService } from '../services/debugService';
 import { BinaryDetectionService } from '../services/binaryDetectionService';
+import { PathBasedSettingsService } from '../services/pathBasedSettingsService';
 
 export class FileWatcherProvider implements vscode.Disposable {
     private debug = DebugService.getInstance();
@@ -39,6 +40,7 @@ export class FileWatcherProvider implements vscode.Disposable {
     private countLinesCommand: CountLinesCommand;
     private documentSaveWatcher!: vscode.Disposable;
     private binaryDetectionService?: BinaryDetectionService;
+    private pathBasedSettingsService?: PathBasedSettingsService;
 
     constructor() {
         this.countLinesCommand = new CountLinesCommand();

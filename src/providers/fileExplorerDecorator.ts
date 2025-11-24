@@ -35,6 +35,7 @@ import { WorkspaceDatabaseService } from '../services/workspaceDatabaseService';
 import { GlobUtils } from '../utils/globUtils';
 import { DebugService } from '../services/debugService';
 import { BinaryDetectionService } from '../services/binaryDetectionService';
+import { CountLinesCommand } from '../commands/countLines';
 
 export class FileExplorerDecorationProvider implements vscode.FileDecorationProvider {
     private _onDidChangeFileDecorations: vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined> = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
@@ -45,11 +46,13 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     private disposables: vscode.Disposable[] = [];
     private debug: DebugService;
     private binaryDetectionService?: BinaryDetectionService;
+    private countLinesCommand: CountLinesCommand;
 
     constructor(pathBasedSettings?: PathBasedSettingsService) {
         this.lineCountCache = new LineCountCacheService();
         this.pathBasedSettings = pathBasedSettings || new PathBasedSettingsService();
         this.debug = DebugService.getInstance();
+        this.countLinesCommand = new CountLinesCommand();
         this.setupConfigurationWatcher();
     }
 
@@ -80,6 +83,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         // Listen for file saves to refresh decorations
         const saveWatcher = vscode.workspace.onDidSaveTextDocument(document => {
             this.debug.verbose('File saved:', document.uri.fsPath);
+            this.debug.info('Database settings changed - updating status bar');
             // Invalidate cache for the specific file that was saved
             this.lineCountCache.invalidateFileCache(document.uri.fsPath);
             // Invalidate cache for parent folders since their statistics may have changed
@@ -118,11 +122,83 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         // Settings changes will trigger cache invalidation through file watchers
         // Listen for database settings changes
         const dbSettingsWatcher = this.pathBasedSettings.onDidChangeSettings(() => {
-            this.debug.info('Database settings changed - refreshing all decorations');
-            this.lineCountCache.clearCache();
-            this._onDidChangeFileDecorations.fire(undefined);
+            this.debug.info('Database settings changed - triggering cancellable recount');
+            
+            // Handle async work in a separate function to avoid unhandled promise rejection
+            this.handleSettingsChange().catch(error => {
+                this.debug.error('Error in settings change handler:', error);
+                // Fallback to silent refresh
+                this.lineCountCache.clearCache();
+                this._onDidChangeFileDecorations.fire(undefined);
+            });
         });
         this.disposables.push(dbSettingsWatcher);
+    }
+
+    private async handleSettingsChange(): Promise<void> {
+        this.debug.info('Starting async settings change handler');
+        
+        // Show warning for large workspaces and allow user to cancel
+        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            const workspaceFolder = vscode.workspace.workspaceFolders[0];
+            this.debug.info('Found workspace folder:', workspaceFolder.uri.fsPath);
+            
+            try {
+                // Get file count to determine if we should show progress
+                this.debug.info('Finding files to count workspace size...');
+                const allFiles = await vscode.workspace.findFiles(
+                    new vscode.RelativePattern(workspaceFolder.uri.fsPath, '**/*')
+                );
+                
+                this.debug.info(`Found ${allFiles.length} files in workspace`);
+                
+                if (allFiles.length > 1000) {
+                    this.debug.info('Large workspace detected - showing cancellable progress');
+                    // For large workspaces, show cancellable progress
+                    await vscode.window.withProgress({
+                        location: vscode.ProgressLocation.Notification,
+                        title: 'Code Counter: Settings Changed',
+                        cancellable: true
+                    }, async (progress, token) => {
+                        progress.report({ 
+                            message: `Recounting ${allFiles.length.toLocaleString()} files due to settings change...` 
+                        });
+                        
+                        this.debug.info('Progress notification shown, clearing cache...');
+                        // Clear cache and refresh with cancellation support
+                        this.lineCountCache.clearCache();
+                        
+                        // Check for cancellation
+                        if (token.isCancellationRequested) {
+                            this.debug.info('Settings recount cancelled by user');
+                            return;
+                        }
+                        
+                        // Trigger decoration refresh
+                        this._onDidChangeFileDecorations.fire(undefined);
+                        
+                        progress.report({ message: 'Recount completed!' });
+                        this.debug.info('Settings recount completed successfully');
+                    });
+                } else {
+                    // For small workspaces, just refresh silently
+                    this.debug.info('Small workspace - refreshing decorations silently');
+                    this.lineCountCache.clearCache();
+                    this._onDidChangeFileDecorations.fire(undefined);
+                }
+                
+            } catch (error) {
+                this.debug.error('Error during settings change recount:', error);
+                // Fallback to silent refresh
+                this.lineCountCache.clearCache();
+                this._onDidChangeFileDecorations.fire(undefined);
+            }
+        } else {
+            // No workspace, just clear cache
+            this.debug.info('No workspace folders found - clearing cache only');
+            this.lineCountCache.clearCache();
+            this._onDidChangeFileDecorations.fire(undefined);
+        }
     }
 
     private refreshParentFolders(uri: vscode.Uri): void {
@@ -293,100 +369,103 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
         this.debug.verbose('provideFileDecorationForFile called for:', uri.fsPath);
 
         try {
-            // Check file status first to handle binary files
+            // Step 5: Analyze file status to determine decoration approach
             const fileStatus = await this.analyzeFileStatus(uri.fsPath);
             
-            // Handle binary files with special tooltip
-            if (fileStatus.isBinary) {
-                return {
-                    badge: '', // Lock icon for binary files
-                    tooltip: '‼️Code Counter‼️ : binary files are not scanned by default',
-                };
-            }
-
-            this.debug.verbose('provideFileDecorationForFile - getting line count for:', uri.fsPath);
-            this.debug.verbose('About to call this.lineCountCache.getLineCount');
-            const lineCount = await this.lineCountCache.getLineCount(uri.fsPath);
-            this.debug.verbose('getLineCount returned:', lineCount);
-            if (!lineCount) {
-                this.debug.verbose('provideFileDecorationForFile - lineCount is null, returning undefined');
+            // Files that shouldn't be scanned (excluded): no decoration
+            if (!fileStatus.shouldScan && !fileStatus.isInIncludePatterns) {
+                this.debug.verbose('File excluded from scanning - no decoration:', uri.fsPath);
                 return undefined;
             }
-            this.debug.verbose('provideFileDecorationForFile - lineCount:', JSON.stringify(lineCount));
-
-            // Get the color classification for this line count using path-based settings
-            const threshold = await this.pathBasedSettings.getColorThresholdForPath(lineCount.lines, uri.fsPath);
-            this.debug.verbose('FileExplorerDecorationProvider threshold calculation', { 
-                fsPath: uri.fsPath, 
-                lines: lineCount.lines, 
-                threshold: threshold 
-            });
-            // Get custom emojis from path-based configuration
-            const emoji = await this.pathBasedSettings.getThemeEmojiForPath(threshold, uri.fsPath);
             
-            // Check if file is unsupported for special handling (for non-binary files)
-            const normalFileStatus = await this.analyzeFileStatus(uri.fsPath);
-            
-            // Create path-aware tooltip
-            let coloredTooltip = await this.createPathAwareTooltip(uri.fsPath, lineCount, threshold, emoji);
-            
-            // Use different colored icons based on line count thresholds
-            let badge = '●';
-            this.debug.verbose('FileExplorerDecorationProvider emoji retrieved', { 
-                emoji: emoji, 
-                threshold: threshold, 
-                fsPath: uri.fsPath,
-                fileStatus: normalFileStatus
-            });
-            
-            switch (threshold) {
-                case 'normal':
-                    badge = emoji;
-                    break;
-                case 'warning':
-                    badge = emoji;
-                    break;
-                case 'danger':
-                    badge = emoji;
-                    break;
-                default:
-                    badge = '⚪'; // White circle for unknown
+            // Known binary files and unknown files without inclusion patterns: no badges
+            if (fileStatus.category === 'known-binary' && !fileStatus.isInIncludePatterns) {
+                this.debug.verbose('Known binary file without inclusion pattern - no badge:', uri.fsPath);
+                return undefined;
             }
             
-            // Add question mark for unsupported text files (not in include patterns)
-            if (!normalFileStatus.isSupported && !normalFileStatus.isBinary && !normalFileStatus.isInIncludePatterns) {
-                badge = '❔'; // White question mark for unsupported files
-                
-                // Add GitHub integration instructions to tooltip
-                const extension = normalFileStatus.extension;
-                const githubTooltip = `❔ Code Counter doesn't officially support files with ${extension} extensions.\n\n` +
+            // Unknown files without inclusion patterns: show question mark
+            if (fileStatus.category === 'unknown' && !fileStatus.isInIncludePatterns) {
+                const githubTooltip = `❔ Code Counter doesn't officially support files with ${fileStatus.extension} extensions.\n\n` +
                     `🚀 Request Language Support:\n` +
                     `1. Open Command Palette (Ctrl+Shift+P / Cmd+Shift+P)\n` +
                     `2. Run "Code Counter: Request Language Support"\n` +
                     `3. Choose to create a GitHub issue or search existing requests\n\n` +
                     `This will help the developers prioritize language support!`;
                 
-                coloredTooltip = githubTooltip;
+                return {
+                    badge: '❔',
+                    tooltip: githubTooltip
+                };
             }
             
-            return {
-                badge: badge,
-                tooltip: coloredTooltip,
-            };
+            // Files that should be scanned: get line count
+            if (fileStatus.shouldScan) {
+                this.debug.verbose('Getting line count for scannable file:', uri.fsPath);
+                const lineCount = await this.lineCountCache.getLineCount(uri.fsPath);
+                
+                if (!lineCount) {
+                    this.debug.verbose('No line count available - returning loading badge:', uri.fsPath);
+                    return {
+                        badge: '🎰',
+                        tooltip: 'Code Counter: Analyzing file...'
+                    };
+                }
+                
+                // Get the color classification for this line count using path-based settings
+                const threshold = await this.pathBasedSettings.getColorThresholdForPath(lineCount.lines, uri.fsPath);
+                const emoji = await this.pathBasedSettings.getThemeEmojiForPath(threshold, uri.fsPath);
+                
+                // Create path-aware tooltip
+                const coloredTooltip = await this.createPathAwareTooltip(uri.fsPath, lineCount, threshold, emoji);
+                
+                return {
+                    badge: emoji,
+                    tooltip: coloredTooltip
+                };
+            }
+            
+            // Files explicitly included via patterns but are binary/unknown
+            if (fileStatus.isInIncludePatterns) {
+                this.debug.verbose('Getting line count for included file:', uri.fsPath);
+                const lineCount = await this.lineCountCache.getLineCount(uri.fsPath);
+                
+                if (!lineCount) {
+                    return {
+                        badge: '🎰',
+                        tooltip: 'Code Counter: Analyzing included file...'
+                    };
+                }
+                
+                const threshold = await this.pathBasedSettings.getColorThresholdForPath(lineCount.lines, uri.fsPath);
+                const emoji = await this.pathBasedSettings.getThemeEmojiForPath(threshold, uri.fsPath);
+                const coloredTooltip = await this.createPathAwareTooltip(uri.fsPath, lineCount, threshold, emoji);
+                
+                return {
+                    badge: emoji,
+                    tooltip: coloredTooltip + '\n\n(Included via pattern)'
+                };
+            }
+            
+            return undefined;
 
         } catch (error) {
             this.debug.warning(`Failed to provide decoration for ${uri.fsPath}:`, error);
-            return undefined;
+            return {
+                badge: '⚠️',
+                tooltip: 'Code Counter: Error analyzing file'
+            };
         }
     }
 
     private async shouldSkipFile(filePath: string): Promise<boolean> {
         const fileStatus = await this.analyzeFileStatus(filePath);
         
-        // Skip binary files for folder statistics calculation
-        // This ensures directories with only binary files don't get badges
-        if (fileStatus.isBinary) {
-            this.debug.verbose('Skipping binary file for folder stats:', filePath);
+        // Skip files that shouldn't be scanned according to new processing rules
+        if (!fileStatus.shouldScan) {
+            this.debug.verbose('Skipping file - should not scan:', filePath, 
+                              'Category:', fileStatus.category, 
+                              'Binary:', fileStatus.isBinary);
             return true;
         }
         
@@ -394,24 +473,28 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     }
 
     /**
-     * Analyze file status for binary detection and support classification
+     * Analyze file status with the corrected binary-first processing order:
+     * 1. Check known binary extensions first → skip unless inclusion pattern
+     * 2. Check known text extensions → mandatory binary detection (unless inclusion pattern)
+     * 3. Mark unmatched as unknown (❔)
+     * 4. Skip scanning unknown files unless in inclusion patterns
      */
     private async analyzeFileStatus(filePath: string): Promise<{ 
         isBinary: boolean; 
         isSupported: boolean; 
         isInIncludePatterns: boolean;
         extension: string;
+        shouldScan: boolean;
+        category: 'known-text' | 'known-binary' | 'unknown';
     }> {
         this.initializeBinaryDetection();
         
         const ext = path.extname(filePath).toLowerCase();
         
-        // Check against path-based exclusion and inclusion patterns
-        const excludePatterns = await this.pathBasedSettings.getExcludePatternsForPath(filePath);
+        // Check against path-based inclusion patterns first
         const includePatterns = await this.pathBasedSettings.getIncludePatternsForPath(filePath);
         const relativePath = vscode.workspace.asRelativePath(filePath);
         
-        // Check if file matches any inclusion pattern
         let isInIncludePatterns = false;
         for (const pattern of includePatterns) {
             if (this.matchesPattern(relativePath, pattern)) {
@@ -420,87 +503,183 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
             }
         }
         
-        // If file is in include patterns, bypass binary detection and treat as text
-        if (isInIncludePatterns) {
-            return {
-                isBinary: false,
-                isSupported: this.isExtensionSupported(ext),
-                isInIncludePatterns: true,
-                extension: ext
-            };
-        }
-        
-        // Check against hardcoded binary extensions first
-        const skipExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg', 
-                               '.mp4', '.avi', '.mov', '.mp3', '.wav', '.pdf', '.zip', 
-                               '.tar', '.gz', '.exe', '.dll', '.so', '.dylib'];
-        
-        if (skipExtensions.includes(ext)) {
-            return {
-                isBinary: true,
-                isSupported: false,
-                isInIncludePatterns: false,
-                extension: ext
-            };
-        }
-        
-        // For known extensions, assume they're supported text files
-        if (this.isExtensionSupported(ext)) {
-            return {
-                isBinary: false,
-                isSupported: true,
-                isInIncludePatterns: false,
-                extension: ext
-            };
-        }
-        
-        // For unknown extensions, use binary detection if available
-        if (this.binaryDetectionService) {
-            try {
-                const binaryResult = await this.binaryDetectionService.isBinary(filePath);
-                return {
-                    isBinary: binaryResult.isBinary,
-                    isSupported: false, // Unknown extensions are unsupported
-                    isInIncludePatterns: false,
-                    extension: ext
-                };
-            } catch (error) {
-                this.debug.error('Binary detection failed, defaulting to binary:', error);
-                return {
-                    isBinary: true, // Default to binary on error for safety
-                    isSupported: false,
-                    isInIncludePatterns: false,
-                    extension: ext
-                };
+        // Check against path-based exclusion patterns - if excluded and not explicitly included, don't scan
+        const excludePatterns = await this.pathBasedSettings.getExcludePatternsForPath(filePath);
+        let isExcluded = false;
+        for (const pattern of excludePatterns) {
+            if (this.matchesPattern(relativePath, pattern)) {
+                isExcluded = true;
+                break;
             }
         }
         
-        // Fallback: assume unknown extensions are text but unsupported
+        // If excluded and not explicitly included via inclusion patterns, return early with no scan
+        if (isExcluded && !isInIncludePatterns) {
+            this.debug.verbose('File excluded by pattern and not in inclusion patterns - no decoration:', { filePath, excludePatterns, includePatterns });
+            return {
+                isBinary: false,
+                isSupported: false,
+                isInIncludePatterns,
+                extension: ext,
+                shouldScan: false,
+                category: 'unknown' as const
+            };
+        }
+        
+        // Step 1: Get known extensions for classification
+        const knownTextExtensions = this.getKnownTextExtensions();
+        const knownBinaryExtensions = this.getKnownBinaryExtensions();
+        
+        // Step 2: Check known BINARY extensions FIRST (prevents images from being processed as text)
+        if (knownBinaryExtensions.has(ext)) {
+            this.debug.verbose('File classified as known binary extension:', { filePath, ext, isInIncludePatterns });
+            return {
+                isBinary: true,
+                isSupported: false,
+                isInIncludePatterns,
+                extension: ext,
+                shouldScan: isInIncludePatterns, // Only scan if explicitly included
+                category: 'known-binary'
+            };
+        }
+        
+        // Step 3: Check known TEXT extensions with MANDATORY binary detection
+        if (knownTextExtensions.has(ext)) {
+            // Step 3.a: Mandatory binary detection for all known text files (unless inclusion pattern override)
+            let isBinary = false;
+            if (this.binaryDetectionService && !isInIncludePatterns) {
+                try {
+                    const binaryResult = await this.binaryDetectionService.isBinary(filePath);
+                    isBinary = binaryResult.isBinary;
+                    this.debug.verbose('Binary detection result for known text file:', { 
+                        filePath, ext, isBinary, detectionMethod: binaryResult.detectionMethod 
+                    });
+                } catch (error) {
+                    this.debug.warning('Binary detection failed for known text file - assuming text:', { filePath, error });
+                    isBinary = false; // Assume text for known extensions on error
+                }
+            } else if (isInIncludePatterns) {
+                this.debug.verbose('Skipping binary detection for included text file:', { filePath, ext });
+            }
+            
+            return {
+                isBinary,
+                isSupported: true,
+                isInIncludePatterns,
+                extension: ext,
+                shouldScan: !isBinary, // Step 3.b: Count lines only if not binary
+                category: 'known-text'
+            };
+        }
+        
+        // Step 4: Unknown file types - mark as unknown (❔)
+        this.debug.verbose('File classified as unknown extension:', { filePath, ext, isInIncludePatterns });
         return {
-            isBinary: false,
+            isBinary: false, // Assume text for unknown extensions
             isSupported: false,
-            isInIncludePatterns: false,
-            extension: ext
+            isInIncludePatterns,
+            extension: ext,
+            shouldScan: isInIncludePatterns, // Only scan unknown if inclusion pattern
+            category: 'unknown'
         };
     }
     
     /**
-     * Check if file extension is in our supported languages list
+     * Get comprehensive set of known text file extensions
      */
-    private isExtensionSupported(extension: string): boolean {
-        const supportedExtensions = [
-            '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp', '.cs', '.php', '.rb', '.go', '.rs', '.swift',
-            '.kt', '.scala', '.dart', '.lua', '.r', '.R', '.m', '.pl', '.pm', '.hs', '.erl', '.ex', '.exs', '.clj',
-            '.cljs', '.fs', '.fsx', '.asm', '.s', '.cbl', '.cob', '.f', '.f90', '.f95', '.vb', '.pas', '.ads', '.adb',
-            '.groovy', '.jl', '.nim', '.cr', '.mm', '.dpr', '.dfm', '.vala', '.zig', '.v', '.ml', '.mli', '.scm',
-            '.ss', '.rkt', '.coffee', '.ls', '.kts', '.sc', '.sbt', '.psm1', '.psd1', '.bash', '.zsh', '.fish',
-            '.tcl', '.tk', '.awk', '.gawk', '.dockerfile', '.toml', '.ini', '.cfg', '.conf', '.sql', '.graphql',
-            '.gql', '.proto', '.g4', '.cmake', '.makefile', '.mk', '.env', '.properties', '.gitignore', '.editorconfig',
-            '.html', '.css', '.scss', '.sass', '.less', '.json', '.xml', '.yaml', '.yml', '.md', '.txt', '.text',
-            '.log', '.readme', '.csv', '.sh', '.bat', '.ps1'
-        ];
-        
-        return supportedExtensions.includes(extension);
+    private getKnownTextExtensions(): Set<string> {
+        return new Set([
+            // Programming languages
+            '.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hxx',
+            '.cs', '.php', '.rb', '.go', '.rs', '.swift', '.kt', '.kts', '.scala', '.sc', '.sbt',
+            '.dart', '.lua', '.r', '.R', '.m', '.pl', '.pm', '.hs', '.erl', '.ex', '.exs',
+            '.clj', '.cljs', '.cljc', '.fs', '.fsx', '.fsi', '.ml', '.mli', '.asm', '.s',
+            '.cbl', '.cob', '.cpy', '.f', '.f90', '.f95', '.f03', '.f08', '.vb', '.bas',
+            '.pas', '.pp', '.ads', '.adb', '.groovy', '.gradle', '.jl', '.nim', '.cr',
+            '.mm', '.dpr', '.dfm', '.vala', '.zig', '.v', '.scm', '.ss', '.rkt',
+            '.coffee', '.ls', '.elm', '.purs', '.tcl', '.tk', '.awk', '.gawk',
+            
+            // Shell and scripting
+            '.sh', '.bash', '.zsh', '.fish', '.csh', '.ksh', '.bat', '.cmd', '.ps1', '.psm1', '.psd1',
+            
+            // Web technologies
+            '.html', '.htm', '.xhtml', '.css', '.scss', '.sass', '.less', '.stylus',
+            '.vue', '.svelte', '.astro',
+            
+            // Data and config
+            '.json', '.jsonc', '.json5', '.xml', '.xsd', '.xsl', '.xslt', '.yaml', '.yml',
+            '.toml', '.ini', '.cfg', '.conf', '.config', '.properties', '.env',
+            '.htaccess', '.gitignore', '.gitattributes', '.editorconfig',
+            
+            // Documentation and text
+            '.md', '.markdown', '.mdown', '.mkd', '.rst', '.txt', '.text', '.rtf',
+            '.tex', '.latex', '.org', '.adoc', '.asciidoc',
+            
+            // Database and query
+            '.sql', '.psql', '.mysql', '.sqlite', '.cypher', '.sparql',
+            '.graphql', '.gql',
+            
+            // Build and project files
+            '.dockerfile', '.dockerignore', '.makefile', '.make', '.mk', '.cmake',
+            '.gradle', '.sbt', '.maven', '.ant', '.rake', '.gemfile',
+            
+            // Log and data files
+            '.log', '.logs', '.out', '.err', '.trace', '.csv', '.tsv', '.tab',
+            
+            // Specialized formats
+            '.proto', '.g4', '.bnf', '.ebnf', '.lex', '.yacc', '.bison'
+        ]);
+    }
+    
+    /**
+     * Get comprehensive set of known binary file extensions
+     */
+    private getKnownBinaryExtensions(): Set<string> {
+        return new Set([
+            // Images
+            '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.tiff', '.tif', '.webp',
+            '.svg', '.psd', '.ai', '.eps', '.raw', '.cr2', '.nef', '.orf', '.sr2',
+            '.dng', '.heic', '.heif', '.avif', '.jxl',
+            
+            // Video
+            '.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v',
+            '.mpg', '.mpeg', '.3gp', '.ogv', '.asf', '.rm', '.rmvb',
+            
+            // Audio
+            '.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a', '.opus',
+            '.ape', '.ac3', '.dts', '.amr',
+            
+            // Archives and compression
+            '.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.lzma',
+            '.cab', '.iso', '.dmg', '.pkg', '.deb', '.rpm',
+            
+            // Documents
+            '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+            '.odt', '.ods', '.odp', '.pages', '.numbers', '.key',
+            
+            // Executables and libraries
+            '.exe', '.dll', '.so', '.dylib', '.app', '.msi', '.appx',
+            '.bin', '.run', '.snap', '.flatpak',
+            
+            // Database files
+            '.db', '.sqlite', '.sqlite3', '.mdb', '.accdb', '.dbf',
+            
+            // System and temporary
+            '.tmp', '.temp', '.cache', '.lock', '.pid', '.swap',
+            '.bak', '.backup', '.old', '.orig',
+            
+            // Fonts
+            '.ttf', '.otf', '.woff', '.woff2', '.eot',
+            
+            // CAD and 3D
+            '.dwg', '.dxf', '.step', '.iges', '.stl', '.obj', '.3ds',
+            
+            // Virtual machines
+            '.vmdk', '.vdi', '.qcow2', '.vhd', '.vhdx',
+            
+            // Game assets
+            '.unity', '.unitypackage', '.asset', '.prefab'
+        ]);
     }
 
     private async provideFolderDecoration(uri: vscode.Uri): Promise<vscode.FileDecoration | undefined> {

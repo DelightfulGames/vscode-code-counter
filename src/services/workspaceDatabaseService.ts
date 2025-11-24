@@ -31,6 +31,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import initSqlJs, { Database } from 'sql.js';
 import { DebugService } from './debugService';
+import { DatabaseConnectionPool } from './databaseConnectionPool';
 
 export interface WorkspaceSettings {
     'codeCounter.lineThresholds.midThreshold'?: number;
@@ -82,7 +83,7 @@ export interface BinaryFileCache {
  * Replaces scattered .code-counter.json files with a lightweight SQLite database
  */
 export class WorkspaceDatabaseService implements vscode.Disposable {
-    private db: Database | undefined;
+    private connectionPool = DatabaseConnectionPool.getInstance();
     private workspacePath: string;
     private codeCounterDir: string;
     private reportsDir: string;
@@ -122,63 +123,33 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
     }
 
     /**
-     * Initialize database asynchronously
+     * Initialize database asynchronously using connection pool
      */
     private async initializeDatabase(): Promise<void> {
         try {
             this.debug.verbose('Initializing database for path:', this.workspacePath);
-            const SQL = await initSqlJs({
-                // Use bundled wasm file - handle both development and packaged extension paths
-                locateFile: (file: string) => {
-                    // Multiple path attempts for different extension deployment scenarios
-                    const pathsToTry = [
-                        // Packaged extension - node_modules at same level as out/
-                        path.join(__dirname, '../node_modules/sql.js/dist/', file),
-                        // Development - node_modules at root level
-                        path.join(__dirname, '../../node_modules/sql.js/dist/', file),
-                        // Alternative packaged path - if bundled differently
-                        path.join(__dirname, 'node_modules/sql.js/dist/', file),
-                        // Extension root relative path
-                        path.join(__dirname, '../../../node_modules/sql.js/dist/', file)
-                    ];
-                    
-                    for (const attemptPath of pathsToTry) {
-                        if (fs.existsSync(attemptPath)) {
-                            this.debug.verbose('Using sql.js file:', attemptPath);
-                            return attemptPath;
-                        } else {
-                            this.debug.verbose('sql.js file not found at:', attemptPath);
-                        }
-                    }
-                    
-                    // If none found, log all attempted paths and return default
-                    this.debug.error('sql.js WASM file not found at any expected location:', pathsToTry);
-                    return file; // Let sql.js try to find it
+            
+            // Get database connection from pool
+            const db = await this.connectionPool.getConnection(this.dbPath);
+            
+            // Only initialize schema if not already done
+            if (!this.connectionPool.isInitialized(this.dbPath)) {
+                this.initializeSchema(db);
+                this.connectionPool.markInitialized(this.dbPath);
+                
+                // Show what's currently in the database
+                const stmt = db.prepare(`
+                    SELECT COUNT(*) as count FROM workspace_settings
+                `);
+                stmt.bind([]);
+                if (stmt.step()) {
+                    const result = stmt.getAsObject();
+                    this.debug.verbose('Database initialized with', result.count, 'settings records');
                 }
-            });
-            
-            // Load existing database or create new one
-            let data: Uint8Array | undefined;
-            if (fs.existsSync(this.dbPath)) {
-                data = fs.readFileSync(this.dbPath);
-                this.debug.verbose('Loaded existing database file, size:', data.length, 'bytes from', this.dbPath);
+                stmt.free();
             } else {
-                this.debug.verbose('No existing database file found at', this.dbPath);
+                this.debug.verbose('Database already initialized, reusing connection');
             }
-            
-            this.db = new SQL.Database(data);
-            this.initializeSchema();
-            
-            // Show what's currently in the database
-            const stmt = this.db!.prepare(`
-                SELECT COUNT(*) as count FROM workspace_settings
-            `);
-            stmt.bind([]);
-            if (stmt.step()) {
-                const result = stmt.getAsObject();
-                this.debug.verbose('Database initialized with', result.count, 'settings records');
-            }
-            stmt.free();
         } catch (error) {
             this.debug.error('Failed to initialize database:', error);
             throw error;
@@ -186,12 +157,18 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
     }
 
     /**
+     * Get database connection from pool
+     */
+    private async getDatabase(): Promise<Database> {
+        await this.initPromise;
+        return await this.connectionPool.getConnection(this.dbPath);
+    }
+
+    /**
      * Initialize database schema
      */
-    private initializeSchema(): void {
-        if (!this.db) return;
-        
-        this.db.exec(`
+    private initializeSchema(db: Database): void {
+        db.exec(`
             CREATE TABLE IF NOT EXISTS workspace_settings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 directory_path TEXT NOT NULL,
@@ -226,24 +203,8 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
                 ON binary_files(modification_time);
         `);
         
-        // Save the database to disk
-        this.saveToFile();
-    }
-
-    /**
-     * Save database to file
-     */
-    private saveToFile(): void {
-        if (!this.db) return;
-        
-        try {
-            const data = this.db.export();
-            this.debug.verbose('saveToFile exporting database size:', data.length, 'bytes to', this.dbPath);
-            fs.writeFileSync(this.dbPath, data);
-            this.debug.verbose('saveToFile completed successfully');
-        } catch (error) {
-            this.debug.error('Failed to save database:', error);
-        }
+        // Save the database to disk through connection pool
+        this.connectionPool.saveDatabase(this.dbPath);
     }
 
     /**
@@ -251,9 +212,6 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     private async ensureInitialized(): Promise<void> {
         await this.initPromise;
-        if (!this.db) {
-            throw new Error('Database not initialized');
-        }
     }
 
     /**
@@ -315,7 +273,8 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         this.debug.verbose('SQL Query:', query);
         this.debug.verbose('Query parameters:', [relativePath, relativePath]);
         
-        const stmt = this.db!.prepare(query);
+        const db = await this.getDatabase();
+        const stmt = db.prepare(query);
         
         stmt.bind([relativePath, relativePath]);
         const rows: any[] = [];
@@ -327,7 +286,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         this.debug.verbose('Found rows:', rows);
         
         // Debug: Show what's actually in the database
-        const debugStmt = this.db!.prepare('SELECT directory_path, setting_key, setting_value FROM workspace_settings ORDER BY directory_path, setting_key');
+        const debugStmt = db.prepare('SELECT directory_path, setting_key, setting_value FROM workspace_settings ORDER BY directory_path, setting_key');
         debugStmt.bind([]);
         const allRows: any[] = [];
         while (debugStmt.step()) {
@@ -338,8 +297,8 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         this.debug.verbose('All rows:', allRows);
         
         let resolvedSettings: any = this.getGlobalDefaults();
-        let currentSettings: WorkspaceSettings = {};
-        let parentSettings: WorkspaceSettings = {};
+        let currentSettings: Partial<WorkspaceSettings> = {};
+        let parentSettings: Partial<WorkspaceSettings> = {};
         
         // Apply settings in order (global -> workspace -> parent dirs -> current dir)
         for (const row of rows) {
@@ -347,9 +306,9 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             resolvedSettings[row.setting_key] = value;
             
             if (row.directory_path === relativePath) {
-                currentSettings[row.setting_key as keyof WorkspaceSettings] = value;
+                (currentSettings as any)[row.setting_key] = value;
             } else {
-                parentSettings[row.setting_key as keyof WorkspaceSettings] = value;
+                (parentSettings as any)[row.setting_key] = value;
             }
         }
         
@@ -367,7 +326,8 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         await this.ensureInitialized();
         const relativePath = path.relative(this.workspacePath, directoryPath).replace(/\\/g, '/');
         
-        const stmt = this.db!.prepare(`
+        const db = await this.getDatabase();
+        const stmt = db.prepare(`
             INSERT OR REPLACE INTO workspace_settings 
             (directory_path, setting_key, setting_value, updated_at)
             VALUES (?, ?, ?, CURRENT_TIMESTAMP)
@@ -375,7 +335,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         
         stmt.run([relativePath, key, JSON.stringify(value)]);
         stmt.free();
-        this.saveToFile();
+        this.connectionPool.saveDatabase(this.dbPath);
     }
 
     /**
@@ -434,19 +394,21 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         // Normalize settings before saving to ensure consistency
         const normalizedSettings = this.normalizeSettings(settings);
         
+        const db = await this.getDatabase();
+        
         // Process all settings
         for (const [key, value] of Object.entries(normalizedSettings)) {
             if (value !== undefined) {
                 this.debug.verbose('Saving setting', key, '=', value, 'for path', relativePath);
                 try {
-                    const stmt = this.db!.prepare(`
+                    const stmt = db.prepare(`
                         INSERT OR REPLACE INTO workspace_settings 
                         (directory_path, setting_key, setting_value, updated_at)
                         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
                     `);
 
                     const result = stmt.run([relativePath, key, JSON.stringify(value)]);
-                    this.debug.verbose(`Insert result for ${key}:`, result, 'changes:', this.db!.getRowsModified());
+                    this.debug.verbose(`Insert result for ${key}:`, result, 'changes:', db.getRowsModified());
                     stmt.free();
                 } catch (error) {
                     this.debug.error(`Failed to save setting ${key}:`, error);
@@ -455,14 +417,14 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             }
         }
         
-        this.saveToFile();
+        this.connectionPool.saveDatabase(this.dbPath);
         this.debug.verbose('saveWorkspaceSettings completed, data saved to file');
         
         // Add a small delay to ensure file operation completes
         await new Promise(resolve => setTimeout(resolve, 10));
         
         // Verify the data was saved correctly - first check all data in database
-        const allDataStmt = this.db!.prepare(`
+        const allDataStmt = db.prepare(`
             SELECT directory_path, setting_key, setting_value FROM workspace_settings 
             ORDER BY directory_path, setting_key
         `);
@@ -474,7 +436,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         this.debug.verbose(`All database contents after save:`, allRows);
         
         // Then verify the specific path
-        const verifyStmt = this.db!.prepare(`
+        const verifyStmt = db.prepare(`
             SELECT * FROM workspace_settings 
             WHERE directory_path = ? 
             ORDER BY setting_key
@@ -500,7 +462,8 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         await this.ensureInitialized();
         const relativePath = path.relative(this.workspacePath, directoryPath).replace(/\\/g, '/');
         
-        const stmt = this.db!.prepare(`
+        const db = await this.getDatabase();
+        const stmt = db.prepare(`
             DELETE FROM workspace_settings 
             WHERE directory_path = ?
         `);
@@ -515,12 +478,13 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
     async clearAllSettings(): Promise<void> {
         await this.ensureInitialized();
         
-        const stmt = this.db!.prepare(`DELETE FROM workspace_settings`);
+        const db = await this.getDatabase();
+        const stmt = db.prepare(`DELETE FROM workspace_settings`);
         stmt.run([]);
         stmt.free();
         
         // Save the cleared database to file
-        this.saveToFile();
+        this.connectionPool.saveDatabase(this.dbPath);
     }
 
     /**
@@ -528,11 +492,6 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     async resetField(directoryPath: string, fieldPath: string): Promise<void> {
         await this.ensureInitialized();
-        
-        if (!this.db) {
-            this.debug.error('❌ Database not initialized in resetField');
-            throw new Error('Database not initialized');
-        }
         
         const relativePath = path.relative(this.workspacePath, directoryPath).replace(/\\/g, '/');
         
@@ -544,8 +503,10 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
             dbPath: this.dbPath
         });
         
+        const db = await this.getDatabase();
+        
         // Check current state of database before deletion
-        const checkStmt = this.db.prepare(`
+        const checkStmt = db.prepare(`
             SELECT setting_key, setting_value FROM workspace_settings 
             WHERE directory_path = ?
         `);
@@ -604,7 +565,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
                 settingKey: settingKey 
             });
             
-            const stmt = this.db!.prepare(`
+            const stmt = db.prepare(`
                 DELETE FROM workspace_settings 
                 WHERE directory_path = ? AND setting_key = ?
             `);
@@ -616,7 +577,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         }
         
         // Verify deletions by checking remaining entries
-        const verifyStmt = this.db!.prepare(`
+        const verifyStmt = db.prepare(`
             SELECT setting_key FROM workspace_settings 
             WHERE directory_path = ? AND setting_key IN (${keysToDelete.map(() => '?').join(',')})
         `);
@@ -633,7 +594,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         }
         
         // Check final state after deletions
-        const finalCheckStmt = this.db.prepare(`
+        const finalCheckStmt = db.prepare(`
             SELECT setting_key, setting_value FROM workspace_settings 
             WHERE directory_path = ?
         `);
@@ -653,7 +614,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
         
         // Save changes to disk
         this.debug.info('💾 Saving database changes to disk');
-        this.saveToFile();
+        this.connectionPool.saveDatabase(this.dbPath);
         
         // Verify the file was actually saved by checking its modification time
         try {
@@ -699,7 +660,10 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     async getAllSettingsForDebugging(): Promise<{ directory: string; key: string; value: string }[]> {
         await this.ensureInitialized();
-        const stmt = this.db!.prepare(`
+
+        const db = await this.getDatabase();
+
+        const stmt = db.prepare(`
             SELECT directory_path as directory, setting_key as key, setting_value as value
             FROM workspace_settings
             ORDER BY directory_path, setting_key
@@ -720,7 +684,10 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     async getDirectoriesWithSettings(): Promise<string[]> {
         await this.ensureInitialized();
-        const stmt = this.db!.prepare(`
+
+        const db = await this.getDatabase();
+
+        const stmt = db.prepare(`
             SELECT DISTINCT directory_path
             FROM workspace_settings 
             ORDER BY directory_path
@@ -801,7 +768,9 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
                 WHERE directory_path = ? AND setting_key = 'codeCounter.includePatterns'
             `;
             
-            const stmt = this.db!.prepare(query);
+            const db = await this.getDatabase();
+
+            const stmt = db.prepare(query);
             stmt.bind([pathInfo.path]);
             
             if (stmt.step()) {
@@ -958,10 +927,13 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     async getBinaryFileStatus(filePath: string, modificationTime: number): Promise<boolean | null> {
         await this.initPromise;
-        if (!this.db) return null;
+        
+        const db = await this.getDatabase();
+
+        if (!db) return null;
 
         try {
-            const stmt = this.db.prepare('SELECT is_binary, modification_time FROM binary_files WHERE file_path = ?');
+            const stmt = db.prepare('SELECT is_binary, modification_time FROM binary_files WHERE file_path = ?');
             const result = stmt.getAsObject({ ':1': filePath });
             
             if (result && Object.keys(result).length > 0) {
@@ -984,16 +956,16 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     async setBinaryFileStatus(filePath: string, modificationTime: number, isBinary: boolean, fileSize?: number, detectionMethod?: string): Promise<void> {
         await this.initPromise;
-        if (!this.db) return;
-
+        
         try {
-            const stmt = this.db.prepare(`
+            const db = await this.getDatabase();
+            const stmt = db.prepare(`
                 INSERT OR REPLACE INTO binary_files 
                 (file_path, modification_time, is_binary, file_size, detection_method, updated_at) 
                 VALUES (?, ?, ?, ?, ?, datetime('now'))
             `);
             stmt.run([filePath, modificationTime, isBinary ? 1 : 0, fileSize || null, detectionMethod || null]);
-            this.saveToFile();
+            this.connectionPool.saveDatabase(this.dbPath);
             this.debug.verbose('setBinaryFileStatus:', { filePath, isBinary, detectionMethod });
         } catch (error) {
             this.debug.error('Failed to set binary file status:', error);
@@ -1005,12 +977,12 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     async removeBinaryFileStatus(filePath: string): Promise<void> {
         await this.initPromise;
-        if (!this.db) return;
 
         try {
-            const stmt = this.db.prepare('DELETE FROM binary_files WHERE file_path = ?');
+            const db = await this.getDatabase();
+            const stmt = db.prepare('DELETE FROM binary_files WHERE file_path = ?');
             stmt.run([filePath]);
-            this.saveToFile();
+            this.connectionPool.saveDatabase(this.dbPath);
             this.debug.verbose('removeBinaryFileStatus:', { filePath });
         } catch (error) {
             this.debug.error('Failed to remove binary file status:', error);
@@ -1022,12 +994,12 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     async clearBinaryFileCache(): Promise<void> {
         await this.initPromise;
-        if (!this.db) return;
 
         try {
-            const stmt = this.db.prepare('DELETE FROM binary_files');
+            const db = await this.getDatabase();
+            const stmt = db.prepare('DELETE FROM binary_files');
             stmt.run();
-            this.saveToFile();
+            this.connectionPool.saveDatabase(this.dbPath);
             this.debug.info('Cleared binary file cache');
         } catch (error) {
             this.debug.error('Failed to clear binary file cache:', error);
@@ -1043,11 +1015,14 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     async cleanupBinaryFileCache(): Promise<void> {
         await this.initPromise;
-        if (!this.db) return;
+
+        const db = await this.getDatabase();
+
+        if (!db) return;
 
         try {
             const startTime = Date.now();
-            const stmt = this.db.prepare('SELECT file_path FROM binary_files');
+            const stmt = db.prepare('SELECT file_path FROM binary_files');
             const results = stmt.getAsObject({});
             
             const relativePaths: string[] = [];
@@ -1072,11 +1047,11 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
 
             // Batch remove non-existent files
             if (filesToRemove.length > 0) {
-                const removeStmt = this.db.prepare('DELETE FROM binary_files WHERE file_path = ?');
+                const removeStmt = db.prepare('DELETE FROM binary_files WHERE file_path = ?');
                 for (const relativePath of filesToRemove) {
                     removeStmt.run([relativePath]);
                 }
-                this.saveToFile();
+                this.connectionPool.saveDatabase(this.dbPath);
             }
 
             const endTime = Date.now();
@@ -1095,9 +1070,7 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
      */
     dispose(): void {
         this.unregisterInstance();
-        if (this.db) {
-            this.db.close();
-        }
+        this.connectionPool.releaseConnection(this.dbPath);
     }
 
     // Static callback mechanism for cache invalidation to avoid circular imports
@@ -1143,10 +1116,8 @@ export class WorkspaceDatabaseService implements vscode.Disposable {
     async reloadFromDisk(): Promise<void> {
         this.debug.info('Reloading database from disk for instance:', this.instanceId);
         
-        if (this.db) {
-            this.db.close();
-            this.db = undefined;
-        }
+        // Release the current connection to force a reload from disk
+        this.connectionPool.releaseConnection(this.dbPath);
         
         // Re-initialize from disk
         await this.initializeDatabase();

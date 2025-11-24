@@ -33,10 +33,12 @@ import { FileInfo, LineCountResult } from '../types';
 import { PathBasedSettingsService } from './pathBasedSettingsService';
 import { DebugService } from './debugService';
 import { BinaryDetectionService } from './binaryDetectionService';
+import { BinaryClassificationService } from './binaryClassificationService';
 
 export class LineCounterService {
     private debug = DebugService.getInstance();
     private binaryDetectionService: BinaryDetectionService | null = null;
+    private binaryClassificationService: BinaryClassificationService | null = null;
 
     /**
      * Initialize binary detection service for the workspace
@@ -44,6 +46,22 @@ export class LineCounterService {
     private initializeBinaryDetection(workspacePath: string): void {
         if (!this.binaryDetectionService) {
             this.binaryDetectionService = new BinaryDetectionService(workspacePath);
+            this.binaryClassificationService = new BinaryClassificationService(this.binaryDetectionService);
+        }
+    }
+
+    /**
+     * Calculate optimal chunk size for file processing based on workspace size
+     */
+    private calculateOptimalChunkSize(totalFiles: number): number {
+        if (totalFiles < 100) {
+            return 20; // Small workspaces - process in small chunks for responsiveness
+        } else if (totalFiles < 1000) {
+            return 50; // Medium workspaces - balanced approach
+        } else if (totalFiles < 5000) {
+            return 100; // Large workspaces - bigger chunks for efficiency
+        } else {
+            return 200; // Very large workspaces - maximize efficiency with 200 file batches
         }
     }
     
@@ -86,15 +104,37 @@ export class LineCounterService {
         };
     }
 
-    async countLinesWithInclusions(workspacePath: string, excludePatterns: string[] = [], includePatterns: string[] = []): Promise<LineCountResult> {
-        const files = await this.getFilesWithInclusions(workspacePath, excludePatterns, includePatterns);
+    async countLinesWithInclusions(
+        workspacePath: string, 
+        excludePatterns: string[] = [], 
+        includePatterns: string[] = [],
+        progressCallback?: (processed: number, total: number, remaining: number) => void,
+        cancellationToken?: vscode.CancellationToken
+    ): Promise<LineCountResult> {
+        // Check for cancellation early
+        if (cancellationToken?.isCancellationRequested) {
+            throw new Error('Operation was cancelled by user');
+        }
+        
+        const files = await this.getFilesWithInclusions(workspacePath, excludePatterns, includePatterns, cancellationToken);
         const fileInfos: FileInfo[] = [];
         
         let totalLines = 0;
         let totalFiles = 0;
         const languageStats: { [language: string]: { files: number; lines: number } } = {};
 
-        for (const filePath of files) {
+        // Process files with frequent cancellation checks and yielding
+        const CHUNK_SIZE = 5; // Much smaller chunks for better responsiveness
+        let processedCount = 0;
+        
+        for (let i = 0; i < files.length; i++) {
+            // Check cancellation before each file
+            if (cancellationToken?.isCancellationRequested) {
+                throw new Error('Operation was cancelled by user');
+            }
+            
+            const filePath = files[i];
+            
             try {
                 const fileInfo = await this.countFileLines(filePath, workspacePath);
                 fileInfos.push(fileInfo);
@@ -111,6 +151,24 @@ export class LineCounterService {
                 
             } catch (error) {
                 this.debug.warning(`Failed to count lines in ${filePath}:`, error);
+            }
+            
+            processedCount++;
+            
+            // Yield control and update progress frequently
+            if (i % CHUNK_SIZE === 0 || i === files.length - 1) {
+                if (progressCallback) {
+                    const remaining = files.length - processedCount;
+                    progressCallback(processedCount, files.length, remaining);
+                }
+                
+                // Yield to event loop after every chunk
+                await new Promise(resolve => setImmediate(resolve));
+                
+                // Check cancellation after yielding
+                if (cancellationToken?.isCancellationRequested) {
+                    throw new Error('Operation was cancelled by user');
+                }
             }
         }
 
@@ -185,7 +243,7 @@ export class LineCounterService {
         return files;
     }
 
-    private async getFilesWithInclusions(workspacePath: string, excludePatterns: string[], includePatterns: string[]): Promise<string[]> {
+    private async getFilesWithInclusions(workspacePath: string, excludePatterns: string[], includePatterns: string[], cancellationToken?: vscode.CancellationToken): Promise<string[]> {
         this.debug.info('getFilesWithInclusions starting with workspacePath:', workspacePath);
         
         // Get all files first without any filtering
@@ -249,33 +307,48 @@ export class LineCounterService {
         const normalizedExcludePatterns = excludePatterns.map(normalizePattern);
         const normalizedIncludePatterns = includePatterns.map(normalizePattern);
 
-        for (const filePath of filePaths) {
-            const relativePath = path.relative(workspacePath, filePath).replace(/\\/g, '/');
-            
-            // Check if file matches any exclusion pattern (using normalized patterns)
-            const isExcluded = normalizedExcludePatterns.some(pattern => minimatch(relativePath, pattern, minimatchOptions));
-            
-            // Check if file matches any inclusion pattern (using normalized patterns)
-            const isIncluded = normalizedIncludePatterns.some(pattern => minimatch(relativePath, pattern, minimatchOptions));
-            
-            // Inclusion patterns act as overrides for exclusions:
-            // 1. If file matches inclusion pattern -> include (even if also excluded or binary)
-            // 2. If file doesn't match inclusion pattern but is excluded -> exclude
-            // 3. If file doesn't match inclusion pattern and is not excluded -> include only if not binary
-            if (isIncluded) {
-                // Include files that match inclusion patterns regardless of binary status
-                filteredFiles.push(filePath);
-                includedViaPattern++;
-            } else if (!isExcluded) {
-                // For files not matching inclusion patterns and not excluded, check if binary
-                if (!(await this.isFileBinary(filePath))) {
-                    filteredFiles.push(filePath);
-                } else {
-                    excludedCount++; // Count binary files as excluded
-                }
-            } else {
-                excludedCount++;
+        // Process files in small chunks with frequent cancellation checks
+        const FILTER_CHUNK_SIZE = 25; // Smaller chunks for better responsiveness
+        for (let i = 0; i < filePaths.length; i += FILTER_CHUNK_SIZE) {
+            // Check cancellation before each chunk
+            if (cancellationToken?.isCancellationRequested) {
+                this.debug.info('Cancellation detected during file filtering');
+                throw new Error('Operation was cancelled by user');
             }
+            
+            const chunk = filePaths.slice(i, i + FILTER_CHUNK_SIZE);
+            
+            for (const filePath of chunk) {
+                const relativePath = path.relative(workspacePath, filePath).replace(/\\/g, '/');
+                
+                // Check if file matches any exclusion pattern (using normalized patterns)
+                const isExcluded = normalizedExcludePatterns.some(pattern => minimatch(relativePath, pattern, minimatchOptions));
+                
+                // Check if file matches any inclusion pattern (using normalized patterns)
+                const isIncluded = normalizedIncludePatterns.some(pattern => minimatch(relativePath, pattern, minimatchOptions));
+                
+                // Inclusion patterns act as overrides for exclusions:
+                // 1. If file matches inclusion pattern -> include (even if also excluded or binary)
+                // 2. If file doesn't match inclusion pattern but is excluded -> exclude
+                // 3. If file doesn't match inclusion pattern and is not excluded -> include only if not binary
+                if (isIncluded) {
+                    // Include files that match inclusion patterns regardless of binary status
+                    filteredFiles.push(filePath);
+                    includedViaPattern++;
+                } else if (!isExcluded) {
+                    // For files not matching inclusion patterns and not excluded, check if binary
+                    if (!(await this.isFileBinary(filePath))) {
+                        filteredFiles.push(filePath);
+                    } else {
+                        excludedCount++; // Count binary files as excluded
+                    }
+                } else {
+                    excludedCount++;
+                }
+            }
+            
+            // Yield after each chunk
+            await new Promise(resolve => setImmediate(resolve));
         }
         
         this.debug.verbose('getFilesWithInclusions results:', {
@@ -290,8 +363,8 @@ export class LineCounterService {
     }
 
     async countFileLines(filePath: string, workspacePath?: string): Promise<FileInfo> {
-        // Reduced timeout for better responsiveness - let the overall process handle timeouts
-        const FILE_TIMEOUT_MS = 10000; // 10 second timeout per file
+        // Optimized timeout for better responsiveness
+        const FILE_TIMEOUT_MS = 3000; // 3 second timeout per file (increased for parallel processing)
         
         return new Promise(async (resolve, reject) => {
             const timeout = setTimeout(() => {
@@ -299,7 +372,29 @@ export class LineCounterService {
             }, FILE_TIMEOUT_MS);
             
             try {
-                const content = await fs.promises.readFile(filePath, 'utf8');
+                // Use streaming for very large files to improve memory usage
+                const stats = await fs.promises.stat(filePath);
+                const LARGE_FILE_THRESHOLD = 10 * 1024 * 1024; // 10MB
+                
+                let content: string;
+                if (stats.size > LARGE_FILE_THRESHOLD) {
+                    // For large files, use streaming with early termination for performance
+                    const chunks: Buffer[] = [];
+                    const stream = fs.createReadStream(filePath, { encoding: 'utf8', highWaterMark: 64 * 1024 });
+                    
+                    for await (const chunk of stream) {
+                        chunks.push(Buffer.from(chunk, 'utf8'));
+                        // If file is extremely large, consider sampling instead of reading entirely
+                        if (chunks.length * 64 * 1024 > 50 * 1024 * 1024) { // 50MB limit
+                            stream.destroy();
+                            break;
+                        }
+                    }
+                    content = Buffer.concat(chunks).toString('utf8');
+                } else {
+                    content = await fs.promises.readFile(filePath, 'utf8');
+                }
+                
                 const lines = content.split('\n');
                 
                 let codeLines = 0;
@@ -309,8 +404,8 @@ export class LineCounterService {
                 const language = this.detectLanguage(filePath);
                 const commentPatterns = this.getCommentPatterns(language);
                 
-                // Process lines in smaller batches for very large files
-                const LINE_BATCH_SIZE = 1000;
+                // Process lines in optimized batches
+                const LINE_BATCH_SIZE = 50000; // Smaller batches for better responsiveness
                 for (let i = 0; i < lines.length; i += LINE_BATCH_SIZE) {
                     const batch = lines.slice(i, i + LINE_BATCH_SIZE);
                     
@@ -326,8 +421,8 @@ export class LineCounterService {
                         }
                     }
                     
-                    // Yield after processing each batch of lines
-                    if (i + LINE_BATCH_SIZE < lines.length) {
+                    // Yield less frequently for better performance
+                    if (i + LINE_BATCH_SIZE < lines.length && i % (LINE_BATCH_SIZE * 4) === 0) {
                         await new Promise(resolve => setImmediate(resolve));
                     }
                 }
@@ -466,11 +561,20 @@ export class LineCounterService {
             '.bat': 'Batch',
             '.ps1': 'PowerShell'
         };
-
-        return languageMap[extension] || 'Unknown';
-    }
-
-    /**
+        
+        // Check if it's a known language
+        if (languageMap[extension]) {
+            return languageMap[extension];
+        }
+        
+        // For unknown extensions that are being scanned (inclusion patterns),
+        // categorize by extension (e.g., ".xyz" instead of "Unknown")
+        if (extension) {
+            return extension; // Return the extension itself as the language
+        }
+        
+        return 'Unknown';
+    }    /**
      * Enhanced language detection with binary detection for unknown extensions
      */
     async detectLanguageEnhanced(filePath: string): Promise<{ language: string; isUnsupported: boolean; isBinary: boolean }> {
@@ -537,29 +641,49 @@ export class LineCounterService {
 
     /**
      * Filter out binary files from an array of file paths with parallel processing
+     * Uses the same binary-first priority order as FileExplorerDecorationProvider:
+     * 1. Check known binary extensions FIRST → exclude immediately
+     * 2. Check known text extensions → apply binary detection
+     * 3. Handle unknown extensions → exclude unless inclusion pattern
      */
-    private async filterBinaryFiles(filePaths: string[]): Promise<string[]> {
+    private async filterBinaryFiles(filePaths: string[], cancellationToken?: vscode.CancellationToken): Promise<string[]> {
         const textFiles: string[] = [];
         let binaryCount = 0;
         
-        // Process in smaller batches for better UI responsiveness
-        const BINARY_BATCH_SIZE = 20;
+        // Process in much smaller batches for better UI responsiveness
+        const BINARY_BATCH_SIZE = 10; // Much smaller for faster cancellation
         const startTime = Date.now();
         
         this.debug.info('Starting binary file filtering for', filePaths.length, 'files');
         
+        // Check for cancellation early
+        if (cancellationToken?.isCancellationRequested) {
+            throw new Error('Operation was cancelled by user');
+        }
+        
         for (let i = 0; i < filePaths.length; i += BINARY_BATCH_SIZE) {
+            // Check cancellation before each batch
+            if (cancellationToken?.isCancellationRequested) {
+                throw new Error('Operation was cancelled by user');
+            }
+            
             const batch = filePaths.slice(i, i + BINARY_BATCH_SIZE);
             
-            // Process batch in parallel
+            // Process batch with extension-based priority filtering
             const binaryChecks = await Promise.allSettled(
                 batch.map(async (filePath) => {
                     try {
-                        const isBinary = await this.isFileBinary(filePath);
-                        return { filePath, isBinary };
+                        if (!this.binaryClassificationService) {
+                            // Fallback to simple binary detection if classification service not available
+                            const isBinary = await this.isFileBinary(filePath);
+                            return { filePath, shouldInclude: !isBinary };
+                        }
+                        
+                        const result = await this.binaryClassificationService.classifyFile(filePath);
+                        return { filePath, shouldInclude: result.shouldInclude };
                     } catch (error) {
-                        this.debug.warning('Binary detection error for', filePath, '- assuming binary');
-                        return { filePath, isBinary: true };
+                        this.debug.warning('Binary classification error for', filePath, '- assuming binary');
+                        return { filePath, shouldInclude: false };
                     }
                 })
             );
@@ -567,8 +691,8 @@ export class LineCounterService {
             // Process results
             for (const check of binaryChecks) {
                 if (check.status === 'fulfilled') {
-                    const { filePath, isBinary } = check.value;
-                    if (!isBinary) {
+                    const { filePath, shouldInclude } = check.value;
+                    if (shouldInclude) {
                         textFiles.push(filePath);
                     } else {
                         binaryCount++;
@@ -582,8 +706,13 @@ export class LineCounterService {
             // Yield to event loop after each batch
             await new Promise(resolve => setImmediate(resolve));
             
-            // Progress logging every 100 files
-            if (i > 0 && i % 100 === 0) {
+            // Check cancellation after yielding
+            if (cancellationToken?.isCancellationRequested) {
+                throw new Error('Operation was cancelled by user');
+            }
+            
+            // Progress logging every 50 files (more frequent)
+            if (i > 0 && i % 50 === 0) {
                 const elapsed = Date.now() - startTime;
                 const progress = Math.round((i / filePaths.length) * 100);
                 this.debug.info(`Binary filtering progress: ${progress}% (${i}/${filePaths.length}) - ${elapsed}ms elapsed`);
@@ -616,6 +745,150 @@ export class LineCounterService {
             }
         }
         return false; // No binary detection service available
+    }
+
+    /**
+     * Determine if file should be included using binary-first priority order
+     * Matches the logic from FileExplorerDecorationProvider.analyzeFileStatus:
+     * 1. Check known binary extensions FIRST → exclude
+     * 2. Check known text extensions → apply binary detection
+     * 3. Unknown extensions → exclude (unless inclusion pattern)
+     */
+    private async shouldIncludeFileWithBinaryFirst(filePath: string): Promise<boolean> {
+        const ext = path.extname(filePath).toLowerCase();
+        
+        // Get known extensions using same logic as decorator
+        const knownTextExtensions = this.getKnownTextExtensions();
+        const knownBinaryExtensions = this.getKnownBinaryExtensions();
+        
+        // Step 1: Check known BINARY extensions FIRST (prevents images from being processed as text)
+        if (knownBinaryExtensions.has(ext)) {
+            this.debug.verbose('File excluded as known binary extension:', { filePath, ext });
+            return false; // Exclude known binary files
+        }
+        
+        // Step 2: Check known TEXT extensions with binary detection
+        if (knownTextExtensions.has(ext)) {
+            if (this.binaryDetectionService) {
+                try {
+                    const binaryResult = await this.binaryDetectionService.isBinary(filePath);
+                    const shouldInclude = !binaryResult.isBinary;
+                    this.debug.verbose('Binary detection result for known text file:', { 
+                        filePath, ext, 
+                        isBinary: binaryResult.isBinary, 
+                        detectionMethod: binaryResult.detectionMethod, 
+                        shouldInclude 
+                    });
+                    return shouldInclude;
+                } catch (error) {
+                    this.debug.warning('Binary detection failed for known text file - assuming text:', { filePath, error });
+                    return true; // Assume text for known extensions on error
+                }
+            }
+            return true; // If no binary detection service, include known text files
+        }
+        
+        // Step 3: Unknown extensions - exclude by default
+        this.debug.verbose('File excluded as unknown extension:', { filePath, ext });
+        return false;
+    }
+
+    /**
+     * Get comprehensive set of known text file extensions (same as decorator)
+     */
+    private getKnownTextExtensions(): Set<string> {
+        return new Set([
+            // Programming languages
+            '.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hxx',
+            '.cs', '.php', '.rb', '.go', '.rs', '.swift', '.kt', '.kts', '.scala', '.sc', '.sbt',
+            '.dart', '.lua', '.r', '.R', '.m', '.pl', '.pm', '.hs', '.erl', '.ex', '.exs',
+            '.clj', '.cljs', '.cljc', '.fs', '.fsx', '.fsi', '.ml', '.mli', '.asm', '.s',
+            '.cbl', '.cob', '.cpy', '.f', '.f90', '.f95', '.f03', '.f08', '.vb', '.bas',
+            '.pas', '.pp', '.ads', '.adb', '.groovy', '.gradle', '.jl', '.nim', '.cr',
+            '.mm', '.dpr', '.dfm', '.vala', '.zig', '.v', '.scm', '.ss', '.rkt',
+            '.coffee', '.ls', '.elm', '.purs', '.tcl', '.tk', '.awk', '.gawk',
+            
+            // Shell and scripting
+            '.sh', '.bash', '.zsh', '.fish', '.csh', '.ksh', '.bat', '.cmd', '.ps1', '.psm1', '.psd1',
+            
+            // Web technologies
+            '.html', '.htm', '.xhtml', '.css', '.scss', '.sass', '.less', '.stylus',
+            '.vue', '.svelte', '.astro',
+            
+            // Data and config
+            '.json', '.jsonc', '.json5', '.xml', '.xsd', '.xsl', '.xslt', '.yaml', '.yml',
+            '.toml', '.ini', '.cfg', '.conf', '.config', '.properties', '.env',
+            '.htaccess', '.gitignore', '.gitattributes', '.editorconfig',
+            
+            // Documentation and text
+            '.md', '.markdown', '.mdown', '.mkd', '.rst', '.txt', '.text', '.rtf',
+            '.tex', '.latex', '.org', '.adoc', '.asciidoc',
+            
+            // Database and query
+            '.sql', '.psql', '.mysql', '.sqlite', '.cypher', '.sparql',
+            '.graphql', '.gql',
+            
+            // Build and project files
+            '.dockerfile', '.dockerignore', '.makefile', '.make', '.mk', '.cmake',
+            '.gradle', '.sbt', '.maven', '.ant', '.rake', '.gemfile',
+            
+            // Log and data files
+            '.log', '.logs', '.out', '.err', '.trace', '.csv', '.tsv', '.tab',
+            
+            // Specialized formats
+            '.proto', '.g4', '.bnf', '.ebnf', '.lex', '.yacc', '.bison'
+        ]);
+    }
+
+    /**
+     * Get comprehensive set of known binary file extensions (same as decorator)
+     */
+    private getKnownBinaryExtensions(): Set<string> {
+        return new Set([
+            // Images
+            '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.tiff', '.tif', '.webp',
+            '.svg', '.psd', '.ai', '.eps', '.raw', '.cr2', '.nef', '.orf', '.sr2',
+            '.dng', '.heic', '.heif', '.avif', '.jxl',
+            
+            // Video
+            '.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v',
+            '.mpg', '.mpeg', '.3gp', '.ogv', '.asf', '.rm', '.rmvb',
+            
+            // Audio
+            '.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a', '.opus',
+            '.ape', '.ac3', '.dts', '.amr',
+            
+            // Archives and compression
+            '.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.lzma',
+            '.cab', '.iso', '.dmg', '.pkg', '.deb', '.rpm',
+            
+            // Documents
+            '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+            '.odt', '.ods', '.odp', '.pages', '.numbers', '.key',
+            
+            // Executables and libraries
+            '.exe', '.dll', '.so', '.dylib', '.app', '.msi', '.appx',
+            '.bin', '.run', '.snap', '.flatpak',
+            
+            // Database files
+            '.db', '.sqlite', '.sqlite3', '.mdb', '.accdb', '.dbf',
+            
+            // System and temporary
+            '.tmp', '.temp', '.cache', '.lock', '.pid', '.swap',
+            '.bak', '.backup', '.old', '.orig',
+            
+            // Fonts
+            '.ttf', '.otf', '.woff', '.woff2', '.eot',
+            
+            // CAD and 3D
+            '.dwg', '.dxf', '.step', '.iges', '.stl', '.obj', '.3ds',
+            
+            // Virtual machines
+            '.vmdk', '.vdi', '.qcow2', '.vhd', '.vhdx',
+            
+            // Game assets
+            '.unity', '.unitypackage', '.asset', '.prefab'
+        ]);
     }
 
     /**
@@ -746,11 +1019,24 @@ export class LineCounterService {
      * This method uses PathBasedSettingsService to get patterns per file path,
      * allowing for subworkspace-specific configuration files
      */
-    async countLinesWithPathBasedSettings(workspacePath: string, progressCallback?: (processed: number, total: number, remaining: number) => void): Promise<LineCountResult> {
+    async countLinesWithPathBasedSettings(workspacePath: string, progressCallback?: (processed: number, total: number, remaining: number) => void, cancellationToken?: vscode.CancellationToken): Promise<LineCountResult> {
         const startTime = Date.now();
         const pathBasedSettings = new PathBasedSettingsService();
         
+        // Initialize binary detection and classification services
+        this.initializeBinaryDetection(workspacePath);
+        
         this.debug.info('countLinesWithPathBasedSettings starting with workspacePath:', workspacePath);
+        
+        // Check for cancellation early
+        if (cancellationToken?.isCancellationRequested) {
+            throw new Error('Operation was cancelled by user');
+        }
+        
+        // Immediate progress feedback to show we're starting
+        if (progressCallback) {
+            progressCallback(0, 1, 1);
+        }
         
         // Debug: Check what patterns are available for the workspace root
         const rootExcludePatterns = await pathBasedSettings.getExcludePatternsForPath(workspacePath);
@@ -782,8 +1068,13 @@ export class LineCounterService {
             sampleFiles: allFiles.slice(0, 5).map(f => f.fsPath)
         });
         
+        // Report initial file count to progress
+        if (progressCallback) {
+            progressCallback(0, allFiles.length, allFiles.length);
+        }
+        
         // Check for extremely large workspaces and warn user
-        if (allFiles.length > 10000) {
+        if (allFiles.length > 3000) { // Lowered threshold for faster response
             this.debug.warning(`Large workspace detected: ${allFiles.length} files. This may take several minutes.`);
             
             // Consider showing a warning to the user
@@ -796,6 +1087,11 @@ export class LineCounterService {
             
             if (shouldContinue !== 'Continue') {
                 throw new Error('Operation cancelled by user due to large workspace size');
+            }
+            
+            // Check for cancellation after user dialog
+            if (cancellationToken?.isCancellationRequested) {
+                throw new Error('Operation was cancelled by user');
             }
         }
         
@@ -844,13 +1140,26 @@ export class LineCounterService {
             return safePatterns;
         };
         
+        // Cache settings by directory to avoid repeated lookups
+        const settingsCache = new Map<string, {exclude: string[], include: string[]}>();
+        
         for (const fileUri of allFiles) {
             const filePath = fileUri.fsPath;
             const relativePath = path.relative(workspacePath, filePath).replace(/\\/g, '/');
             
-            // Get path-specific patterns for this file (restored hierarchical settings)
-            let rawExcludePatterns = await pathBasedSettings.getExcludePatternsForPath(filePath);
-            let includePatterns = await pathBasedSettings.getIncludePatternsForPath(filePath);
+            // Get path-specific patterns for this file using directory-based caching
+            const dirPath = path.dirname(filePath);
+            let cachedSettings = settingsCache.get(dirPath);
+            
+            if (!cachedSettings) {
+                const rawExcludePatterns = await pathBasedSettings.getExcludePatternsForPath(filePath);
+                const includePatterns = await pathBasedSettings.getIncludePatternsForPath(filePath);
+                cachedSettings = { exclude: rawExcludePatterns, include: includePatterns };
+                settingsCache.set(dirPath, cachedSettings);
+            }
+            
+            let rawExcludePatterns = cachedSettings.exclude;
+            let includePatterns = cachedSettings.include;
             
             // Filter out problematic exclude patterns
             const excludePatterns = filterProblematicPatterns(rawExcludePatterns);
@@ -927,10 +1236,25 @@ export class LineCounterService {
             
             // For files not explicitly included via patterns, also check if they're binary
             if (shouldIncludeFile && !matchesInclusionPattern) {
-                // Check if file is binary (only if not explicitly included via pattern)
-                if (await this.isFileBinary(filePath)) {
-                    shouldIncludeFile = false;
-                    excludedCount++; // Count binary files as excluded
+                // Check if file is binary using centralized classification service
+                if (this.binaryClassificationService) {
+                    try {
+                        const result = await this.binaryClassificationService.classifyFile(filePath);
+                        if (!result.shouldInclude) {
+                            shouldIncludeFile = false;
+                            excludedCount++; // Count binary files as excluded
+                        }
+                    } catch (error) {
+                        this.debug.warning('Binary classification error for', filePath, '- assuming binary');
+                        shouldIncludeFile = false;
+                        excludedCount++;
+                    }
+                } else {
+                    // Fallback to simple binary detection if classification service not available
+                    if (await this.isFileBinary(filePath)) {
+                        shouldIncludeFile = false;
+                        excludedCount++; // Count binary files as excluded
+                    }
                 }
             }
             
@@ -979,70 +1303,102 @@ export class LineCounterService {
             includedExtensions: Array.from(includedExtensions).sort()
         });
         
-        this.debug.info('Starting line counting for filtered files...');
+        this.debug.info('Starting line counting for filtered files...', {
+            totalFilteredFiles: filteredFiles.length,
+            sampleFiles: filteredFiles.slice(0, 3)
+        });
         
-        // Now count lines for the filtered files using chunked processing
+        // Now count lines for the filtered files using adaptive chunked processing
         const fileInfos: FileInfo[] = [];
         let totalLines = 0;
         let totalFiles = 0;
         const languageStats: { [language: string]: { files: number; lines: number } } = {};
 
-        // Process files in chunks to prevent extension timeout
-        const CHUNK_SIZE = 50; // Process 50 files at a time
-        const YIELD_INTERVAL = 100; // Yield every 100ms
+        // Adaptive chunk size based on workspace size for optimal performance
+        const adaptiveChunkSize = this.calculateOptimalChunkSize(filteredFiles.length);
+        const CHUNK_SIZE = adaptiveChunkSize;
+        const YIELD_INTERVAL = 50; // Slightly longer interval for better throughput
         let lastYieldTime = Date.now();
         
-        const progressIncrement = Math.max(1, Math.floor(filteredFiles.length / 100));
+        this.debug.info('Performance optimization settings:', {
+            totalFilesToProcess: filteredFiles.length,
+            adaptiveChunkSize: CHUNK_SIZE,
+            yieldInterval: YIELD_INTERVAL
+        });
+        
+        const progressIncrement = Math.max(1, Math.floor(filteredFiles.length / 50)); // Update progress more frequently
         let processedCount = 0;
 
-        for (let i = 0; i < filteredFiles.length; i++) {
-            const filePath = filteredFiles[i];
+        // Process files in batches for better performance
+        for (let batchStart = 0; batchStart < filteredFiles.length; batchStart += CHUNK_SIZE) {
+            // IMMEDIATE cancellation check before each batch
+            if (cancellationToken?.isCancellationRequested) {
+                this.debug.info('Cancellation detected before processing batch at:', batchStart);
+                throw new Error('Operation was cancelled by user');
+            }
             
-            try {
-                this.debug.verbose(`Counting lines in: ${filePath}`);
-                const fileInfo = await this.countFileLines(filePath, workspacePath);
-                this.debug.verbose(`Line count result for ${filePath}:`, {
-                    lines: fileInfo.lines,
-                    language: fileInfo.language,
-                    fileSize: fileInfo.size || 'unknown'
-                });
-                
-                fileInfos.push(fileInfo);
-                
-                totalLines += fileInfo.lines;
-                totalFiles++;
-                processedCount++;
-                
-                // Update language statistics
-                if (!languageStats[fileInfo.language]) {
-                    languageStats[fileInfo.language] = { files: 0, lines: 0 };
-                }
-                languageStats[fileInfo.language].files++;
-                languageStats[fileInfo.language].lines += fileInfo.lines;
-                
-                // Yield control back to VS Code periodically to prevent timeout
-                const currentTime = Date.now();
-                if (currentTime - lastYieldTime > YIELD_INTERVAL || i % CHUNK_SIZE === 0) {
-                    // Update progress every chunk or time interval
-                    if (processedCount % progressIncrement === 0) {
-                        const progressPercent = Math.round((processedCount / filteredFiles.length) * 100);
-                        const filesRemaining = filteredFiles.length - processedCount;
-                        this.debug.info(`Progress: ${progressPercent}% (${processedCount}/${filteredFiles.length} files) - ${filesRemaining} files remaining`);
-                        
-                        // Call progress callback if provided
-                        if (progressCallback) {
-                            progressCallback(processedCount, filteredFiles.length, filesRemaining);
-                        }
-                    }
+            const batchEnd = Math.min(batchStart + CHUNK_SIZE, filteredFiles.length);
+            const batch = filteredFiles.slice(batchStart, batchEnd);
+            
+            // Process the batch concurrently for better I/O efficiency
+            const batchPromises = batch.map(async (filePath) => {
+                try {
+                    this.debug.verbose(`Counting lines in: ${filePath}`);
+                    const fileInfo = await this.countFileLines(filePath, workspacePath);
+                    this.debug.verbose(`Line count result for ${filePath}:`, {
+                        lines: fileInfo.lines,
+                        language: fileInfo.language,
+                        fileSize: fileInfo.size || 'unknown'
+                    });
                     
-                    // Yield control to VS Code event loop
-                    await new Promise(resolve => setImmediate(resolve));
-                    lastYieldTime = currentTime;
+                    return { success: true, fileInfo, filePath };
+                } catch (error) {
+                    this.debug.error(`Failed to count lines in ${filePath}:`, error);
+                    return { success: false, error, filePath };
+                }
+            });
+            
+            // Wait for all files in the batch to complete
+            const batchResults = await Promise.all(batchPromises);
+            
+            // Process results and update statistics
+            for (const result of batchResults) {
+                if (result.success && result.fileInfo) {
+                    fileInfos.push(result.fileInfo);
+                    totalLines += result.fileInfo.lines;
+                    totalFiles++;
+                    
+                    // Update language statistics
+                    if (!languageStats[result.fileInfo.language]) {
+                        languageStats[result.fileInfo.language] = { files: 0, lines: 0 };
+                    }
+                    languageStats[result.fileInfo.language].files++;
+                    languageStats[result.fileInfo.language].lines += result.fileInfo.lines;
+                }
+                processedCount++; // Count both successful and failed files for progress tracking
+            }
+            
+            // Update progress and yield after each batch
+            const currentTime = Date.now();
+            if (currentTime - lastYieldTime > YIELD_INTERVAL || batchStart === 0 || batchEnd >= filteredFiles.length) {
+                const progressPercent = Math.round((processedCount / filteredFiles.length) * 100);
+                const filesRemaining = filteredFiles.length - processedCount;
+                this.debug.info(`Progress: ${progressPercent}% (${processedCount}/${filteredFiles.length} files) - ${filesRemaining} files remaining`);
+                
+                // Call progress callback if provided
+                if (progressCallback) {
+                    progressCallback(processedCount, filteredFiles.length, filesRemaining);
                 }
                 
-            } catch (error) {
-                this.debug.error(`Failed to count lines in ${filePath}:`, error);
-                processedCount++; // Still count as processed for progress tracking
+                // Yield to event loop to keep VS Code responsive
+                await new Promise(resolve => setImmediate(resolve));
+                lastYieldTime = currentTime;
+                
+                // IMMEDIATE cancellation check after yielding
+                if (cancellationToken?.isCancellationRequested) {
+                    this.debug.info('Cancellation detected after yield in batch processing');
+                    throw new Error('Operation was cancelled by user');
+                }
             }
         }
         

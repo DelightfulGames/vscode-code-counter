@@ -57,6 +57,26 @@ export class CountLinesCommand {
     }
 
     /**
+     * Calculate estimated time of arrival
+     */
+    private calculateETA(startTime: number, processed: number, total: number): string {
+        if (processed === 0) return '';
+        
+        const elapsed = Date.now() - startTime;
+        const avgTimePerFile = elapsed / processed;
+        const remaining = total - processed;
+        const eta = remaining * avgTimePerFile;
+        
+        const seconds = Math.round(eta / 1000);
+        if (seconds < 60) {
+            return `${seconds}s`;
+        } else {
+            const minutes = Math.round(seconds / 60);
+            return `${minutes}m`;
+        }
+    }
+
+    /**
      * Get exclusion patterns for a workspace folder using hierarchical settings
      */
     private async getExclusionPatterns(workspacePath: string): Promise<string[]> {
@@ -135,25 +155,43 @@ export class CountLinesCommand {
                 const results = await vscode.window.withProgress({
                     location: vscode.ProgressLocation.Notification,
                     title: 'Code Counter',
-                    cancellable: false
-                }, async (progress) => {
+                    cancellable: true
+                }, async (progress, token) => {
                     progress.report({ message: 'Discovering files...', increment: 0 });
                     
                     // Add a small delay to let the progress UI show
                     await new Promise(resolve => setTimeout(resolve, 100));
                     
+                    // Check for early cancellation
+                    if (token.isCancellationRequested) {
+                        throw new Error('Operation was cancelled by user');
+                    }
+                    
                     progress.report({ message: 'Analyzing workspace and counting lines...', increment: 10 });
                     
+                    const startTime = Date.now();
                     const result = await this.lineCounter.countLinesWithPathBasedSettings(
                         folder.uri.fsPath,
                         (processed: number, total: number, remaining: number) => {
+                            // Check cancellation in progress callback
+                            if (token.isCancellationRequested) {
+                                throw new Error('Operation was cancelled by user');
+                            }
+                            
                             const percent = Math.round((processed / total) * 100);
+                            const eta = this.calculateETA(startTime, processed, total);
                             progress.report({ 
-                                message: `${percent}% complete - ${remaining} files remaining (${processed}/${total})`,
+                                message: `${percent}% complete - ${remaining} files remaining${eta ? ` - ETA: ${eta}` : ''}`,
                                 increment: percent 
                             });
-                        }
+                        },
+                        token // Pass the cancellation token
                     );
+                    
+                    // Final cancellation check
+                    if (token.isCancellationRequested) {
+                        throw new Error('Operation was cancelled by user');
+                    }
                     
                     progress.report({ message: 'Processing complete!', increment: 100 });
                     return result;
