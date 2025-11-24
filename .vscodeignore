@@ -13,7 +13,10 @@ vsc-extension-quickstart.md
 coverage/
 test/**
 docs/**
+marketplace/**
+!marketplace/images/codeCounter-icon.png
 *.vsix
+debug.log
 
 # Exclude most node_modules but include specific runtime dependencies
 node_modules/**
@@ -35,6 +38,7 @@ node_modules/**
 !node_modules/@isaacs/brace-expansion/**
 !node_modules/@isaacs/balanced-match/**
 
+
 # Include dependency chains for minification libraries
 !node_modules/commander/**
 !node_modules/source-map/**
@@ -48,6 +52,24 @@ node_modules/**
 !node_modules/no-case/**
 !node_modules/upper-case/**
 !node_modules/upper-case-first/**
+!node_modules/dot-case/**
+
+# Include additional runtime dependencies
+!node_modules/acorn/**
+!node_modules/buffer-from/**
+!node_modules/source-map-js/**
+
+# file-type dependencies
+!node_modules/@tokenizer/**
+!node_modules/strtok3/**
+!node_modules/token-types/**
+!node_modules/debug/**
+!node_modules/ms/**
+!node_modules/fflate/**
+!node_modules/ieee754/**
+!node_modules/uint8array-extras/**
+!node_modules/@borewit/text-codec/**
+!node_modules/tslib/**
 
 # Exclude unnecessary files from included dependencies
 node_modules/**/test/**
@@ -63,3 +85,16 @@ node_modules/**/CHANGELOG*
 node_modules/**/README*
 node_modules/**/.nyc_output/**
 node_modules/**/coverage/**
+
+# But keep essential binary files
+!node_modules/sql.js/dist/*.wasm
+!node_modules/**/*.wasm
+!node_modules/**/*.node
+
+# Include essential runtime files
+!templates/**
+!out/**
+!package.json
+!README.md
+!CHANGELOG.md
+!LICENSE
