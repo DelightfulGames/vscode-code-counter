@@ -16,6 +16,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-11-23
+
+### 🔧 Binary Detection & Classification Improvements
+
+#### 🛠️ Enhanced Binary File Detection
+- **Centralized Binary Classification Service**: Implemented unified `BinaryClassificationService` for consistent binary file detection across all extension components
+  - Three-tier priority system: file extension analysis, magic number detection, and heuristic analysis
+  - Proper detection of PNG, JPEG, GIF, PDF, executable, and archive files
+  - Consistent exclusion of binary files from line counting reports
+- **Improved File Type Detection**: Enhanced binary file classification with `file-type` library integration
+  - Magic number (file signature) detection for reliable binary classification
+  - Support for image files (PNG, JPEG, GIF, WebP, TIFF, BMP, ICO)
+  - Archive and executable file detection (ZIP, RAR, EXE, DLL, etc.)
+  - Database and media file recognition
+
+#### 🗂️ Path Normalization & Windows Compatibility
+- **Windows Path Handling**: Fixed case sensitivity issues on Windows file systems
+  - Implemented path normalization in `PathBasedSettingsService` for consistent Map lookups
+  - Added `normalizePath()` method for case-insensitive path handling
+  - Resolved workspace settings resolution issues on Windows
+- **File Explorer Integration**: Enhanced exclusion pattern support in file decorations
+  - Added proper exclusion pattern checking in `FileExplorerDecorationProvider`
+  - Files matching exclusion patterns no longer show line count decorations
+  - Improved integration between settings service and file decoration logic
+
+#### 🧪 Test Suite Reliability
+- **Complete Test Coverage**: Restored full test suite functionality with 280/280 tests passing
+  - Fixed path normalization test issues on Windows
+  - Enhanced test setup with proper workspace folder handling
+  - Improved mock configurations for consistent test environments
+- **Binary Detection Testing**: Comprehensive test coverage for new binary classification system
+  - Unit tests for all binary detection methods
+  - Integration tests for file exclusion workflows
+  - Cross-platform compatibility testing
+
+### Fixed
+- **🖼️ Image File Exclusion**: PNG and other image files are now properly excluded from line counting reports
+- **📁 Windows Path Issues**: Resolved case sensitivity problems causing settings lookup failures on Windows
+- **🎯 File Decoration Logic**: Fixed exclusion patterns not being applied to file explorer decorations
+- **⚙️ Extension Packaging**: Updated `.vscodeignore` to include all necessary runtime dependencies while maintaining optimal package size
+
+### Enhanced
+- **Binary Detection Accuracy**: More reliable classification of binary vs text files
+- **Cross-Platform Compatibility**: Better support for Windows, macOS, and Linux file systems
+- **Performance Optimization**: Centralized services reduce redundant file system operations
+- **Code Architecture**: Cleaner separation of concerns with dedicated binary classification service
+
+### Technical
+- Implemented centralized `BinaryClassificationService` with priority-based detection
+- Added path normalization utilities for consistent cross-platform behavior
+- Enhanced file decoration provider with exclusion pattern integration
+- Comprehensive dependency management in extension packaging
+- Full test suite restoration with improved Windows compatibility
+
 ## [1.1.0] - 2025-11-09
 
 ### 🎉 Major Feature Release: Professional Reporting & Interactive Analytics

@@ -138,7 +138,7 @@ export class FileExplorerDecorationProvider implements vscode.FileDecorationProv
     private async handleSettingsChange(): Promise<void> {
         this.debug.info('Starting async settings change handler');
         
-        // Show warning for large workspaces and allow user to cancel
+        // Handle settings changes for workspaces of all sizes
         if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
             const workspaceFolder = vscode.workspace.workspaceFolders[0];
             this.debug.info('Found workspace folder:', workspaceFolder.uri.fsPath);

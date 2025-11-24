@@ -1073,26 +1073,9 @@ export class LineCounterService {
             progressCallback(0, allFiles.length, allFiles.length);
         }
         
-        // Check for extremely large workspaces and warn user
-        if (allFiles.length > 3000) { // Lowered threshold for faster response
-            this.debug.warning(`Large workspace detected: ${allFiles.length} files. This may take several minutes.`);
-            
-            // Consider showing a warning to the user
-            const shouldContinue = await vscode.window.showWarningMessage(
-                `Large workspace detected (${allFiles.length} files). This may take several minutes and could impact VS Code performance. Continue?`,
-                { modal: true },
-                'Continue',
-                'Cancel'
-            );
-            
-            if (shouldContinue !== 'Continue') {
-                throw new Error('Operation cancelled by user due to large workspace size');
-            }
-            
-            // Check for cancellation after user dialog
-            if (cancellationToken?.isCancellationRequested) {
-                throw new Error('Operation was cancelled by user');
-            }
+        // Check for cancellation before processing
+        if (cancellationToken?.isCancellationRequested) {
+            throw new Error('Operation was cancelled by user');
         }
         
         // Fallback: If VS Code findFiles returns nothing, use Node.js file system
